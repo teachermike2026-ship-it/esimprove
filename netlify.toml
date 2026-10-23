@@ -1,0 +1,18 @@
+# Netlify build configuration for the local/demo implementation.
+#
+# No Netlify site, deploy, DNS record, or environment variable exists yet.
+# Do not treat this file as evidence of a deployment. The domain is not owned.
+#
+# Netlify's Next.js integration handles the App Router build output. Keep the
+# build command aligned with package.json and pin a supported Node LTS version.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--no-audit --no-fund"
+
+# Application security headers are also set in next.config.ts so local
+# `next start` behaves like the deployed app. Netlify may add its own headers.

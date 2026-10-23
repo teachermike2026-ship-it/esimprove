@@ -1,0 +1,72 @@
+# Dependencies and build output
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Environment files — never commit secrets
+.env
+.env.*
+!.env.example
+!.env.test.example
+
+# Netlify
+.netlify/
+.netlify-cli/
+
+# Test and coverage output
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+.pglite/
+.pgdata/
+*.lcov
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Caches and temporary files
+.cache/
+.tmp/
+tmp/
+temp/
+
+# Local databases, dumps, backups, exports
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.sql.gz
+backups/
+exports/
+
+# Secrets and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+id_rsa*
+id_ed25519*
+.env.vault
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+# Sentry / tooling
+.sentryclirc
+.sentry/

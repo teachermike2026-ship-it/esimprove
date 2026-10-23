@@ -1,0 +1,14 @@
+process.env.APP_ENV = "test";
+process.env.DEMO_MODE = "true";
+process.env.SEED_DEMO_DATA = "true";
+process.env.SITE_URL = "http://localhost:3000";
+process.env.AUTH_SECRET = "test-auth-secret-that-is-at-least-32-characters";
+process.env.ACTIVATION_KEK_V1 = Buffer.alloc(32, 7).toString("base64");
+process.env.ACTIVATION_KEK_ACTIVE_VERSION = "1";
+process.env.MOCK_PAYMENT_WEBHOOK_SECRET = "test-mock-webhook-secret";
+process.env.INTERNAL_JOB_SECRET = "test-internal-job-secret";
+process.env.RATE_LIMIT_HASH_SECRET = "test-rate-limit-hash-secret";
+process.env.DEMO_ADMIN_EMAIL = "admin@demo.local";
+process.env.DEMO_ADMIN_PASSWORD = "DemoAdmin!2345";
+process.env.DEMO_ADMIN_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
+process.env.MOCK_SUPPLIER_FAIL_ONCE = "false";
