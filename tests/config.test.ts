@@ -18,6 +18,7 @@ const SAFE_ENV: Record<string, string> = {
   MOCK_PAYMENT_WEBHOOK_SECRET: "production-webhook-secret",
   INTERNAL_JOB_SECRET: "production-internal-job-secret",
   RATE_LIMIT_HASH_SECRET: "production-rate-limit-secret",
+  ANALYTICS_HASH_SECRET: "production-analytics-hash-secret-distinct",
   ADMIN_2FA_REQUIRED: "true",
   PAYMENTS_LIVE_ENABLED: "false",
   SUPPLIER_LIVE_ENABLED: "false",
@@ -116,5 +117,25 @@ describe("production configuration safety", () => {
     stub({ SUPPLIER_CREDENTIAL_ALLOW_ACTIVATION_KEK_FALLBACK: "true" });
     const { assertProductionSafe } = await import("@/lib/config");
     expect(() => assertProductionSafe()).toThrow(/must be false in production/);
+  });
+
+  it("requires a dedicated analytics hash secret in a deployed environment", async () => {
+    stub({ ANALYTICS_HASH_SECRET: "" });
+    const { analyticsHashSecret, assertProductionSafe } = await import("@/lib/config");
+    expect(() => analyticsHashSecret()).toThrow(/ANALYTICS_HASH_SECRET must be at least 32 characters/);
+    expect(() => assertProductionSafe()).toThrow(/ANALYTICS_HASH_SECRET/);
+  });
+
+  it("rejects an analytics hash secret that reuses the rate limit or auth secret", async () => {
+    stub({
+      ANALYTICS_HASH_SECRET: "production-rate-limit-secret-0123456789",
+      RATE_LIMIT_HASH_SECRET: "production-rate-limit-secret-0123456789",
+    });
+    const { assertProductionSafe } = await import("@/lib/config");
+    expect(() => assertProductionSafe()).toThrow(/distinct from RATE_LIMIT_HASH_SECRET/);
+
+    stub({ ANALYTICS_HASH_SECRET: "a-production-auth-secret-that-is-long-enough" });
+    const { assertProductionSafe: assertSafeAgain } = await import("@/lib/config");
+    expect(() => assertSafeAgain()).toThrow(/distinct from AUTH_SECRET/);
   });
 });

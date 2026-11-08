@@ -8,16 +8,33 @@ import {
 import { siteUrl } from "@/lib/config";
 import { hasAnalyticsConsent, isConsentId } from "@/lib/consent";
 import { loadLegalSettings } from "@/lib/legal";
+import {
+  REQUEST_RATE_LIMITS,
+  checkRequestRateLimit,
+} from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 32 * 1024;
 
-const noStoreHeaders: HeadersInit = {
+const noStoreHeaders: Record<string, string> = {
   "Cache-Control": "no-store, max-age=0",
   "X-Robots-Tag": "noindex, nofollow",
 };
+
+function rateLimited(): NextResponse {
+  return NextResponse.json(
+    { ok: false, error: "rate_limited" },
+    {
+      status: 429,
+      headers: {
+        ...noStoreHeaders,
+        "Retry-After": String(REQUEST_RATE_LIMITS.analyticsTrack.windowSeconds),
+      },
+    },
+  );
+}
 
 function corsSafeOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
@@ -65,6 +82,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "payload_too_large" }, { status: 413, headers: noStoreHeaders });
   }
 
+  // The counter is stored in PostgreSQL, so the same window applies on every
+  // serverless instance. This runs before body parsing and consent lookup.
+  let db: Awaited<ReturnType<typeof getDb>>;
+  try {
+    db = await getDb();
+    const rate = await checkRequestRateLimit(db, "analyticsTrack", request.headers);
+    if (!rate.allowed) return rateLimited();
+  } catch (error) {
+    console.error("Analytics collection failed", error instanceof Error ? error.name : "unknown");
+    return NextResponse.json({ ok: false, error: "collection_failed" }, { status: 503, headers: noStoreHeaders });
+  }
+
   let body: unknown;
   try {
     const text = await request.text();
@@ -96,7 +125,6 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const db = await getDb();
     const legalSettings = await loadLegalSettings(db);
     const consented = await hasAnalyticsConsent(
       db,

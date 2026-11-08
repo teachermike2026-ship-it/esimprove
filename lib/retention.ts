@@ -10,13 +10,19 @@ import {
 /**
  * Single source of truth for automated analytics retention.
  *
- * The values match the Phase 5 seed data in migration 0006:
+ * `data_retention_settings` is authoritative. The TypeScript defaults below are
+ * fallback-only values for an unmigrated or incomplete database, and they are
+ * deliberately identical to the approved seeds in migration 0006:
  * - raw analytics events: 395 days
  * - aggregated sessions and visitors: 730 days
  *
  * Operators can change the values in data_retention_settings (Admin -> Legal &
  * compliance). The environment variable ANALYTICS_RETENTION_DAYS was removed
  * because it could silently disagree with the reviewed database policy.
+ *
+ * Consent validity (CONSENT_VALIDITY_DAYS = 180 in lib/legal.ts) is a separate
+ * policy. It controls how long a consent record may be relied on; it never
+ * changes how long analytics data is retained.
  */
 
 export const ANALYTICS_RETENTION_KEYS = [
@@ -30,6 +36,11 @@ export const DEFAULT_ANALYTICS_RETENTION_DAYS = {
   analytics_events: 395,
   analytics_aggregates: 730,
 } as const satisfies Record<AnalyticsRetentionKey, number>;
+
+export const MIN_RETENTION_DAYS = 1;
+// An explicit upper bound prevents a typo or direct database edit from turning
+// a cleanup rule into an accidental no-op (or an integer overflow).
+export const MAX_RETENTION_DAYS = 36500;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -51,14 +62,23 @@ export function isAnalyticsRetentionKey(
 }
 
 /**
- * Retention periods are positive whole days. A zero, negative, fractional, or
- * non-numeric value is invalid and falls back to the reviewed default rather
- * than deleting everything or silently disabling cleanup.
+ * Retention periods are positive whole days within the supported range. A
+ * zero, negative, fractional, out-of-range, or non-numeric value is invalid and
+ * falls back to the reviewed default rather than deleting everything or
+ * silently disabling cleanup.
  */
 export function normalizeRetentionDays(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   const days = Math.floor(value);
-  return days >= 1 ? days : null;
+  return isRetentionDaysInRange(days) ? days : null;
+}
+
+export function isRetentionDaysInRange(value: number): boolean {
+  return (
+    Number.isInteger(value) &&
+    value >= MIN_RETENTION_DAYS &&
+    value <= MAX_RETENTION_DAYS
+  );
 }
 
 export async function loadAnalyticsRetentionPolicy(

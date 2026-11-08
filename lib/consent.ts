@@ -7,6 +7,7 @@ import {
   type CookieConsentRow,
 } from "@/lib/db/schema";
 import { hmacHex } from "@/lib/crypto";
+import { analyticsHashSecret } from "@/lib/config";
 import { newId } from "@/lib/ids";
 import {
   CONSENT_VALIDITY_DAYS,
@@ -20,21 +21,12 @@ export function isConsentId(value: unknown): value is string {
   return typeof value === "string" && CONSENT_ID_PATTERN.test(value);
 }
 
-function consentSecret(): string {
-  return (
-    process.env.ANALYTICS_HASH_SECRET ||
-    process.env.RATE_LIMIT_HASH_SECRET ||
-    process.env.AUTH_SECRET ||
-    "local-consent-hash-secret"
-  );
-}
-
 /**
  * The browser holds a random, pseudonymous consent id. The server stores only
  * an HMAC of that id, never the raw value and never a raw IP address.
  */
 export function hashConsentSubject(consentId: string): string {
-  return hmacHex(consentId, consentSecret());
+  return hmacHex(consentId, analyticsHashSecret());
 }
 
 export interface RecordCookieConsentInput {

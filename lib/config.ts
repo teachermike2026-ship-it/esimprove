@@ -150,6 +150,17 @@ function validateSharedDeploymentSecrets(problems: string[]): void {
   if (!process.env.RATE_LIMIT_HASH_SECRET) {
     problems.push("RATE_LIMIT_HASH_SECRET is required");
   }
+  const analyticsHashSecret = process.env.ANALYTICS_HASH_SECRET;
+  if (!analyticsHashSecret || analyticsHashSecret.length < 32) {
+    problems.push("ANALYTICS_HASH_SECRET must be at least 32 characters");
+  } else {
+    if (analyticsHashSecret === process.env.RATE_LIMIT_HASH_SECRET) {
+      problems.push("ANALYTICS_HASH_SECRET must be distinct from RATE_LIMIT_HASH_SECRET");
+    }
+    if (analyticsHashSecret === process.env.AUTH_SECRET) {
+      problems.push("ANALYTICS_HASH_SECRET must be distinct from AUTH_SECRET");
+    }
+  }
 }
 
 function validateLiveFlags(problems: string[]): void {
@@ -277,6 +288,23 @@ export function rateLimitHashSecret(): string {
     throw new Error("RATE_LIMIT_HASH_SECRET is required in a deployed environment");
   }
   return "local-demo-only-rate-limit-secret";
+}
+
+/**
+ * Dedicated key for pseudonymising analytics visitor/session identifiers and
+ * consent subjects. It must not fall back to the rate-limit, auth, or
+ * activation secrets in a deployed environment: rotating or leaking one key
+ * must not silently affect the other identifiers.
+ */
+export function analyticsHashSecret(): string {
+  const value = process.env.ANALYTICS_HASH_SECRET;
+  if (value && value.length >= 32) return value;
+  if (isDeployed) {
+    throw new Error(
+      "ANALYTICS_HASH_SECRET must be at least 32 characters in a deployed environment",
+    );
+  }
+  return "local-demo-only-analytics-hash-secret";
 }
 
 export function sessionCookieName(): string {

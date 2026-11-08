@@ -20,6 +20,19 @@ import { makeTestDb } from "./helpers/db";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW = Date.now();
 
+async function readSeededRetention(handle: DatabaseHandle) {
+  const rows = await handle.db
+    .select({
+      dataKey: dataRetentionSettings.dataKey,
+      retentionDays: dataRetentionSettings.retentionDays,
+      enabled: dataRetentionSettings.enabled,
+    })
+    .from(dataRetentionSettings)
+    .where(inArray(dataRetentionSettings.dataKey, [...ANALYTICS_RETENTION_KEYS]));
+  const byKey = new Map(rows.map((row) => [row.dataKey, row]));
+  return byKey;
+}
+
 function daysAgo(days: number): Date {
   return new Date(NOW - days * DAY_MS);
 }
@@ -119,6 +132,11 @@ describe("analytics retention policy", () => {
 
   beforeAll(async () => {
     handle = await makeTestDb();
+    const seeded = await readSeededRetention(handle);
+    const seededEvents = seeded.get("analytics_events");
+    const seededAggregates = seeded.get("analytics_aggregates");
+    expect(seededEvents?.retentionDays).toBe(DEFAULT_ANALYTICS_RETENTION_DAYS.analytics_events);
+    expect(seededAggregates?.retentionDays).toBe(DEFAULT_ANALYTICS_RETENTION_DAYS.analytics_aggregates);
   });
 
   beforeEach(async () => {
@@ -164,6 +182,26 @@ describe("analytics retention policy", () => {
     expect(normalizeRetentionDays(12.9)).toBe(12);
     expect(normalizeRetentionDays(Number.NaN)).toBeNull();
     expect(normalizeRetentionDays("30")).toBeNull();
+  });
+
+  it("accepts reviewed retention windows and rejects values beyond the policy ceiling", () => {
+    expect(normalizeRetentionDays(DEFAULT_ANALYTICS_RETENTION_DAYS.analytics_events)).toBe(
+      DEFAULT_ANALYTICS_RETENTION_DAYS.analytics_events,
+    );
+    expect(normalizeRetentionDays(DEFAULT_ANALYTICS_RETENTION_DAYS.analytics_aggregates)).toBe(
+      DEFAULT_ANALYTICS_RETENTION_DAYS.analytics_aggregates,
+    );
+    expect(normalizeRetentionDays(36500)).toBe(36500);
+    expect(normalizeRetentionDays(36501)).toBeNull();
+  });
+
+  it("keeps consent validity separate from the analytics retention defaults", async () => {
+    const { CONSENT_VALIDITY_DAYS } = await import("@/lib/legal");
+    // The consent policy is defined in lib/legal.ts and is a maximum age for a
+    // stored choice; it must not be confused with a data-retention period.
+    expect(CONSENT_VALIDITY_DAYS).toBe(180);
+    expect(DEFAULT_ANALYTICS_RETENTION_DAYS.analytics_events).not.toBe(CONSENT_VALIDITY_DAYS);
+    expect(DEFAULT_ANALYTICS_RETENTION_DAYS.analytics_aggregates).not.toBe(CONSENT_VALIDITY_DAYS);
   });
 
   it("uses the 0006 seed defaults when retention rows are missing", async () => {

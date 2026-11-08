@@ -452,10 +452,13 @@ These are proposals, not legal conclusions. Retention must be reconciled with ta
 | Activation data | While eSIM is active + 12 months (proposal) | Then crypto-shred or delete; reinstall policy may require longer |
 | Support tickets | 3 years after closure (proposal) | Legal holds override |
 | Marketing consent | Until withdrawal + evidence period | Must preserve proof |
-| Analytics | 90–180 days (proposal) | Consent-gated; no PII |
+| Analytics raw events | 395 days (approved database setting; default) | Consent-gated; no PII |
+| Analytics aggregates | 730 days (approved database setting; default) | HMAC identifiers only; consent-gated |
 | Security/audit logs | 1–2 years (proposal) | Immutable, access restricted |
 | Backups | 30–35 days (proposal) | Encrypted; documented RPO/RTO |
 | Guest access tokens | 7–30 days (proposal) | Re-issuable; underlying credential not deleted |
+
+The authoritative source for automated analytics retention is `data_retention_settings` (Admin -> Legal & compliance); the TypeScript defaults mirror the migration seeds and are fallback-only. Consent validity (180 days) is a separate policy that controls how long a stored consent choice may be relied on, and is not itself a retention period.
 
 A privacy deletion request anonymises customer identity while retaining legally required financial records and preventing fraud; it must not delete audit/legal-hold data blindly.
 

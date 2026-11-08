@@ -30,7 +30,12 @@ import {
 } from "@/lib/privacy-requests";
 import { unsubscribeEmailAsAdmin } from "@/lib/email-subscriptions";
 import { emailSchema, normalizeEmail } from "@/lib/validation";
-import { isAnalyticsRetentionKey } from "@/lib/retention";
+import {
+  isAnalyticsRetentionKey,
+  isRetentionDaysInRange,
+  MAX_RETENTION_DAYS,
+  MIN_RETENTION_DAYS,
+} from "@/lib/retention";
 
 type Update = Partial<typeof legalSettings.$inferInsert>;
 
@@ -353,8 +358,10 @@ export async function saveRetentionAction(formData: FormData): Promise<void> {
   let retentionDays: number | null = null;
   if (retentionRaw) {
     const value = Number(retentionRaw);
-    if (!Number.isInteger(value) || value < 1 || value > 36500) {
-      fail("Retention days must be a whole number between 1 and 36500, or blank.");
+    if (!isRetentionDaysInRange(value)) {
+      fail(
+        `Retention days must be a whole number between ${MIN_RETENTION_DAYS} and ${MAX_RETENTION_DAYS}, or blank.`,
+      );
     }
     retentionDays = value;
   }

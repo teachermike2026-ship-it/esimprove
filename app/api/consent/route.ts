@@ -3,6 +3,10 @@ import { getDb } from "@/lib/db/client";
 import { recordCookieConsent, isConsentId } from "@/lib/consent";
 import { loadLegalSettings } from "@/lib/legal";
 import { siteUrl } from "@/lib/config";
+import {
+  REQUEST_RATE_LIMITS,
+  checkRequestRateLimit,
+} from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,10 +14,23 @@ export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 8 * 1024;
 const ACTIONS = new Set(["accept_all", "reject_non_essential", "custom", "withdraw"]);
 
-const noStoreHeaders: HeadersInit = {
+const noStoreHeaders: Record<string, string> = {
   "Cache-Control": "no-store, max-age=0",
   "X-Robots-Tag": "noindex, nofollow",
 };
+
+function rateLimited(): NextResponse {
+  return NextResponse.json(
+    { ok: false, error: "rate_limited" },
+    {
+      status: 429,
+      headers: {
+        ...noStoreHeaders,
+        "Retry-After": String(REQUEST_RATE_LIMITS.consent.windowSeconds),
+      },
+    },
+  );
+}
 
 function corsSafeOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
@@ -50,6 +67,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { ok: false, error: "payload_too_large" },
       { status: 413, headers: noStoreHeaders },
+    );
+  }
+
+  // The counter is stored in PostgreSQL, so the same window applies on every
+  // serverless instance. This runs before JSON parsing and consent writes.
+  let db: Awaited<ReturnType<typeof getDb>>;
+  try {
+    db = await getDb();
+    const rate = await checkRequestRateLimit(db, "consent", request.headers);
+    if (!rate.allowed) return rateLimited();
+  } catch (error) {
+    console.error("Consent record failed", error instanceof Error ? error.name : "unknown");
+    return NextResponse.json(
+      { ok: false, error: "consent_record_failed" },
+      { status: 503, headers: noStoreHeaders },
     );
   }
 
@@ -105,7 +137,6 @@ export async function POST(request: NextRequest) {
   const categoryRecord = categories as Record<string, unknown>;
 
   try {
-    const db = await getDb();
     const settings = await loadLegalSettings(db);
     if (record.consentVersion !== settings.cookieConsentVersion) {
       return NextResponse.json(

@@ -1,4 +1,3 @@
-import { createHmac } from "node:crypto";
 import {
   and,
   desc,
@@ -15,6 +14,8 @@ import {
   analyticsVisitors,
 } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
+import { analyticsHashSecret } from "@/lib/config";
+import { hmacHex } from "@/lib/crypto";
 
 /* -------------------------------------------------------------------------- */
 /* Event definitions and validation                                           */
@@ -127,16 +128,11 @@ export function validateTrackingPayload(input: unknown): TrackingPayload | null 
 /* -------------------------------------------------------------------------- */
 
 function analyticsSecret(): string {
-  return (
-    process.env.ANALYTICS_HASH_SECRET ||
-    process.env.RATE_LIMIT_HASH_SECRET ||
-    process.env.AUTH_SECRET ||
-    "local-analytics-hash-secret"
-  );
+  return analyticsHashSecret();
 }
 
 export function hashIdentifier(value: string): string {
-  return createHmac("sha256", analyticsSecret()).update(value).digest("hex");
+  return hmacHex(value, analyticsSecret());
 }
 
 export function classifyReferrer(referrer: string | null | undefined): {

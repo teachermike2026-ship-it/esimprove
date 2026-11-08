@@ -1,8 +1,10 @@
 import type { NextConfig } from "next";
+import { buildContentSecurityPolicy } from "./lib/security-headers";
 
 // HSTS is emitted only for a production build; preview and local HTTP must not
 // pin HSTS in a browser.
 const isProductionBuild = (process.env.APP_ENV ?? "").trim().toLowerCase() === "production";
+const isDevelopment = process.env.NODE_ENV !== "production";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -25,7 +27,10 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Content-Security-Policy",
-            value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+            value: buildContentSecurityPolicy({
+              development: isDevelopment,
+              upgradeInsecureRequests: isProductionBuild,
+            }),
           },
           { key: "X-DNS-Prefetch-Control", value: "off" },
           ...(isProductionBuild

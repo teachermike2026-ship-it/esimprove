@@ -5,7 +5,7 @@ import { safeEqual } from "@/lib/crypto";
 import { runOutboxAndJobs } from "@/lib/fulfillment";
 import { recordAudit } from "@/lib/audit";
 import { publishDueScheduledArticles } from "@/lib/blog-schedule";
-import { cleanupAnalytics } from "@/lib/analytics-web";
+import { cleanupAnalytics } from "@/lib/retention";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

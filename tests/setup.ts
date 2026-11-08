@@ -10,6 +10,7 @@ process.env.SUPPLIER_CREDENTIAL_ALLOW_ACTIVATION_KEK_FALLBACK = "true";
 process.env.MOCK_PAYMENT_WEBHOOK_SECRET = "test-mock-webhook-secret";
 process.env.INTERNAL_JOB_SECRET = "test-internal-job-secret";
 process.env.RATE_LIMIT_HASH_SECRET = "test-rate-limit-hash-secret";
+process.env.ANALYTICS_HASH_SECRET = "test-analytics-hash-secret-at-least-32-chars";
 process.env.DEMO_ADMIN_EMAIL = "admin@demo.local";
 process.env.DEMO_ADMIN_PASSWORD = "DemoAdmin!2345";
 process.env.DEMO_ADMIN_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
