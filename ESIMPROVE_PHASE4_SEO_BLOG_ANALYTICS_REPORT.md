@@ -190,7 +190,7 @@ Nothing below is automated by the code. Each item needs owner action.
 | Sitemap submission/indexing | Google Search Console | Any indexing claim |
 | Optional GA4 | Admin → SEO & CMS | Third-party analytics (not used for the first-party dashboard) |
 | Analytics HMAC secret | `ANALYTICS_HASH_SECRET` | Stable anonymous hashing per context |
-| Analytics retention | `ANALYTICS_RETENTION_DAYS` (optional, default 90) | Retention policy |
+| Analytics retention | `data_retention_settings` (395 days raw events, 730 days aggregates) | Retention policy; managed in Admin → Legal & compliance |
 | Tracking kill switch | `NEXT_PUBLIC_ANALYTICS_DISABLED` (optional) | Emergency disable |
 | Scheduled publishing and retention | External scheduler or Netlify scheduled function calling `POST /api/jobs/run` | Automatic publishing/cleanup |
 | Blog media | External HTTPS host/CDN | Editor image workflow |

@@ -9,7 +9,7 @@ import {
 import { hmacHex } from "@/lib/crypto";
 import { newId } from "@/lib/ids";
 import {
-  ANALYTICS_RETENTION_DAYS,
+  CONSENT_VALIDITY_DAYS,
   type ConsentAction,
   type ConsentCategories,
 } from "@/lib/legal";
@@ -126,7 +126,7 @@ export async function hasAnalyticsConsent(
   if (!row.analytics) return false;
   if (row.consentVersion !== currentVersion) return false;
   const ageMs = now.getTime() - row.updatedAt.getTime();
-  return ageMs <= ANALYTICS_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  return ageMs <= CONSENT_VALIDITY_DAYS * 24 * 60 * 60 * 1000;
 }
 
 export interface RecordConsentEventInput {

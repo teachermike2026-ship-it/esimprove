@@ -2,6 +2,7 @@
 
 import { CheckIcon } from "@/components/icons";
 import { formatLegalDate, legalStatusLabel, legalStatusTone } from "@/lib/legal-assets";
+import type { AnalyticsRetentionPolicy } from "@/lib/retention";
 import { CookieSettingsButton } from "@/components/analytics-tracker";
 
 export function AdminLegalDashboard({
@@ -10,6 +11,7 @@ export function AdminLegalDashboard({
   thirdParties,
   assets,
   retention,
+  analyticsRetention,
   reviews,
   readiness,
   consentEvents,
@@ -22,6 +24,7 @@ export function AdminLegalDashboard({
   thirdParties: any[];
   assets: any[];
   retention: any[];
+  analyticsRetention: AnalyticsRetentionPolicy;
   reviews: any[];
   readiness: any[];
   consentEvents: any[];
@@ -62,7 +65,11 @@ export function AdminLegalDashboard({
       <p>Latest action: {cookieConsents[0]?.action || "none"} · Version: {cookieConsents[0]?.consentVersion || "none"}</p>
 
       <h3>Retention settings</h3>
-      <p>Summary table would go here - rows from lib/legal-assets listRetentionSettings</p>
+      <p>
+        Automated analytics policy: raw events {analyticsRetention.eventsDays} days (
+        {analyticsRetention.eventsSource}); aggregated sessions and visitors{" "}
+        {analyticsRetention.aggregatesDays} days ({analyticsRetention.aggregatesSource}).
+      </p>
 
       <h3>Consent events history</h3>
       <p>Most recent events recorded in consent_events table.</p>

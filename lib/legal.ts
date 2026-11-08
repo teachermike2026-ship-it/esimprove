@@ -292,7 +292,12 @@ export const LEGACY_CONSENT_STORAGE_KEY = "es_analytics_consent";
 export const CONSENT_CHANGE_EVENT = "esimprove-consent-change";
 export const CONSENT_OPEN_EVENT = "esimprove-open-consent";
 export const CONSENT_RECORD_ENDPOINT = "/api/consent";
-export const ANALYTICS_RETENTION_DAYS = 180;
+/**
+ * Maximum age of a server-side cookie-consent record before it must be renewed.
+ * This is consent validity, not analytics retention; the two policies are
+ * deliberately separate.
+ */
+export const CONSENT_VALIDITY_DAYS = 180;
 
 export type ConsentAction = "accept_all" | "reject_non_essential" | "custom" | "withdraw";
 

@@ -325,32 +325,15 @@ export async function recordAnalyticsEvents(
   return { ok: true, accepted: payload.events.length, internal };
 }
 
-/** Delete analytics data older than the configured retention window. */
-export async function cleanupAnalytics(db: Database, retentionDays = 90): Promise<{
-  events: number;
-  sessions: number;
-  visitors: number;
-}> {
-  const days = Math.min(365, Math.max(7, retentionDays));
-  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const deletedEvents = await db
-    .delete(analyticsEvents)
-    .where(lt(analyticsEvents.createdAt, cutoff))
-    .returning({ id: analyticsEvents.id });
-  const deletedSessions = await db
-    .delete(analyticsSessions)
-    .where(lt(analyticsSessions.lastSeen, cutoff))
-    .returning({ id: analyticsSessions.id });
-  const deletedVisitors = await db
-    .delete(analyticsVisitors)
-    .where(lt(analyticsVisitors.lastSeen, cutoff))
-    .returning({ id: analyticsVisitors.id });
-  return {
-    events: deletedEvents.length,
-    sessions: deletedSessions.length,
-    visitors: deletedVisitors.length,
-  };
-}
+/**
+ * Retention cleanup lives in lib/retention.ts so that the job route, the legal
+ * admin UI, and the analytics module share one policy source.
+ */
+export { cleanupAnalytics } from "@/lib/retention";
+export type {
+  AnalyticsCleanupOverrides,
+  AnalyticsCleanupResult,
+} from "@/lib/retention";
 
 /* -------------------------------------------------------------------------- */
 /* Reporting                                                                  */

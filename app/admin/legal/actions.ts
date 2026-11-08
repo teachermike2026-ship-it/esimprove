@@ -29,10 +29,9 @@ import {
 } from "@/lib/privacy-requests";
 import { unsubscribeEmailAsAdmin } from "@/lib/email-subscriptions";
 import { emailSchema, normalizeEmail } from "@/lib/validation";
+import { isAnalyticsRetentionKey } from "@/lib/retention";
 
 type Update = Partial<typeof legalSettings.$inferInsert>;
-
-const AUTOMATED_RETENTION_KEYS = new Set(["analytics_events", "analytics_aggregates"]);
 
 function str(formData: FormData, key: string, max = 500): string {
   return String(formData.get(key) ?? "").trim().slice(0, max);
@@ -351,15 +350,15 @@ export async function saveRetentionAction(formData: FormData): Promise<void> {
   let retentionDays: number | null = null;
   if (retentionRaw) {
     const value = Number(retentionRaw);
-    if (!Number.isInteger(value) || value < 0 || value > 36500) {
-      fail("Retention days must be a whole number between 0 and 36500, or blank.");
+    if (!Number.isInteger(value) || value < 1 || value > 36500) {
+      fail("Retention days must be a whole number between 1 and 36500, or blank.");
     }
     retentionDays = value;
   }
   const basis = str(formData, "basis", 120);
   if (!basis) fail("A retention basis is required.");
 
-  const supportsAutomation = AUTOMATED_RETENTION_KEYS.has(dataKey);
+  const supportsAutomation = isAnalyticsRetentionKey(dataKey);
   const automated = supportsAutomation && checked(formData, "automated");
   const enabled = supportsAutomation && checked(formData, "enabled");
   if (!supportsAutomation && (checked(formData, "automated") || checked(formData, "enabled"))) {

@@ -7,6 +7,7 @@ import { listRecentConsentEvents, listRecentCookieConsents } from "@/lib/consent
 import { listPrivacyRequests } from "@/lib/privacy-requests";
 import { listEmailSubscriptions } from "@/lib/email-subscriptions";
 import { loadLegalSettings } from "@/lib/legal";
+import { loadAnalyticsRetentionPolicy } from "@/lib/retention";
 import { AdminLegalDashboard } from "@/components/admin-legal-dashboard";
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default async function AdminLegalPage() {
   const thirdParties = await listLegalThirdParties(db);
   const assets = await listAssetLicenses(db);
   const retention = await listRetentionSettings(db);
+  const analyticsRetention = await loadAnalyticsRetentionPolicy(db);
   const reviews = await listAccessibilityReviews(db);
   const readiness = await listLegalReadinessItems(db);
   const consentEvents = await listRecentConsentEvents(db, 25);
@@ -39,6 +41,7 @@ export default async function AdminLegalPage() {
       thirdParties={thirdParties}
       assets={assets}
       retention={retention}
+      analyticsRetention={analyticsRetention}
       reviews={reviews}
       readiness={readiness}
       consentEvents={consentEvents}

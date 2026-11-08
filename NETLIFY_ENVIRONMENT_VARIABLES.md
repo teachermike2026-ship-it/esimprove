@@ -37,7 +37,6 @@ Netlify Functions at runtime, **M** = migration/test tooling only.
 | `INTERNAL_JOB_SECRET` | Prod | ✓ | ✓ | **Yes** | Random high-entropy string |
 | `RATE_LIMIT_HASH_SECRET` | Prod | ✓ | ✓ | **Yes** | Random high-entropy string |
 | `ANALYTICS_HASH_SECRET` | Prod | ✓ | ✓ | **Yes** | Dedicated random HMAC secret for analytics identifiers |
-| `ANALYTICS_RETENTION_DAYS` | Optional | — | ✓ | No | `90` (clamped to 7–365) |
 | `NEXT_PUBLIC_ANALYTICS_DISABLED` | Optional | — | ✓ | No | Leave unset or `false`; `true` makes `/api/track` return 204 before storage |
 | `ADMIN_2FA_REQUIRED` | Prod | ✓ | ✓ | No | `true` |
 | `PAYMENTS_LIVE_ENABLED` | Prod | ✓ | ✓ | No | `false` |
@@ -136,7 +135,6 @@ production KEKs.
 | Variable | Purpose | Required | Scope | Secret | Notes |
 | --- | --- | --- | --- | --- | --- |
 | `ANALYTICS_HASH_SECRET` | HMAC key for anonymous visitor/session hashes | Prod | B/R | **Yes** | Falls back to `RATE_LIMIT_HASH_SECRET`, then `AUTH_SECRET`, then a local-only value. Set a dedicated value in preview and production |
-| `ANALYTICS_RETENTION_DAYS` | Deletes analytics rows older than N days | Optional | R | No | Default 90; values outside 7–365 are clamped. Cleanup runs from `/api/jobs/run`, which still needs an external scheduler (B-09) |
 | `NEXT_PUBLIC_ANALYTICS_DISABLED` | Global tracking kill switch | Optional | R | No | `true` makes `/api/track` return 204 before storage. The client may still attempt a request; nothing is stored. Public, not a secret |
 | `ANALYTICS_ENABLED` | Legacy/reserved analytics flag | Optional | B/R | No | Must stay `false`; preflight rejects `true` because no third-party analytics adapter exists. This does **not** disable first-party analytics |
 

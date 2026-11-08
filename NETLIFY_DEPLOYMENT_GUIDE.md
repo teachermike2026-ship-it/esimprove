@@ -412,7 +412,7 @@ transport remains blocked by N-07 (see the blockers document).
 | Google Search Console | Admin → SEO & CMS | Paste the verification token, deploy, verify ownership in GSC, then submit `/sitemap.xml`. GSC ownership and indexing are external and are **not** automated. |
 | GA4 (optional) | Admin → SEO & CMS | Only renders when a valid `G-…` ID is saved and the deploy is indexable; third-party data is not used for the first-party dashboard |
 | Analytics hash secret | `ANALYTICS_HASH_SECRET` | Recommended per-context secret. Falls back to `RATE_LIMIT_HASH_SECRET`/`AUTH_SECRET`; set a dedicated value in preview and production |
-| Analytics retention | `ANALYTICS_RETENTION_DAYS` | Optional. Default 90 days; clamped to 7–365. Cleanup runs from `/api/jobs/run` |
+| Analytics retention | `data_retention_settings` | No environment variable. Reviewed defaults: 395 days for raw events and 730 days for aggregated sessions/visitors. Configured in Admin → Legal & compliance; cleanup runs from `/api/jobs/run` |
 | Tracking kill switch | `NEXT_PUBLIC_ANALYTICS_DISABLED=true` | Optional. Makes `/api/track` return 204 before any storage |
 | Scheduled publishing | External scheduler or a Netlify scheduled function | Must call `POST /api/jobs/run` with `INTERNAL_JOB_SECRET`. No scheduler is defined in this repository |
 | Blog media | Any HTTPS-hosted image URL | Local filesystem uploads are not persisted on Netlify; the CMS deliberately accepts hosted URLs only |

@@ -28,11 +28,9 @@ export async function POST(request: NextRequest) {
     const db = await getDb();
     const result = await runOutboxAndJobs(db);
     const scheduled = await publishDueScheduledArticles(db);
-    const retentionDays = Number(process.env.ANALYTICS_RETENTION_DAYS ?? "90");
-    const analyticsCleanup = await cleanupAnalytics(
-      db,
-      Number.isFinite(retentionDays) ? retentionDays : 90,
-    );
+    // Retention is owned by data_retention_settings (see lib/retention.ts), not
+    // by an environment variable that can drift from the reviewed policy.
+    const analyticsCleanup = await cleanupAnalytics(db);
     await recordAudit(db, {
       actorType: "system",
       action: "jobs.run.api",
@@ -47,6 +45,10 @@ export async function POST(request: NextRequest) {
         analyticsEventsDeleted: analyticsCleanup.events,
         analyticsSessionsDeleted: analyticsCleanup.sessions,
         analyticsVisitorsDeleted: analyticsCleanup.visitors,
+        analyticsRetentionDays: {
+          events: analyticsCleanup.policy.eventsDays,
+          aggregates: analyticsCleanup.policy.aggregatesDays,
+        },
       },
     });
     return NextResponse.json({

@@ -13,6 +13,8 @@ export default defineConfig({
     fileParallelism: false,
     pool: "forks",
     testTimeout: 30000,
-    hookTimeout: 30000,
+    // PGlite migration + demo seeding can exceed 30s when multiple database
+    // handles are created in one hook on Windows. Assertions are unchanged.
+    hookTimeout: 60000,
   },
 });
