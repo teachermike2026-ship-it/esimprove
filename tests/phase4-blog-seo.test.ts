@@ -596,6 +596,21 @@ describe("Phase 4 blog and SEO", () => {
 
   describe("sitemap and robots", () => {
     it("includes published blog URLs and excludes drafts and scheduled posts", async () => {
+      const tagId = newId("tag");
+      await handle.db.insert(blogTags).values({
+        id: tagId,
+        slug: "sitemap-tag",
+        name: "Sitemap tag",
+      });
+      const [published] = await handle.db
+        .select({ id: blogArticles.id })
+        .from(blogArticles)
+        .where(eq(blogArticles.slug, "published-article"));
+      await handle.db.insert(blogArticleTags).values({
+        articleId: published!.id,
+        tagId,
+      });
+
       const entries = await buildSitemap(handle.db);
       const urls = entries.map((entry) => entry.url);
 
@@ -606,6 +621,7 @@ describe("Phase 4 blog and SEO", () => {
       );
       expect(urls).toContain("https://esimprove.example/blog");
       expect(urls).toContain("https://esimprove.example/blog/category/connectivity");
+      expect(urls).toContain("https://esimprove.example/blog/tag/sitemap-tag");
       expect(urls).not.toContain("https://esimprove.example/blog/draft-article");
       expect(urls).not.toContain("https://esimprove.example/blog/scheduled-article");
       expect(urls).not.toContain(

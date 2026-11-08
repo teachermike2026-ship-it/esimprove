@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 import type { DatabaseHandle } from "@/lib/db/client";
 import {
+  analyticsEvents,
   analyticsVisitors,
   blogArticles,
   blogCategories,
@@ -12,6 +13,8 @@ import {
 import { newId } from "@/lib/ids";
 import { createSession } from "@/lib/auth/session";
 import { loadSeoSettings } from "@/lib/seo";
+import { recordCookieConsent } from "@/lib/consent";
+import { loadLegalSettings } from "@/lib/legal";
 import { makeTestDb } from "./helpers/db";
 
 const mockState = vi.hoisted(() => ({ token: null as string | null }));
@@ -84,6 +87,7 @@ describe("Phase 4 admin access and public tracking endpoint", () => {
   let handle: DatabaseHandle;
   let adminUserId: string;
   let customerUserId: string;
+  const consentId = "test_consent_public_0001";
 
   beforeAll(async () => {
     handle = await makeTestDb();
@@ -101,6 +105,15 @@ describe("Phase 4 admin access and public tracking endpoint", () => {
       name: "Phase 4 Customer",
       passwordHash: "unused",
       role: "customer",
+    });
+
+    const legal = await loadLegalSettings(handle.db);
+    await recordCookieConsent(handle.db, {
+      consentId,
+      consentVersion: legal.cookieConsentVersion,
+      action: "accept_all",
+      categories: { necessary: true, analytics: true, marketing: false },
+      userAgent: "vitest",
     });
 
     (
@@ -387,7 +400,10 @@ describe("Phase 4 admin access and public tracking endpoint", () => {
       const publicResponse = await POST(
         trackingRequest({
           body: validTrackingPayload("visitor_public00", "session_public00"),
-          headers: { "x-country": "PT" },
+          headers: {
+            "x-country": "PT",
+            "x-es-consent-id": consentId,
+          },
         }),
       );
       expect(publicResponse.status).toBe(202);
@@ -401,7 +417,10 @@ describe("Phase 4 admin access and public tracking endpoint", () => {
       const internalResponse = await POST(
         trackingRequest({
           body: validTrackingPayload("visitor_internal0", "session_internal0"),
-          headers: { "x-esimprove-internal": "1" },
+          headers: {
+            "x-esimprove-internal": "1",
+            "x-es-consent-id": consentId,
+          },
         }),
       );
       expect(internalResponse.status).toBe(202);
@@ -410,6 +429,48 @@ describe("Phase 4 admin access and public tracking endpoint", () => {
         excluded: boolean;
       };
       expect(internalBody.excluded).toBe(true);
+    });
+
+    it("ignores tracking without server-side consent evidence and stores nothing", async () => {
+      const { POST } = await import("@/app/api/track/route");
+      const beforeVisitors = await handle.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(analyticsVisitors);
+      const beforeEvents = await handle.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(analyticsEvents);
+
+      const missing = await POST(
+        trackingRequest({
+          body: validTrackingPayload("visitor_noconsent", "session_noconsent"),
+        }),
+      );
+      expect(missing.status).toBe(204);
+
+      const invalid = await POST(
+        trackingRequest({
+          body: validTrackingPayload("visitor_badconsent", "session_badconsent"),
+          headers: { "x-es-consent-id": "short" },
+        }),
+      );
+      expect(invalid.status).toBe(204);
+
+      const unknown = await POST(
+        trackingRequest({
+          body: validTrackingPayload("visitor_unknowncon", "session_unknowncon"),
+          headers: { "x-es-consent-id": "unknown_consent_0001" },
+        }),
+      );
+      expect(unknown.status).toBe(204);
+
+      const afterVisitors = await handle.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(analyticsVisitors);
+      const afterEvents = await handle.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(analyticsEvents);
+      expect(Number(afterVisitors[0]!.count)).toBe(Number(beforeVisitors[0]!.count));
+      expect(Number(afterEvents[0]!.count)).toBe(Number(beforeEvents[0]!.count));
     });
   });
 });

@@ -28,7 +28,7 @@ import {
   reviewPrivacyRequest,
 } from "@/lib/privacy-requests";
 import { unsubscribeEmailAsAdmin } from "@/lib/email-subscriptions";
-import { emailSchema, formString, normalizeEmail } from "@/lib/validation";
+import { emailSchema, normalizeEmail } from "@/lib/validation";
 
 type Update = Partial<typeof legalSettings.$inferInsert>;
 

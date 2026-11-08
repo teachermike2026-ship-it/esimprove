@@ -1,10 +1,39 @@
 import type { MetadataRoute } from "next";
 import { and, eq, isNotNull, lte, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db/client";
-import { blogArticles, blogCategories } from "@/lib/db/schema";
+import {
+  blogArticles,
+  blogArticleTags,
+  blogCategories,
+  blogTags,
+} from "@/lib/db/schema";
 import { getDestinations, getPlans, getRegions } from "@/lib/catalog";
 import { loadSeoSettings } from "@/lib/seo";
 import { siteUrl } from "@/lib/config";
+
+/**
+ * Indexable static routes. Keep this list in sync with real page routes under
+ * app/; `tests/sitemap-routes.test.ts` fails if a path has no route.
+ */
+export const SITEMAP_STATIC_PATHS = [
+  "",
+  "/destinations",
+  "/regions",
+  "/plans",
+  "/search",
+  "/about",
+  "/contact",
+  "/compatibility",
+  "/guides",
+  "/legal/terms",
+  "/legal/privacy",
+  "/legal/refunds",
+  "/legal/cookies",
+  "/legal/faq",
+  "/legal/accessibility",
+  "/privacy/request",
+  "/blog",
+] as const;
 
 export async function buildSitemap(db: Database): Promise<MetadataRoute.Sitemap> {
   const [regions, destinations, plans, settings] = await Promise.all([
@@ -16,25 +45,9 @@ export async function buildSitemap(db: Database): Promise<MetadataRoute.Sitemap>
   const base = (settings.canonicalBase || siteUrl).replace(/\/+$/, "");
   const now = new Date();
 
-  const staticPaths = [
-    "",
-    "/destinations",
-    "/regions",
-    "/plans",
-    "/search",
-    "/about",
-    "/contact",
-    "/compatibility",
-    "/guides",
-    "/compatibility/install",
-    "/legal/terms",
-    "/legal/privacy",
-    "/legal/refunds",
-    "/legal/cookies",
-    "/blog",
-  ];
+  const staticPaths = SITEMAP_STATIC_PATHS;
 
-  const [publishedArticles, categoriesWithArticles] = await Promise.all([
+  const [publishedArticles, categoriesWithArticles, tagsWithArticles] = await Promise.all([
     db
       .select({
         slug: blogArticles.slug,
@@ -64,6 +77,23 @@ export async function buildSitemap(db: Database): Promise<MetadataRoute.Sitemap>
         ),
       )
       .groupBy(blogCategories.slug),
+    db
+      .select({
+        slug: blogTags.slug,
+        lastUpdated: sql<string | Date | null>`max(${blogArticles.updatedAt})`,
+      })
+      .from(blogTags)
+      .innerJoin(blogArticleTags, eq(blogArticleTags.tagId, blogTags.id))
+      .innerJoin(
+        blogArticles,
+        and(
+          eq(blogArticleTags.articleId, blogArticles.id),
+          eq(blogArticles.status, "published"),
+          isNotNull(blogArticles.publishedAt),
+          lte(blogArticles.publishedAt, now),
+        ),
+      )
+      .groupBy(blogTags.slug),
   ]);
 
   return [
@@ -100,6 +130,12 @@ export async function buildSitemap(db: Database): Promise<MetadataRoute.Sitemap>
     ...categoriesWithArticles.map((category) => ({
       url: `${base}/blog/category/${category.slug}`,
       lastModified: category.lastUpdated ? new Date(category.lastUpdated) : now,
+      changeFrequency: "weekly" as const,
+      priority: 0.5,
+    })),
+    ...tagsWithArticles.map((tag) => ({
+      url: `${base}/blog/tag/${tag.slug}`,
+      lastModified: tag.lastUpdated ? new Date(tag.lastUpdated) : now,
       changeFrequency: "weekly" as const,
       priority: 0.5,
     })),
