@@ -115,8 +115,23 @@ export const LEGAL_REVIEW_STATUSES = [
 
 export type LegalReviewStatus = (typeof LEGAL_REVIEW_STATUSES)[number];
 
+/**
+ * Asset rows use two additional legacy statuses that predate the legal review
+ * status list. They are valid only for the asset register, not for documents,
+ * accessibility reviews, or readiness items.
+ */
+export const ASSET_REVIEW_STATUSES = [
+  ...LEGAL_REVIEW_STATUSES,
+  "verified",
+  "needs_verification",
+] as const;
+
 export function isLegalReviewStatus(value: string): value is LegalReviewStatus {
   return (LEGAL_REVIEW_STATUSES as readonly string[]).includes(value);
+}
+
+export function isAssetReviewStatus(value: string): boolean {
+  return (ASSET_REVIEW_STATUSES as readonly string[]).includes(value);
 }
 
 export const BUSINESS_FIELDS = [

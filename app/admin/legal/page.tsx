@@ -18,8 +18,15 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminLegalPage() {
+export default async function AdminLegalPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ saved?: string | string[]; error?: string | string[] }>;
+}) {
   await requireAdmin("/admin/legal");
+  const flags = await searchParams;
+  const notice = typeof flags.saved === "string" ? flags.saved : null;
+  const errorMessage = typeof flags.error === "string" ? flags.error : null;
   const db = await getDb();
   const settings = await loadLegalSettings(db);
   const documents = await listLegalDocumentVersions(db);
@@ -48,6 +55,8 @@ export default async function AdminLegalPage() {
       cookieConsents={cookieConsents}
       privacyRequests={privacyRequests}
       subscriptions={subscriptions}
+      notice={notice}
+      errorMessage={errorMessage}
     />
   );
 }

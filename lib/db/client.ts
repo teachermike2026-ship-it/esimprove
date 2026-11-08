@@ -9,6 +9,14 @@ import { runMigrations } from "@/lib/db/migrate";
 export type Database = PgliteDatabase<typeof schema>;
 export type DatabaseClient = PGlite | Pool;
 export type DatabaseDialect = "pglite" | "postgres";
+/**
+ * The executor type shared by a normal database handle and a transaction. Used
+ * by helpers that must be callable inside `db.transaction(...)`.
+ */
+export type DatabaseTransaction = Parameters<
+  Parameters<Database["transaction"]>[0]
+>[0];
+export type DatabaseExecutor = Database | DatabaseTransaction;
 
 export interface DatabaseHandle {
   db: Database;

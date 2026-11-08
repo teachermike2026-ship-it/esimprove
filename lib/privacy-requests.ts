@@ -1,5 +1,5 @@
-import { and, desc, eq } from "drizzle-orm";
-import type { Database } from "@/lib/db/client";
+import { and, desc, eq, ne, notInArray } from "drizzle-orm";
+import type { Database, DatabaseExecutor } from "@/lib/db/client";
 import {
   emailSubscriptions,
   notifications,
@@ -147,7 +147,7 @@ export async function createPrivacyRequest(
     action: "privacy.request.created",
     entityType: "privacy_request",
     entityId: id,
-    metadata: { requestType: input.requestType, identityStatus },
+    metadata: { requestType: input.requestType, identityStatus, outcome: "success" },
   });
 
   return { request, verificationToken };
@@ -165,7 +165,7 @@ export async function listPrivacyRequests(
 }
 
 export async function getPrivacyRequest(
-  db: Database,
+  db: DatabaseExecutor,
   id: string,
 ): Promise<PrivacyRequestRow | null> {
   const rows = await db
@@ -204,139 +204,180 @@ export interface PrivacyRequestReviewInput {
   actorLabel?: string;
 }
 
+const CLOSED_PRIVACY_STATUSES = ["completed", "rejected", "cancelled"] as const;
+
 export async function reviewPrivacyRequest(
   db: Database,
   input: PrivacyRequestReviewInput,
 ): Promise<{ request: PrivacyRequestRow; deleted: boolean }> {
-  const request = await getPrivacyRequest(db, input.requestId);
-  if (!request) throw new Error("Privacy request not found");
   const now = new Date();
   const notes = (input.notes ?? "").trim().slice(0, 4000);
 
-  if (input.action === "verify") {
-    if (request.identityStatus === "verified") {
-      throw new Error("Identity is already verified");
+  return db.transaction(async (tx) => {
+    const request = await getPrivacyRequest(tx, input.requestId);
+    if (!request) throw new Error("Privacy request not found");
+    if ((CLOSED_PRIVACY_STATUSES as readonly string[]).includes(request.status)) {
+      throw new Error("This privacy request is already closed");
     }
-    const [updated] = await db
-      .update(privacyRequests)
-      .set({
-        identityStatus: "verified",
-        status: "in_review",
-        verifiedAt: now,
-        adminNotes: notes || request.adminNotes,
-        handledBy: input.adminId,
-        updatedAt: now,
-      })
-      .where(eq(privacyRequests.id, request.id))
-      .returning();
-    await recordAudit(db, {
-      actorType: "admin",
-      actorId: input.adminId,
-      action: "privacy.request.verified",
-      entityType: "privacy_request",
-      entityId: request.id,
-      metadata: { reference: request.reference },
-    });
-    return { request: updated!, deleted: false };
-  }
+    const closedGuard = notInArray(privacyRequests.status, [
+      ...CLOSED_PRIVACY_STATUSES,
+    ]);
 
-  if (input.action === "reject") {
-    const reason = (input.rejectionReason ?? "").trim().slice(0, 1000);
-    if (!reason) throw new Error("A rejection reason is required");
-    const [updated] = await db
+    if (input.action === "verify") {
+      if (request.identityStatus === "verified") {
+        throw new Error("Identity is already verified");
+      }
+      const [updated] = await tx
+        .update(privacyRequests)
+        .set({
+          identityStatus: "verified",
+          status: "in_review",
+          verifiedAt: now,
+          adminNotes: notes || request.adminNotes,
+          handledBy: input.adminId,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(privacyRequests.id, request.id),
+            ne(privacyRequests.identityStatus, "verified"),
+            closedGuard,
+          ),
+        )
+        .returning();
+      if (!updated) {
+        throw new Error(
+          "This privacy request changed while it was being reviewed. Reload and try again.",
+        );
+      }
+      await recordAudit(tx, {
+        actorType: "admin",
+        actorId: input.adminId,
+        action: "privacy.request.verified",
+        entityType: "privacy_request",
+        entityId: request.id,
+        metadata: { reference: request.reference, outcome: "success" },
+      });
+      return { request: updated, deleted: false };
+    }
+
+    if (input.action === "reject") {
+      const reason = (input.rejectionReason ?? "").trim().slice(0, 1000);
+      if (!reason) throw new Error("A rejection reason is required");
+      const [updated] = await tx
+        .update(privacyRequests)
+        .set({
+          status: "rejected",
+          rejectionReason: reason,
+          adminNotes: notes || request.adminNotes,
+          handledBy: input.adminId,
+          updatedAt: now,
+          completedAt: now,
+        })
+        .where(and(eq(privacyRequests.id, request.id), closedGuard))
+        .returning();
+      if (!updated) {
+        throw new Error("This privacy request is already closed");
+      }
+      await recordAudit(tx, {
+        actorType: "admin",
+        actorId: input.adminId,
+        action: "privacy.request.rejected",
+        entityType: "privacy_request",
+        entityId: request.id,
+        // The full reason remains on the request row. Do not duplicate free-text
+        // personal data in the audit trail.
+        metadata: {
+          reference: request.reference,
+          rejectionReasonRecorded: true,
+          outcome: "success",
+        },
+      });
+      return { request: updated, deleted: false };
+    }
+
+    if (input.action === "cancel") {
+      const [updated] = await tx
+        .update(privacyRequests)
+        .set({
+          status: "cancelled",
+          adminNotes: notes || request.adminNotes,
+          handledBy: input.adminId,
+          updatedAt: now,
+          completedAt: now,
+        })
+        .where(and(eq(privacyRequests.id, request.id), closedGuard))
+        .returning();
+      if (!updated) {
+        throw new Error("This privacy request is already closed");
+      }
+      await recordAudit(tx, {
+        actorType: "admin",
+        actorId: input.adminId,
+        action: "privacy.request.cancelled",
+        entityType: "privacy_request",
+        entityId: request.id,
+        metadata: { reference: request.reference, outcome: "success" },
+      });
+      return { request: updated, deleted: false };
+    }
+
+    // Completion requires verified identity. This prevents an unauthenticated
+    // visitor from deleting an account merely by submitting an email address.
+    if (request.identityStatus !== "verified") {
+      throw new Error("Identity must be verified before completing a privacy request");
+    }
+
+    const resolution =
+      (input.resolution ?? "").trim().slice(0, 4000) ||
+      (request.requestType === "deletion"
+        ? "Account profile anonymised. Financial, transaction, and audit records retained where required for legal recordkeeping."
+        : "Request reviewed and completed.");
+
+    // Claim the request first inside the transaction, then perform any deletion.
+    // If deletion fails, the whole transaction rolls back and the request stays
+    // open rather than being marked complete without the required action.
+    const [updated] = await tx
       .update(privacyRequests)
       .set({
-        status: "rejected",
-        rejectionReason: reason,
+        status: "completed",
+        resolution,
         adminNotes: notes || request.adminNotes,
         handledBy: input.adminId,
         updatedAt: now,
         completedAt: now,
       })
-      .where(eq(privacyRequests.id, request.id))
+      .where(and(eq(privacyRequests.id, request.id), closedGuard))
       .returning();
-    await recordAudit(db, {
+    if (!updated) {
+      throw new Error("This privacy request is already closed");
+    }
+
+    let deleted = false;
+    if (request.requestType === "deletion") {
+      deleted = await performRetentionAwareDeletion(tx, request, input.adminId);
+    }
+
+    await recordAudit(tx, {
       actorType: "admin",
       actorId: input.adminId,
-      action: "privacy.request.rejected",
+      action:
+        request.requestType === "deletion"
+          ? "privacy.request.deleted"
+          : "privacy.request.completed",
       entityType: "privacy_request",
       entityId: request.id,
-      metadata: { reference: request.reference, reason },
+      metadata: {
+        reference: request.reference,
+        requestType: request.requestType,
+        deleted,
+        retainedFinancialRecords: request.requestType === "deletion",
+        outcome: "success",
+      },
     });
-    return { request: updated!, deleted: false };
-  }
 
-  if (input.action === "cancel") {
-    const [updated] = await db
-      .update(privacyRequests)
-      .set({
-        status: "cancelled",
-        adminNotes: notes || request.adminNotes,
-        handledBy: input.adminId,
-        updatedAt: now,
-        completedAt: now,
-      })
-      .where(eq(privacyRequests.id, request.id))
-      .returning();
-    await recordAudit(db, {
-      actorType: "admin",
-      actorId: input.adminId,
-      action: "privacy.request.cancelled",
-      entityType: "privacy_request",
-      entityId: request.id,
-      metadata: { reference: request.reference },
-    });
-    return { request: updated!, deleted: false };
-  }
-
-  // Completion requires verified identity. This prevents an unauthenticated
-  // visitor from deleting an account merely by submitting an email address.
-  if (request.identityStatus !== "verified") {
-    throw new Error("Identity must be verified before completing a privacy request");
-  }
-  if (request.status === "completed" || request.status === "rejected") {
-    throw new Error("This privacy request is already closed");
-  }
-
-  let deleted = false;
-  if (request.requestType === "deletion") {
-    deleted = await performRetentionAwareDeletion(db, request, input.adminId);
-  }
-
-  const resolution =
-    (input.resolution ?? "").trim().slice(0, 4000) ||
-    (request.requestType === "deletion"
-      ? "Account profile anonymised. Financial, transaction, and audit records retained where required for legal recordkeeping."
-      : "Request reviewed and completed.");
-
-  const [updated] = await db
-    .update(privacyRequests)
-    .set({
-      status: "completed",
-      resolution,
-      adminNotes: notes || request.adminNotes,
-      handledBy: input.adminId,
-      updatedAt: now,
-      completedAt: now,
-    })
-    .where(eq(privacyRequests.id, request.id))
-    .returning();
-
-  await recordAudit(db, {
-    actorType: "admin",
-    actorId: input.adminId,
-    action: request.requestType === "deletion" ? "privacy.request.deleted" : "privacy.request.completed",
-    entityType: "privacy_request",
-    entityId: request.id,
-    metadata: {
-      reference: request.reference,
-      requestType: request.requestType,
-      deleted,
-      retainedFinancialRecords: request.requestType === "deletion",
-    },
+    return { request: updated, deleted };
   });
-
-  return { request: updated!, deleted };
 }
 
 /**
@@ -348,7 +389,7 @@ export async function reviewPrivacyRequest(
  * password, TOTP secret, sessions, and marketing preferences are removed.
  */
 export async function performRetentionAwareDeletion(
-  db: Database,
+  db: DatabaseExecutor,
   request: PrivacyRequestRow,
   adminId: string,
 ): Promise<boolean> {
@@ -359,7 +400,7 @@ export async function performRetentionAwareDeletion(
       action: "privacy.deletion.no_account",
       entityType: "privacy_request",
       entityId: request.id,
-      metadata: { reference: request.reference },
+      metadata: { reference: request.reference, outcome: "no_account" },
     });
     return false;
   }

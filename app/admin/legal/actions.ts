@@ -20,6 +20,7 @@ import {
   LEGAL_DOCUMENTS,
   businessProfileMissing,
   getOrCreateLegalSettings,
+  isAssetReviewStatus,
   isLegalReviewStatus,
   type LegalDocumentKey,
 } from "@/lib/legal";
@@ -168,6 +169,7 @@ export async function saveBusinessInfoAction(formData: FormData): Promise<void> 
       jurisdictionConfigured: Boolean(jurisdiction),
       minimumAgeConfigured: minimumAge !== null,
       missingRequiredFields: missing.length,
+      outcome: "success",
     },
   });
 
@@ -253,6 +255,7 @@ export async function saveDocumentSettingsAction(formData: FormData): Promise<vo
     entityId: "legal_global",
     metadata: {
       versions: versions.map((entry) => `${entry.key}:${entry.version}:${entry.status}`).join(","),
+      outcome: "success",
     },
   });
 
@@ -284,7 +287,7 @@ export async function saveCookieConfigAction(formData: FormData): Promise<void> 
     action: "legal.consent_config.updated",
     entityType: "legal_settings",
     entityId: "legal_global",
-    metadata: { cookieConsentVersion, marketingConsentVersion },
+    metadata: { cookieConsentVersion, marketingConsentVersion, outcome: "success" },
   });
 
   revalidateLegal();
@@ -335,7 +338,7 @@ export async function saveThirdPartyAction(formData: FormData): Promise<void> {
     action: "legal.third_party.updated",
     entityType: "legal_third_party",
     entityId: serviceKey,
-    metadata: { status, runsBeforeConsent: checked(formData, "runsBeforeConsent") },
+    metadata: { status, runsBeforeConsent: checked(formData, "runsBeforeConsent"), outcome: "success" },
   });
 
   revalidateLegal();
@@ -396,7 +399,7 @@ export async function saveRetentionAction(formData: FormData): Promise<void> {
     action: "legal.retention.updated",
     entityType: "data_retention_setting",
     entityId: dataKey,
-    metadata: { retentionDays, automated, enabled, basis },
+    metadata: { retentionDays, automated, enabled, basis, outcome: "success" },
   });
 
   revalidateLegal();
@@ -424,28 +427,27 @@ export async function reviewPrivacyRequestAction(formData: FormData): Promise<vo
     fail("Confirm the retention-aware deletion before completing a deletion request.");
   }
 
-  try {
-    const result = await reviewPrivacyRequest(db, {
-      requestId,
-      adminId: admin.id,
-      action: action as "verify" | "reject" | "complete" | "cancel",
-      notes: str(formData, "adminNotes", 4000),
-      resolution: str(formData, "resolution", 4000),
-      rejectionReason: str(formData, "rejectionReason", 1000),
-    });
-    revalidateLegal();
-    saved(
-      result.deleted
-        ? `Privacy request ${request.reference} completed. The account profile was anonymised and financial records were retained.`
-        : `Privacy request ${request.reference} updated: ${action}.`,
-    );
-  } catch (error) {
+  const result = await reviewPrivacyRequest(db, {
+    requestId,
+    adminId: admin.id,
+    action: action as "verify" | "reject" | "complete" | "cancel",
+    notes: str(formData, "adminNotes", 4000),
+    resolution: str(formData, "resolution", 4000),
+    rejectionReason: str(formData, "rejectionReason", 1000),
+  }).catch((error: unknown) =>
     fail(
       error instanceof Error
         ? error.message
         : "The privacy request could not be updated.",
-    );
-  }
+    ),
+  );
+
+  revalidateLegal();
+  saved(
+    result.deleted
+      ? `Privacy request ${request.reference} completed. The account profile was anonymised and financial records were retained.`
+      : `Privacy request ${request.reference} updated: ${action}.`,
+  );
 }
 
 export async function adminUnsubscribeAction(formData: FormData): Promise<void> {
@@ -465,7 +467,7 @@ export async function adminUnsubscribeAction(formData: FormData): Promise<void> 
     action: "email.admin_unsubscribe",
     entityType: "email_subscription",
     entityId: subscription.id,
-    metadata: { reason },
+    metadata: { reason, outcome: "success" },
   });
 
   revalidateLegal();
@@ -509,7 +511,7 @@ export async function saveAccessibilityReviewAction(formData: FormData): Promise
     action: "legal.accessibility.updated",
     entityType: "accessibility_review",
     entityId: area,
-    metadata: { status, checkedByConfigured: Boolean(checkedBy) },
+    metadata: { status, checkedByConfigured: Boolean(checkedBy), outcome: "success" },
   });
 
   revalidateLegal();
@@ -523,9 +525,8 @@ export async function saveAssetAction(formData: FormData): Promise<void> {
   const licenseName = str(formData, "licenseName", 200);
   const licenseUrl = str(formData, "licenseUrl", 500);
   if (!assetKey) fail("The asset key is missing.");
-  const normalizedStatus = status as "complete" | "needs_owner_information" | "needs_legal_review" | "needs_technical_implementation" | "not_applicable" | "not_verified" | "external_configuration_required";
-  if (!isLegalReviewStatus(status)) fail("Unsupported asset status.");
-  if (normalizedStatus === "complete" && !licenseName && !licenseUrl) {
+  if (!isAssetReviewStatus(status)) fail("Unsupported asset status.");
+  if (status === "complete" && !licenseName && !licenseUrl) {
     fail("A completed asset review needs a license reference.");
   }
 
@@ -558,7 +559,7 @@ export async function saveAssetAction(formData: FormData): Promise<void> {
     action: "legal.asset.updated",
     entityType: "asset_license",
     entityId: assetKey,
-    metadata: { status, licenseName },
+    metadata: { status, licenseName, outcome: "success" },
   });
 
   revalidateLegal();
@@ -596,7 +597,7 @@ export async function saveReadinessAction(formData: FormData): Promise<void> {
     action: "legal.readiness.updated",
     entityType: "legal_readiness_item",
     entityId: itemKey,
-    metadata: { status, owner },
+    metadata: { status, owner, outcome: "success" },
   });
 
   revalidateLegal();

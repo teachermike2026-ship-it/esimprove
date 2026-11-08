@@ -82,6 +82,9 @@ export async function unsubscribeByToken(
 ): Promise<EmailSubscriptionRow | null> {
   const subscription = await findSubscriptionByUnsubscribeToken(db, token);
   if (!subscription) return null;
+  // Repeated unsubscribe requests are idempotent: keep the original timestamp
+  // and reason instead of overwriting the evidence on every click.
+  if (subscription.status === "unsubscribed") return subscription;
   const now = new Date();
   const rows = await db
     .update(emailSubscriptions)
@@ -103,6 +106,14 @@ export async function unsubscribeEmailAsAdmin(
 ): Promise<EmailSubscriptionRow | null> {
   const normalized = normalizeEmail(email);
   if (!normalized) return null;
+  const existing = await db
+    .select()
+    .from(emailSubscriptions)
+    .where(eq(emailSubscriptions.email, normalized))
+    .limit(1);
+  const subscription = existing[0];
+  if (!subscription) return null;
+  if (subscription.status === "unsubscribed") return subscription;
   const now = new Date();
   const rows = await db
     .update(emailSubscriptions)
@@ -112,7 +123,7 @@ export async function unsubscribeEmailAsAdmin(
       unsubscribeReason: reason.slice(0, 200),
       updatedAt: now,
     })
-    .where(eq(emailSubscriptions.email, normalized))
+    .where(eq(emailSubscriptions.id, subscription.id))
     .returning();
   return rows[0] ?? null;
 }

@@ -1,10 +1,10 @@
-import type { Database } from "@/lib/db/client";
+import type { DatabaseExecutor } from "@/lib/db/client";
 import { auditLogs } from "@/lib/db/schema";
 import type { AuditMetadata } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
 
 export async function recordAudit(
-  db: Database,
+  db: DatabaseExecutor,
   input: {
     actorType: string;
     actorId?: string | null;
