@@ -1,4 +1,4 @@
-# eSIMprove — demo-first eSIM travel commerce platform
+# Esimprove — demo-first eSIM travel commerce platform
 
 Working codename for a new eSIM travel storefront intended for **esimprove.com** and **Netlify**.
 

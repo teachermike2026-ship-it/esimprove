@@ -19,9 +19,14 @@ function fromB64(value: string): Buffer {
   return Buffer.from(value, "base64");
 }
 
-function encryptWithKey(plaintext: string, key: Buffer): { ciphertext: string; iv: string; tag: string } {
+function encryptWithKey(
+  plaintext: string,
+  key: Buffer,
+  aad?: string,
+): { ciphertext: string; iv: string; tag: string } {
   const iv = randomBytes(12);
   const cipher = createCipheriv(ALGORITHM, key, iv);
+  if (aad) cipher.setAAD(Buffer.from(aad, "utf8"));
   const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   return {
     ciphertext: b64(ciphertext),
@@ -33,8 +38,10 @@ function encryptWithKey(plaintext: string, key: Buffer): { ciphertext: string; i
 function decryptWithKey(
   payload: { ciphertext: string; iv: string; tag: string },
   key: Buffer,
+  aad?: string,
 ): string {
   const decipher = createDecipheriv(ALGORITHM, key, fromB64(payload.iv));
+  if (aad) decipher.setAAD(Buffer.from(aad, "utf8"));
   decipher.setAuthTag(fromB64(payload.tag));
   return Buffer.concat([
     decipher.update(fromB64(payload.ciphertext)),
@@ -46,14 +53,19 @@ function decryptWithKey(
  * Envelope encryption: a random per-record DEK encrypts the secret; the DEK is
  * wrapped by the versioned KEK. The KEK is never stored in the database.
  */
-export function encryptSecret(plaintext: string, key?: Buffer, version?: number): EncryptedSecret {
+export function encryptSecret(
+  plaintext: string,
+  key?: Buffer,
+  version?: number,
+  aad?: string,
+): EncryptedSecret {
   const kek = key ?? activationKek().key;
   const keyVersion = version ?? activationKek().version;
   if (kek.length !== 32) throw new Error("Encryption key must be 32 bytes");
 
   const dek = randomBytes(32);
-  const payload = encryptWithKey(plaintext, dek);
-  const wrapped = encryptWithKey(b64(dek), kek);
+  const payload = encryptWithKey(plaintext, dek, aad);
+  const wrapped = encryptWithKey(b64(dek), kek, aad);
   return {
     ciphertext: payload.ciphertext,
     iv: payload.iv,
@@ -62,10 +74,11 @@ export function encryptSecret(plaintext: string, key?: Buffer, version?: number)
     dekIv: wrapped.iv,
     dekTag: wrapped.tag,
     keyVersion,
+    ...(aad ? { aadVersion: 1 } : {}),
   };
 }
 
-export function decryptSecret(payload: EncryptedSecret, key?: Buffer): string {
+export function decryptSecret(payload: EncryptedSecret, key?: Buffer, aad?: string): string {
   const kek = key ?? activationKek().key;
   const dek = fromB64(
     decryptWithKey(
@@ -75,6 +88,7 @@ export function decryptSecret(payload: EncryptedSecret, key?: Buffer): string {
         tag: payload.dekTag,
       },
       kek,
+      aad,
     ),
   );
   return decryptWithKey(
@@ -84,6 +98,7 @@ export function decryptSecret(payload: EncryptedSecret, key?: Buffer): string {
       tag: payload.tag,
     },
     dek,
+    aad,
   );
 }
 

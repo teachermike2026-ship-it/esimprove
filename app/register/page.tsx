@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getDb } from "@/lib/db/client";
+import { loadLegalSettings } from "@/lib/legal";
 import { RegisterForm } from "@/components/auth-forms";
 import { UserIcon } from "@/components/icons";
 
@@ -13,6 +15,7 @@ export const metadata: Metadata = {
 export default async function RegisterPage() {
   const user = await getCurrentUser();
   if (user) redirect("/portal");
+  const legal = await loadLegalSettings(await getDb());
 
   return (
     <div className="auth-layout">
@@ -36,7 +39,11 @@ export default async function RegisterPage() {
         </ul>
       </section>
       <section className="auth-form">
-        <RegisterForm />
+        <RegisterForm
+          termsVersion={legal.termsVersion}
+          privacyVersion={legal.privacyVersion}
+          minimumAge={legal.minimumAge}
+        />
         <p className="form-note" style={{ textAlign: "center" }}>
           Already have an account? <Link href="/login">Sign in</Link>.
         </p>

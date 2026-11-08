@@ -21,7 +21,8 @@ export default function ErrorPage({
       <div className="callout callout-warning">
         <AlertIcon className="inline-icon" />
         <p>
-          {error.message || "Unknown error"}
+          The request failed without exposing internal details. Check the local server log
+          for the diagnostic entry.
           {error.digest ? ` · reference ${error.digest}` : ""}
         </p>
       </div>

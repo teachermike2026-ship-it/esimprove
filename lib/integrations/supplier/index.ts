@@ -1,4 +1,4 @@
-import { flags } from "@/lib/config";
+import { flags, mockCommerceAllowed } from "@/lib/config";
 import { MockSupplierAdapter } from "@/lib/integrations/supplier/mock";
 import { DisabledLiveSupplierAdapter } from "@/lib/integrations/supplier/disabled";
 import type { SupplierAdapter } from "@/lib/integrations/supplier/types";
@@ -8,6 +8,9 @@ let adapter: SupplierAdapter | undefined;
 export function getSupplierAdapter(): SupplierAdapter {
   if (!adapter) {
     if (flags.supplierLive) {
+      adapter = new DisabledLiveSupplierAdapter();
+    } else if (!mockCommerceAllowed) {
+      // Production must never provision a fake eSIM and label it delivered.
       adapter = new DisabledLiveSupplierAdapter();
     } else {
       adapter = new MockSupplierAdapter({

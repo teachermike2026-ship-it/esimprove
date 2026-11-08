@@ -12,9 +12,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "smoke": "node scripts/smoke-test.mjs",
     "db:setup": "tsx scripts/setup.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "admin:create": "tsx scripts/create-admin.ts",
+    "netlify:preflight": "tsx scripts/netlify-preflight.ts",
     "totp": "tsx scripts/totp.ts",
     "check": "npm run typecheck && npm run lint && npm test"
   },

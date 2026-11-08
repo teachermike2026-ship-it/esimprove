@@ -1,10 +1,15 @@
 import { sha256Hex } from "@/lib/crypto";
-import type {
-  CreateSupplierOrderInput,
-  SupplierAdapter,
-  SupplierEsim,
-  SupplierHealth,
-  SupplierOrder,
+import {
+  DEFAULT_RETRY_POLICY,
+  ProviderError,
+  type CreateSupplierOrderInput,
+  type RetryPolicy,
+  type SupplierAdapter,
+  type SupplierCapabilities,
+  type SupplierCatalogEntry,
+  type SupplierEsim,
+  type SupplierHealth,
+  type SupplierOrder,
 } from "@/lib/integrations/supplier/types";
 
 function deterministicDigits(seed: string, length: number): string {
@@ -16,10 +21,25 @@ function deterministicDigits(seed: string, length: number): string {
   return digits.padEnd(length, "0").slice(0, length);
 }
 
-export class MockSupplierAdapter implements SupplierAdapter {
-  readonly key = "mock";
+export class MockSupplierAdapter implements SupplierAdapter {  readonly key = "mock";
   readonly mode = "sandbox" as const;
   readonly isMock = true;
+  readonly capabilities: SupplierCapabilities = {
+    fetchCatalog: true,
+    fetchDestinations: true,
+    fetchPlanDetails: true,
+    checkAvailability: true,
+    createOrder: true,
+    retrieveOrderStatus: true,
+    retrieveEsimCredentials: true,
+    retrieveUsage: false,
+    topUp: false,
+    requestCancelOrRefund: false,
+    retrieveBalance: false,
+  };
+  readonly retry: RetryPolicy = DEFAULT_RETRY_POLICY;
+  readonly timeoutMs = 10_000;
+  readonly apiVersion = "mock-v1";
   private attempts = 0;
   private readonly failFirstAttempt: boolean;
   private readonly orders = new Map<string, SupplierOrder>();
@@ -58,10 +78,14 @@ export class MockSupplierAdapter implements SupplierAdapter {
   async createOrder(input: CreateSupplierOrderInput): Promise<SupplierOrder> {
     this.attempts += 1;
     if (this.failFirstAttempt && this.attempts === 1) {
-      throw new Error("MOCK_SUPPLIER_FAIL_ONCE: simulated transient supplier failure");
+      throw new ProviderError(
+        "transient_supplier_failure",
+        "MOCK_SUPPLIER_FAIL_ONCE: simulated transient supplier failure",
+        true,
+      );
     }
     if (!input.transactionId || !input.productId) {
-      throw new Error("Mock supplier requires transactionId and productId");
+      throw new ProviderError("invalid_request", "Mock supplier requires transactionId and productId", false);
     }
     return this.orderFor(input.transactionId);
   }
@@ -70,7 +94,7 @@ export class MockSupplierAdapter implements SupplierAdapter {
     const existing = this.orders.get(supplierOrderId);
     if (existing) return existing;
     if (!supplierOrderId.startsWith("mock_ord_")) {
-      throw new Error("Unknown mock supplier order");
+      throw new ProviderError("not_found", "Unknown mock supplier order", false);
     }
     return this.orderFor(supplierOrderId);
   }
@@ -85,5 +109,47 @@ export class MockSupplierAdapter implements SupplierAdapter {
       message: "Mock supplier sandbox is available. No network or supplier account is used.",
       checkedAt: new Date(),
     };
+  }
+
+  static toProviderError(error: unknown): ProviderError {
+    if (error instanceof ProviderError) return error;
+    const message = error instanceof Error ? error.message : String(error);
+    const retryable = /timed(ea|ed)?\s*out|timeout|ECONNRESET|ETIMEDOUT|ECONNREFUSED|503|429|transient|fail_once/i.test(
+      message,
+    );
+    return new ProviderError(retryable ? "transient_supplier_failure" : "provider_error", message, retryable);
+  }
+
+  async fetchCatalog(): Promise<SupplierCatalogEntry[]> {
+    const now = Date.now();
+    const base = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    const entries: SupplierCatalogEntry[] = [
+      {
+        supplierProductId: "mock_par_tokyo_5g_10",
+        planName: "Tokyo Express 5G · 10 GB",
+        dataMb: 10_000,
+        validityDays: 30,
+        costMinor: 420,
+        currency: "USD",
+        coverageSummary: "Nationwide 4G/5G data in Japan.",
+        networkSummary: "Demo network pool",
+        destinationSlug: "japan",
+      },
+      {
+        supplierProductId: "mock_par_paris_2g_5",
+        planName: "Paris City Break 2G · 5 GB",
+        dataMb: 5_000,
+        validityDays: 15,
+        costMinor: 350,
+        currency: "USD",
+        coverageSummary: "City-level data in France.",
+        networkSummary: "Demo network pool",
+        destinationSlug: "france",
+      },
+    ];
+    return entries.map((entry, index) => ({
+      ...entry,
+      effectiveAt: new Date(base.getTime() + index * 86_400_000),
+    }));
   }
 }

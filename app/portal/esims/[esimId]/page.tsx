@@ -8,6 +8,7 @@ import { getDb } from "@/lib/db/client";
 import { esims, orderItems, orders } from "@/lib/db/schema";
 import type { EncryptedSecret } from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/crypto";
+import { isAdminRole } from "@/lib/auth/roles";
 import { requestMeta } from "@/lib/auth/session";
 import { logActivationAccess } from "@/lib/orders";
 import { ActivationCard } from "@/components/activation-card";
@@ -32,7 +33,7 @@ export default async function PortalEsimPage({
     .from(esims)
     .innerJoin(orderItems, eq(esims.orderItemId, orderItems.id))
     .innerJoin(orders, eq(orderItems.orderId, orders.id))
-    .where(and(eq(esims.id, esimId), user.role === "admin" ? undefined : eq(orders.userId, user.id)))
+    .where(and(eq(esims.id, esimId), isAdminRole(user.role) ? undefined : eq(orders.userId, user.id)))
     .limit(1);
   const row = rows[0];
   if (!row) notFound();
@@ -68,7 +69,7 @@ export default async function PortalEsimPage({
   await logActivationAccess(db, {
     esimId: row.esim.id,
     orderId: row.order.id,
-    actorType: user.role === "admin" ? "admin" : "user",
+    actorType: isAdminRole(user.role) ? "admin" : "user",
     actorId: user.id,
     ipHash: meta.ipHash,
   });

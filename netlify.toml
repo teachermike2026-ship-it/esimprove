@@ -1,18 +1,26 @@
-# Netlify build configuration for the local/demo implementation.
+# Netlify build configuration for Next.js 16.
 #
-# No Netlify site, deploy, DNS record, or environment variable exists yet.
-# Do not treat this file as evidence of a deployment. The domain is not owned.
+# Netlify detects Next.js and installs its OpenNext adapter automatically. Do
+# not add @netlify/plugin-nextjs or another Next.js plugin: that would pin an
+# outdated adapter and conflict with the supported zero-config integration.
 #
-# Netlify's Next.js integration handles the App Router build output. Keep the
-# build command aligned with package.json and pin a supported Node LTS version.
+# APP_ENV must be set per deploy context in Netlify:
+#   deploy previews -> preview
+#   branch/staging  -> staging
+#   production      -> production
+# NETLIFY=true alone is not treated as production.
+#
+# No Netlify site, deploy, DNS record, domain, or production database exists
+# yet. This file is configuration only, not evidence of a deployment.
 
 [build]
-  command = "npm run build"
+  # The preflight validates non-secret deployment configuration and fails the
+  # build with actionable messages before Next.js starts. It does not connect to
+  # the database or call any external provider.
+  command = "npm run netlify:preflight && npm run build"
   publish = ".next"
 
 [build.environment]
   NODE_VERSION = "22"
   NPM_FLAGS = "--no-audit --no-fund"
-
-# Application security headers are also set in next.config.ts so local
-# `next start` behaves like the deployed app. Netlify may add its own headers.
+  NEXT_TELEMETRY_DISABLED = "1"

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/guards";
 import { demoMode, integrationModes } from "@/lib/config";
-import { AdminIcon, ShieldIcon } from "@/components/icons";
+import { ShieldIcon } from "@/components/icons";
 
 export const metadata: Metadata = {
   title: "Demo admin",
@@ -19,14 +19,28 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <span className="badge badge-demo">Operator</span>
           <p className="small muted">{admin.email}</p>
         </div>
-        <Link href="/admin">
-          <AdminIcon className="inline-icon" /> Overview
-        </Link>
-        <Link href="/admin/orders">Orders</Link>
+        <Link href="/admin">Overview</Link>
+        <Link href="/admin/analytics">Analytics</Link>
+        <Link href="/admin/finance">Finance</Link>
+        <Link href="/admin/customers">Customers</Link>
+        <Link href="/admin/legal">Legal &amp; compliance</Link>
+        <Link href="/admin/monitoring">Monitoring &amp; alerts</Link>
+        <Link href="/admin/seo">SEO &amp; CMS</Link>
+        <Link href="/admin/blog">Blog &amp; articles</Link>
+        <Link href="/admin/help">Help center</Link>
+        <Link href="/admin/support">Support</Link>
+        <Link href="/admin/audit">Audit log</Link>
+        <Link href="/admin/provider">Supplier</Link>
+        <Link href="/admin/integrations">API Integrations</Link>
         <Link href="/admin/jobs">Fulfillment jobs</Link>
         <Link href="/admin/plans">Plans &amp; pricing</Link>
+        <Link href="/admin/payments">Payments</Link>
+        <Link href="/admin/refunds">Refunds</Link>
+        <Link href="/admin/coupons">Coupons</Link>
+        <Link href="/admin/pricing">Pricing rules</Link>
         <Link href="/admin/emails">Email log</Link>
         <Link href="/admin/settings">Settings</Link>
+        <Link href="/admin/orders">Orders</Link>
         <Link href="/">View storefront</Link>
       </aside>
       <section className="admin-main">

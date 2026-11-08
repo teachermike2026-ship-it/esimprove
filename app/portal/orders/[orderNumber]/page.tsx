@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { getOrderByNumber, getOrderView } from "@/lib/orders";
+import { isAdminRole } from "@/lib/auth/roles";
 import { OrderDetail } from "@/components/order-detail";
 
 export const metadata: Metadata = {
@@ -20,7 +21,7 @@ export default async function PortalOrderPage({
   const user = await requireUser(`/portal/orders/${orderNumber}`);
   const db = await getDb();
   const order = await getOrderByNumber(db, orderNumber);
-  if (!order || (order.userId !== user.id && user.role !== "admin")) notFound();
+  if (!order || (order.userId !== user.id && !isAdminRole(user.role))) notFound();
   const view = await getOrderView(db, order.id);
   if (!view) notFound();
 

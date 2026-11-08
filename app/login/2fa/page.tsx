@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/auth/session";
 import { TwoFactorForm } from "@/components/auth-forms";
+import { isAdminRole } from "@/lib/auth/roles";
 import { safeNextPath } from "@/lib/validation";
 import { LockIcon } from "@/components/icons";
 
@@ -19,7 +20,7 @@ export default async function TwoFactorPage({
   const session = await getCurrentSession();
   if (!session) redirect(`/login?next=${encodeURIComponent(safeNextPath(next, "/admin"))}`);
   if (!session.pendingTwoFactor) {
-    redirect(session.user.role === "admin" ? "/admin" : "/portal");
+    redirect(isAdminRole(session.user.role) ? "/admin" : "/portal");
   }
   const nextPath = safeNextPath(next, "/admin");
 

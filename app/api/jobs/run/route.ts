@@ -4,6 +4,8 @@ import { internalJobSecret } from "@/lib/config";
 import { safeEqual } from "@/lib/crypto";
 import { runOutboxAndJobs } from "@/lib/fulfillment";
 import { recordAudit } from "@/lib/audit";
+import { publishDueScheduledArticles } from "@/lib/blog-schedule";
+import { cleanupAnalytics } from "@/lib/analytics-web";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +27,12 @@ export async function POST(request: NextRequest) {
   try {
     const db = await getDb();
     const result = await runOutboxAndJobs(db);
+    const scheduled = await publishDueScheduledArticles(db);
+    const retentionDays = Number(process.env.ANALYTICS_RETENTION_DAYS ?? "90");
+    const analyticsCleanup = await cleanupAnalytics(
+      db,
+      Number.isFinite(retentionDays) ? retentionDays : 90,
+    );
     await recordAudit(db, {
       actorType: "system",
       action: "jobs.run.api",
@@ -35,13 +43,20 @@ export async function POST(request: NextRequest) {
         outboxFailed: result.outbox.failed,
         jobsProcessed: result.jobs.processed,
         jobsFailed: result.jobs.failed,
+        scheduledArticlesPublished: scheduled.published,
+        analyticsEventsDeleted: analyticsCleanup.events,
+        analyticsSessionsDeleted: analyticsCleanup.sessions,
+        analyticsVisitorsDeleted: analyticsCleanup.visitors,
       },
     });
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      scheduledArticlesPublished: scheduled.published,
+      analyticsCleanup,
+    });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Job run failed" },
-      { status: 500 },
-    );
+    console.error("Job run failed", error instanceof Error ? error.name : "unknown error");
+    return NextResponse.json({ error: "Job run failed" }, { status: 500 });
   }
 }

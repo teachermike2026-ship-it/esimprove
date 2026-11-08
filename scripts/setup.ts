@@ -58,6 +58,16 @@ EMAIL_LIVE_ENABLED=false
 }
 
 async function main(): Promise<void> {
+  loadLocalEnv();
+  const deployedContext = (process.env.APP_ENV || "local").toLowerCase();
+  if (
+    process.env.NETLIFY === "true" ||
+    ["preview", "staging", "production"].includes(deployedContext)
+  ) {
+    throw new Error(
+      "db:setup is local-only. Configure Netlify environment variables and run db:migrate against the deployed database instead.",
+    );
+  }
   const { created, password } = ensureLocalEnv();
   const { createDatabase } = await import("@/lib/db/client");
   const { runMigrations } = await import("@/lib/db/migrate");

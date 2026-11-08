@@ -31,7 +31,7 @@ export default async function AdminSettingsPage() {
     { label: "Supplier live flag", ok: !flags.supplierLive },
     { label: "Email live flag", ok: !flags.emailLive },
     { label: "Catalogue sync flag", ok: !flags.catalogueSync },
-    { label: "Local demo mode (not a production deploy)", ok: !isProduction },
+    { label: "Not a production deploy", ok: !isProduction },
   ];
 
   return (

@@ -10,7 +10,7 @@ export function SearchForm({
   label?: string;
 }) {
   return (
-    <form className="search-form" action={action} method="get" role="search">
+    <form className="search-form" action={action} method="get" role="search" data-analytics-search>
       <label className="visually-hidden" htmlFor="site-search">
         {label}
       </label>

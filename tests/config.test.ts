@@ -3,13 +3,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const SAFE_ENV: Record<string, string> = {
   NETLIFY: "true",
   APP_ENV: "production",
+  DATABASE_ENV: "production",
   DEMO_MODE: "false",
   SEED_DEMO_DATA: "false",
   SITE_URL: "https://shop.example.test",
   DATABASE_URL: "postgres://demo:demo@db.example.test:5432/demo",
+  DATABASE_SSL: "require",
+  DATABASE_POOL_MAX: "3",
   AUTH_SECRET: "a-production-auth-secret-that-is-long-enough",
   ACTIVATION_KEK_V1: Buffer.alloc(32, 9).toString("base64"),
   ACTIVATION_KEK_ACTIVE_VERSION: "1",
+  SUPPLIER_CREDENTIAL_KEK: Buffer.alloc(32, 5).toString("base64"),
+  SUPPLIER_CREDENTIAL_ALLOW_ACTIVATION_KEK_FALLBACK: "false",
   MOCK_PAYMENT_WEBHOOK_SECRET: "production-webhook-secret",
   INTERNAL_JOB_SECRET: "production-internal-job-secret",
   RATE_LIMIT_HASH_SECRET: "production-rate-limit-secret",
@@ -20,6 +25,16 @@ const SAFE_ENV: Record<string, string> = {
   CATALOGUE_SYNC_ENABLED: "false",
   ANALYTICS_ENABLED: "false",
   STAGING_ACCESS_ENABLED: "false",
+};
+
+const PREVIEW_ENV: Record<string, string> = {
+  ...SAFE_ENV,
+  APP_ENV: "preview",
+  DATABASE_ENV: "preview",
+  DEMO_MODE: "true",
+  SEED_DEMO_DATA: "true",
+  SITE_URL: "https://deploy-preview--esimprove.netlify.app",
+  MOCK_PAYMENT_WEBHOOK_SECRET: "preview-webhook-secret",
 };
 
 function stub(overrides: Record<string, string> = {}): void {
@@ -34,21 +49,36 @@ describe("production configuration safety", () => {
     vi.resetModules();
   });
 
-  it("fails closed on Netlify with demo defaults", async () => {
+  it("fails closed when a Netlify deploy does not declare its context", async () => {
     stub({
       APP_ENV: "local",
+      DATABASE_ENV: "local",
       DEMO_MODE: "true",
       SEED_DEMO_DATA: "true",
       SITE_URL: "http://localhost:3000",
     });
     const { assertProductionSafe } = await import("@/lib/config");
-    expect(() => assertProductionSafe()).toThrow(/Unsafe production configuration/);
+    expect(() => assertProductionSafe()).toThrow(/APP_ENV must be set explicitly/);
   });
 
   it("accepts a complete production configuration without live flags", async () => {
     stub();
-    const { assertProductionSafe, isProduction } = await import("@/lib/config");
+    const { assertProductionSafe, isProduction, mockCommerceAllowed } = await import(
+      "@/lib/config"
+    );
     expect(isProduction).toBe(true);
+    expect(mockCommerceAllowed).toBe(false);
+    expect(() => assertProductionSafe()).not.toThrow();
+  });
+
+  it("accepts a safe demo preview deploy", async () => {
+    stub(PREVIEW_ENV);
+    const { assertProductionSafe, isPreview, isProduction, mockCommerceAllowed, noIndex } =
+      await import("@/lib/config");
+    expect(isPreview).toBe(true);
+    expect(isProduction).toBe(false);
+    expect(mockCommerceAllowed).toBe(true);
+    expect(noIndex).toBe(true);
     expect(() => assertProductionSafe()).not.toThrow();
   });
 
@@ -62,5 +92,29 @@ describe("production configuration safety", () => {
     stub({ SITE_URL: "http://shop.example.test" });
     const { assertProductionSafe } = await import("@/lib/config");
     expect(() => assertProductionSafe()).toThrow(/HTTPS public origin/);
+  });
+
+  it("rejects a preview deploy pointed at a production database context", async () => {
+    stub({ ...PREVIEW_ENV, DATABASE_ENV: "production" });
+    const { assertProductionSafe } = await import("@/lib/config");
+    expect(() => assertProductionSafe()).toThrow(/DATABASE_ENV \(production\) must match APP_ENV/);
+  });
+
+  it("rejects demo mode in production", async () => {
+    stub({ DEMO_MODE: "true" });
+    const { assertProductionSafe } = await import("@/lib/config");
+    expect(() => assertProductionSafe()).toThrow(/DEMO_MODE must be false in production/);
+  });
+
+  it("rejects disabled TLS for a deployed database", async () => {
+    stub({ DATABASE_SSL: "disable" });
+    const { assertProductionSafe } = await import("@/lib/config");
+    expect(() => assertProductionSafe()).toThrow(/DATABASE_SSL must not be disabled/);
+  });
+
+  it("rejects the activation KEK fallback for supplier credentials in production", async () => {
+    stub({ SUPPLIER_CREDENTIAL_ALLOW_ACTIVATION_KEK_FALLBACK: "true" });
+    const { assertProductionSafe } = await import("@/lib/config");
+    expect(() => assertProductionSafe()).toThrow(/must be false in production/);
   });
 });

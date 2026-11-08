@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { BrandMark } from "@/components/brand-mark";
 import { getCurrentUser } from "@/lib/auth/session";
+import { isAdminRole } from "@/lib/auth/roles";
 import { logoutAction } from "@/lib/auth/actions";
 import { getDb } from "@/lib/db/client";
 import { getCartView } from "@/lib/cart";
@@ -9,8 +11,11 @@ import { demoMode } from "@/lib/config";
 import {
   AdminIcon,
   CartIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  GlobeIcon,
+  HeadsetIcon,
   MenuIcon,
-  SearchIcon,
   UserIcon,
 } from "@/components/icons";
 
@@ -24,88 +29,134 @@ export async function SiteHeader() {
     cartCount = cart?.count ?? 0;
   }
 
-  return (
-    <header className="site-header">
-      <div className="container header-inner">
-        <Link className="brand" href="/" aria-label="eSIMprove home">
-          <span className="brand-mark" aria-hidden="true">
-            e
-          </span>
-          <span className="brand-text">
-            eSIM<span>prove</span>
-          </span>
-        </Link>
+  const navLinks = [
+    { href: "/", label: "Home", className: "es-nav-home" },
+    { href: "/destinations", label: "Countries" },
+    { href: "/plans", label: "Plans" },
+    { href: "/guides", label: "Guides" },
+    { href: "/about", label: "About us" },
+    { href: "/contact", label: "Contact us" },
+  ];
 
-        <nav className="desktop-nav" aria-label="Primary navigation">
-          <Link href="/destinations">Destinations</Link>
-          <Link href="/plans">Plans</Link>
-          <Link href="/compatibility">Compatibility</Link>
-          <Link href="/guides">Install guides</Link>
+  return (
+    <header className="es-header">
+      <div className="es-shell es-header-inner">
+        <BrandMark />
+
+        <nav className="es-nav" aria-label="Primary navigation">
+          {navLinks.map((link) => (
+            <Link key={link.href} href={link.href} className={link.className}>
+              {link.label}
+            </Link>
+          ))}
         </nav>
 
-        <div className="header-actions">
-          <Link className="icon-button" href="/search" aria-label="Search plans">
-            <SearchIcon />
+        <div className="es-header-actions">
+          <details className="es-lang">
+            <summary aria-label="Language: English">
+              <GlobeIcon />
+              <span>EN</span>
+              <ChevronDownIcon className="es-chevron" />
+            </summary>
+            <div className="es-lang-menu" role="group" aria-label="Available languages">
+              <span className="es-lang-current">
+                <CheckIcon /> English
+              </span>
+              <span className="es-lang-note">More languages are planned.</span>
+              <span className="es-lang-unavailable" aria-disabled="true">
+                Español
+              </span>
+              <span className="es-lang-unavailable" aria-disabled="true">
+                Français
+              </span>
+            </div>
+          </details>
+
+          <Link className="es-support-link" href="/contact" aria-label="Support">
+            <HeadsetIcon />
+            <span>Support</span>
           </Link>
-          <Link className="cart-link" href="/cart" aria-label={`Cart, ${cartCount} items`}>
+
+          <Link
+            className="es-cart"
+            href="/cart"
+            aria-label={cartCount === 1 ? "Cart, 1 item" : `Cart, ${cartCount} items`}
+          >
             <CartIcon />
-            <span className="cart-count" aria-hidden="true">
-              {cartCount}
-            </span>
+            {cartCount > 0 ? (
+              <span className="es-cart-count" aria-hidden="true">
+                {cartCount}
+              </span>
+            ) : null}
           </Link>
+
           {user ? (
-            <>
-              {user.role === "admin" ? (
-                <Link className="account-link" href="/admin">
-                  <AdminIcon />
-                  <span>Admin</span>
-                </Link>
-              ) : null}
-              <Link className="account-link" href="/portal">
+            <details className="es-account">
+              <summary className="es-signin">
                 <UserIcon />
                 <span>Account</span>
-              </Link>
-              <form action={logoutAction} className="inline-form">
-                <button className="text-button" type="submit">
-                  Sign out
-                </button>
-              </form>
-            </>
+                <ChevronDownIcon className="es-chevron" />
+              </summary>
+              <div className="es-account-menu">
+                <span className="es-account-name">
+                  <small>Signed in as</small>
+                  {user.name || user.email}
+                </span>
+                <Link href="/portal">My eSIMs &amp; orders</Link>
+                {isAdminRole(user.role) ? (
+                  <Link href="/admin">
+                    <AdminIcon /> Admin area
+                  </Link>
+                ) : null}
+                <form action={logoutAction}>
+                  <button className="es-menu-button" type="submit">
+                    Sign out
+                  </button>
+                </form>
+              </div>
+            </details>
           ) : (
-            <Link className="account-link" href="/login">
+            <Link className="es-signin" href="/login">
               <UserIcon />
               <span>Sign in</span>
             </Link>
           )}
-        </div>
 
-        <details className="mobile-menu">
-          <summary className="icon-button" aria-label="Open navigation menu">
-            <MenuIcon />
-          </summary>
-          <nav aria-label="Mobile navigation">
-            <Link href="/destinations">Destinations</Link>
-            <Link href="/plans">Plans</Link>
-            <Link href="/compatibility">Compatibility</Link>
-            <Link href="/guides">Install guides</Link>
-            <Link href="/search">Search</Link>
-            <Link href="/cart">Cart ({cartCount})</Link>
-            {user ? (
-              <>
-                {user.role === "admin" ? <Link href="/admin">Admin</Link> : null}
-                <Link href="/portal">Account</Link>
-                <form action={logoutAction}>
-                  <button className="text-button" type="submit">
-                    Sign out
-                  </button>
-                </form>
-              </>
-            ) : (
-              <Link href="/login">Sign in</Link>
-            )}
-            {demoMode ? <Link href="/admin">Demo admin</Link> : null}
-          </nav>
-        </details>
+          <details className="es-mobile-nav">
+            <summary className="es-menu-toggle" aria-label="Navigation menu">
+              <MenuIcon />
+            </summary>
+            <div className="es-mobile-panel">
+              <nav aria-label="Mobile navigation">
+                {navLinks.map((link) => (
+                  <Link key={link.href} href={link.href}>
+                    {link.label}
+                  </Link>
+                ))}
+              </nav>
+              <div className="es-mobile-account">
+                <Link href="/cart">Cart ({cartCount})</Link>
+                {user ? (
+                  <>
+                    <Link href="/portal">My eSIMs &amp; orders</Link>
+                    {isAdminRole(user.role) ? <Link href="/admin">Admin area</Link> : null}
+                    <form action={logoutAction}>
+                      <button className="es-menu-button" type="submit">
+                        Sign out
+                      </button>
+                    </form>
+                  </>
+                ) : (
+                  <Link href="/login">Sign in</Link>
+                )}
+                {demoMode ? <Link href="/admin">Demo admin</Link> : null}
+              </div>
+              <p className="es-mobile-note">
+                English only in this build. Support channels are not live.
+              </p>
+            </div>
+          </details>
+        </div>
       </div>
     </header>
   );

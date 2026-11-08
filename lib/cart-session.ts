@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { CART_COOKIE } from "@/lib/cart-cookie";
+import { siteUrl } from "@/lib/config";
 
 export async function readCartToken(): Promise<string | null> {
   const cookieStore = await cookies();
@@ -10,7 +11,7 @@ export async function clearCartCookie(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(CART_COOKIE, "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: siteUrl.startsWith("https://"),
     sameSite: "lax",
     path: "/",
     expires: new Date(0),

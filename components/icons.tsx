@@ -200,6 +200,33 @@ export function MenuIcon(props: IconProps) {
   );
 }
 
+export function PlayIcon(props: IconProps) {
+  return (
+    <Svg fill="currentColor" stroke="none" {...props}>
+      <path d="M8 5.4v13.2L19 12 8 5.4Z" />
+    </Svg>
+  );
+}
+
+export function StarIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3Z" />
+    </Svg>
+  );
+}
+
+export function HeadsetIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 13v-1a8 8 0 0 1 16 0v1" />
+      <path d="M4 13h2.2v5H4a1.5 1.5 0 0 1-1.5-1.5v-2A1.5 1.5 0 0 1 4 13Z" />
+      <path d="M20 13h-2.2v5H20a1.5 1.5 0 0 0 1.5-1.5v-2A1.5 1.5 0 0 0 20 13Z" />
+      <path d="M18 18v.5a2.5 2.5 0 0 1-2.5 2.5H13" />
+    </Svg>
+  );
+}
+
 export function AdminIcon(props: IconProps) {
   return (
     <Svg {...props}>

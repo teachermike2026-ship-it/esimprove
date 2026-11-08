@@ -1,4 +1,13 @@
-export type PaymentStatus = "pending" | "authorized" | "paid" | "failed" | "refunded";
+export type PaymentStatus =
+  | "pending"
+  | "authorized"
+  | "paid"
+  | "failed"
+  | "refunded"
+  | "partially_refunded"
+  | "disputed"
+  | "cancelled";
+
 export type FulfillmentStatus =
   | "not_started"
   | "queued"
@@ -7,25 +16,31 @@ export type FulfillmentStatus =
   | "delivered"
   | "failed"
   | "under_investigation"
+  | "manual_review"
   | "cancelled";
+
 export type OrderStatus = "pending_payment" | "processing" | "delivered" | "failed" | "cancelled";
 
 const PAYMENT_TRANSITIONS: Record<PaymentStatus, PaymentStatus[]> = {
-  pending: ["authorized", "paid", "failed"],
-  authorized: ["paid", "failed"],
-  paid: ["refunded"],
+  pending: ["authorized", "paid", "failed", "cancelled"],
+  authorized: ["paid", "failed", "cancelled"],
+  paid: ["refunded", "partially_refunded", "disputed"],
   failed: [],
   refunded: [],
+  cancelled: [],
+  partially_refunded: ["refunded"],
+  disputed: ["refunded"],
 };
 
 const FULFILLMENT_TRANSITIONS: Record<FulfillmentStatus, FulfillmentStatus[]> = {
   not_started: ["queued", "cancelled"],
-  queued: ["provisioning", "failed", "cancelled"],
-  provisioning: ["ready", "failed", "under_investigation"],
-  ready: ["delivered", "failed", "cancelled"],
+  queued: ["provisioning", "failed", "manual_review", "cancelled"],
+  provisioning: ["ready", "failed", "under_investigation", "manual_review", "cancelled"],
+  ready: ["delivered", "failed", "under_investigation", "manual_review", "cancelled"],
   delivered: ["failed"],
-  failed: ["queued", "under_investigation", "cancelled"],
-  under_investigation: ["queued", "failed", "cancelled"],
+  failed: ["queued", "under_investigation", "manual_review", "cancelled"],
+  under_investigation: ["queued", "failed", "manual_review", "cancelled"],
+  manual_review: ["queued", "failed", "cancelled"],
   cancelled: [],
 };
 
@@ -78,10 +93,17 @@ export function deriveOrderStatus(
   fulfillmentStatus: FulfillmentStatus,
 ): OrderStatus {
   if (paymentStatus === "failed") return "failed";
-  if (paymentStatus === "refunded") return "cancelled";
-  if (paymentStatus !== "paid") return "pending_payment";
+  if (paymentStatus === "refunded" || paymentStatus === "cancelled") return "cancelled";
+  if (paymentStatus === "partially_refunded") {
+    if (fulfillmentStatus === "delivered") return "delivered";
+    if (fulfillmentStatus === "failed") return "failed";
+    if (fulfillmentStatus === "cancelled") return "cancelled";
+    return "processing";
+  }
+  if (paymentStatus !== "paid" && paymentStatus !== "disputed") return "pending_payment";
   if (fulfillmentStatus === "delivered") return "delivered";
   if (fulfillmentStatus === "failed") return "failed";
   if (fulfillmentStatus === "cancelled") return "cancelled";
+  // A paid order (or one under dispute) is being fulfilled.
   return "processing";
 }

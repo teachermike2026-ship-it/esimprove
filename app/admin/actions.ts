@@ -5,14 +5,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
-import { fulfillmentJobs, plans } from "@/lib/db/schema";
+import { fulfillmentJobs, plans, refunds } from "@/lib/db/schema";
 import { retryFulfillmentJob, runOutboxAndJobs } from "@/lib/fulfillment";
 import { calculateSalePrice } from "@/lib/pricing";
+import { applyRefund } from "@/lib/refunds";
 import { adminPlanSchema, formString, zodMessage } from "@/lib/validation";
 import { recordAudit } from "@/lib/audit";
 
 export async function runJobsAction(): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireAdmin("/admin/jobs", "orders.write");
   const db = await getDb();
   const result = await runOutboxAndJobs(db);
   await recordAudit(db, {
@@ -36,7 +37,7 @@ export async function runJobsAction(): Promise<void> {
 }
 
 export async function retryJobAction(formData: FormData): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireAdmin("/admin/jobs", "orders.write");
   const jobId = formString(formData, "jobId");
   if (!jobId) redirect("/admin/jobs");
   const db = await getDb();
@@ -55,7 +56,7 @@ export async function retryJobAction(formData: FormData): Promise<void> {
 }
 
 export async function retryOrderJobsAction(formData: FormData): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireAdmin("/admin/orders", "orders.write");
   const orderId = formString(formData, "orderId");
   const orderNumber = formString(formData, "orderNumber");
   if (!orderId || !orderNumber) redirect("/admin/orders");
@@ -86,7 +87,7 @@ export async function retryOrderJobsAction(formData: FormData): Promise<void> {
 }
 
 export async function updatePlanAction(formData: FormData): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireAdmin("/admin/plans", "plans.manage");
   const parsed = adminPlanSchema.safeParse({
     planId: formString(formData, "planId"),
     markupBps: formString(formData, "markupBps"),
@@ -131,4 +132,25 @@ export async function updatePlanAction(formData: FormData): Promise<void> {
   revalidatePath(`/plans/${plan.slug}`);
   revalidatePath("/");
   redirect(`/admin/plans?updated=${encodeURIComponent(plan.slug)}`);
+}
+
+export async function approveRefundAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin("/admin/refunds", "refunds.write");
+  const refundId = formString(formData, "refundId");
+  if (!refundId) redirect("/admin/refunds");
+  const db = await getDb();
+  const refundRows = await db.select().from(refunds).where(eq(refunds.id, refundId)).limit(1);
+  const refund = refundRows[0];
+  if (!refund) redirect("/admin/refunds");
+  if (refund.status !== "requested") {
+    redirect(`/admin/refunds?error=${encodeURIComponent("Refund already processed")}`);
+  }
+  try {
+    await applyRefund(db, refund.id, { actorType: "admin", actorId: admin.id });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Refund could not be approved";
+    redirect(`/admin/refunds?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath("/admin/refunds");
+  redirect("/admin/refunds?processed=1");
 }

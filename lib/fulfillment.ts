@@ -48,6 +48,9 @@ async function refreshOrderStatus(db: Database, orderId: string): Promise<void> 
   if (statuses.every((status) => status === "delivered")) {
     fulfillmentStatus = "delivered";
     orderStatus = "delivered";
+  } else if (statuses.some((status) => status === "manual_review")) {
+    fulfillmentStatus = "manual_review";
+    orderStatus = "processing";
   } else if (
     statuses.some((status) => status === "failed" || status === "under_investigation")
   ) {

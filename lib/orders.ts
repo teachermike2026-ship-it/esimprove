@@ -6,10 +6,12 @@ import {
   orderAccessTokens,
   orderEvents,
   orderItems,
+  orderStatusHistory,
   orders,
 } from "@/lib/db/schema";
 import type { OrderStatus, PaymentStatus, FulfillmentStatus } from "@/lib/state";
 import { hashToken, randomToken } from "@/lib/crypto";
+import { isAdminRole } from "@/lib/auth/roles";
 import { newId } from "@/lib/ids";
 
 export type OrderRow = typeof orders.$inferSelect;
@@ -69,7 +71,7 @@ export async function canViewOrder(
   order: OrderRow,
   viewer: { userId?: string | null; role?: string | null; token?: string | null },
 ): Promise<boolean> {
-  if (viewer.role === "admin") return true;
+  if (isAdminRole(viewer.role)) return true;
   if (viewer.userId && order.userId === viewer.userId) return true;
   if (viewer.token) return verifyOrderAccessToken(db, order.id, viewer.token);
   return false;
@@ -129,6 +131,30 @@ export async function getOrderView(db: Database, orderId: string): Promise<Order
     items: await getOrderItems(db, orderId),
     events: await getOrderEvents(db, orderId),
   };
+}
+
+export async function recordOrderStatusChange(
+  db: Database,
+  input: {
+    orderId: string;
+    fromStatus: string;
+    toStatus: string;
+    actorType?: string;
+    actorId?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<void> {
+  await db
+    .insert(orderStatusHistory)
+    .values({
+      id: newId("orderstatus"),
+      orderId: input.orderId,
+      fromStatus: input.fromStatus,
+      toStatus: input.toStatus,
+      actorType: input.actorType ?? "system",
+      actorId: input.actorId ?? null,
+      metadata: input.metadata ?? {},
+    });
 }
 
 export async function getOrderViewByNumber(
@@ -215,6 +241,7 @@ export function fulfillmentStatusLabel(status: string): string {
     delivered: "Delivered",
     failed: "Failed",
     under_investigation: "Under investigation",
+    manual_review: "Manual review",
     cancelled: "Cancelled",
   };
   return map[status as FulfillmentStatus] ?? statusLabel(status);

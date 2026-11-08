@@ -1,284 +1,483 @@
-import Link from "next/link";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getDb } from "@/lib/db/client";
-import { getDestinations, getFeaturedPlans, getRegions } from "@/lib/catalog";
-import { DestinationCard } from "@/components/destination-card";
-import { PlanCard } from "@/components/plan-card";
-import { SearchForm } from "@/components/search-form";
-import { formatMoney } from "@/lib/money";
+import {
+  getDestinations,
+  getPlans,
+  getRegions,
+  type PlanSummary,
+} from "@/lib/catalog";
+import { formatData, formatMoney } from "@/lib/money";
+import { faqItems } from "@/lib/site-content";
+import { CountryFlag } from "@/components/country-flag";
+import { DestinationExplorer, type ExplorerDestination } from "@/components/home/destination-explorer";
+import { DestinationSearch } from "@/components/home/destination-search";
+import { PhoneShowcase, type PhoneDestination, type PhoneRegion } from "@/components/home/phone-showcase";
+import { DemoQr } from "@/components/home/qr-demo";
+import { TutorialSection } from "@/components/home/tutorial-section";
+import { WorldMap } from "@/components/home/world-map";
 import {
   ArrowRight,
   CheckIcon,
   GlobeIcon,
-  LockIcon,
   QrIcon,
   ShieldIcon,
   SignalIcon,
-  SparkIcon,
+  StarIcon,
 } from "@/components/icons";
 
 export const metadata: Metadata = {
-  title: "Demo eSIM travel store",
+  title: { absolute: "Travel eSIMs for your next trip · Esimprove" },
   description:
-    "Explore destinations, compare demo eSIM plans, check device compatibility, and walk through a clearly labelled mock checkout.",
+    "Compare travel eSIM plans by destination. Explore data, validity, and pricing in the Esimprove demo storefront. No live payments or eSIM activation.",
   alternates: { canonical: "/" },
 };
 
 export default async function HomePage() {
   const db = await getDb();
-  const [regions, popularDestinations, featuredPlans] = await Promise.all([
+  const [regions, destinations, plans] = await Promise.all([
     getRegions(db),
-    getDestinations(db, { popular: true }),
-    getFeaturedPlans(db, 6),
+    getDestinations(db),
+    getPlans(db, { limit: 500 }),
   ]);
+
+  const destinationCount = destinations.length;
+  const regionCount = regions.length;
   const planCount = regions.reduce((total, region) => total + region.planCount, 0);
-  const destinationCount = regions.reduce((total, region) => total + region.destinationCount, 0);
-  const heroPlan = featuredPlans[0];
+  const popularDestinations = destinations.filter((destination) => destination.popular);
+  const featuredDestinations = [
+    ...popularDestinations,
+    ...destinations.filter((destination) => !destination.popular),
+  ].slice(0, 12);
+
+  const cheapestPlanByDestination = new Map<string, PlanSummary>();
+  for (const plan of plans) {
+    if (!cheapestPlanByDestination.has(plan.destinationSlug)) {
+      cheapestPlanByDestination.set(plan.destinationSlug, plan);
+    }
+  }
+
+  const explorerDestinations: ExplorerDestination[] = featuredDestinations.map(
+    (destination) => {
+      const plan = cheapestPlanByDestination.get(destination.slug) ?? null;
+      return {
+        slug: destination.slug,
+        name: destination.name,
+        countryCode: destination.countryCode,
+        regionName: destination.regionName,
+        planCount: destination.planCount,
+        fromPriceMinor: destination.fromPriceMinor,
+        fromValidityDays: plan?.validityDays ?? null,
+        currency: plan?.currency ?? "USD",
+      };
+    },
+  );
+
+  const explorerRegions = regions.map((region) => ({
+    slug: region.slug,
+    name: region.name,
+    description: region.description,
+    destinationCount: region.destinationCount,
+    planCount: region.planCount,
+    fromPriceMinor: region.fromPriceMinor,
+  }));
+
+  const phoneDestinations: PhoneDestination[] = [];
+  for (const destination of featuredDestinations.slice(0, 4)) {
+    const plan = cheapestPlanByDestination.get(destination.slug);
+    if (!plan) continue;
+    phoneDestinations.push({
+      slug: destination.slug,
+      name: destination.name,
+      countryCode: destination.countryCode,
+      planName: plan.name,
+      dataMb: plan.dataMb,
+      validityDays: plan.validityDays,
+      priceMinor: plan.priceMinor,
+      currency: plan.currency,
+    });
+  }
+
+  const phoneRegions: PhoneRegion[] = regions.map((region) => ({
+    slug: region.slug,
+    name: region.name,
+    destinationCount: region.destinationCount,
+    planCount: region.planCount,
+    fromPriceMinor: region.fromPriceMinor,
+  }));
+
+  const flexibleDestination = featuredDestinations[0] ?? destinations[0] ?? null;
+  const flexiblePlans = flexibleDestination
+    ? plans.filter((plan) => plan.destinationSlug === flexibleDestination.slug).slice(0, 3)
+    : [];
+  const selectedPlanIndex = flexiblePlans.length > 1 ? 1 : 0;
+  const flagDestinations = featuredDestinations.slice(0, 6);
+  const ctaFlagDestinations = featuredDestinations.slice(0, 4);
+  const searchSuggestions = Array.from(
+    new Set([
+      ...featuredDestinations.map((destination) => destination.name),
+      ...regions.map((region) => region.name),
+      "5 GB",
+      "10 GB",
+    ]),
+  );
 
   return (
-    <>
-      <section className="hero" aria-labelledby="hero-title">
-        <div className="hero-copy">
-          <p className="eyebrow">Demo eSIM travel commerce</p>
-          <h1 id="hero-title">
-            Travel data, without the <em>roaming guesswork.</em>
-          </h1>
-          <p className="lead">
-            Browse destination-first demo plans, check device compatibility, and follow the
-            full order journey — with mock payments and mock provisioning that are clearly
-            labelled at every step.
+    <div className="es-home">
+      <section className="es-hero" aria-labelledby="hero-title">
+        <div className="es-hero-orb es-hero-orb-one" aria-hidden="true" />
+        <div className="es-hero-orb es-hero-orb-two" aria-hidden="true" />
+        <WorldMap className="es-hero-map" />
+
+        <div className="es-shell es-hero-grid">
+          <div className="es-hero-copy">
+            <h1 id="hero-title" className="es-hero-title">
+              <span>Travel Freely</span>
+              <span>Connect Instantly</span>
+              <span className="es-hero-accent">Anywhere, Anytime</span>
+            </h1>
+            <p className="es-hero-lead">
+              Compare travel eSIM plans for {destinationCount} destinations across{" "}
+              {regionCount} regions. Clear data, validity, and pricing up front — no plastic
+              SIM, no roaming guesswork.
+            </p>
+            <DestinationSearch id="hero-search" suggestions={searchSuggestions} />
+            <ul className="es-hero-checks">
+              <li>
+                <span className="es-check-mark">
+                  <CheckIcon />
+                </span>
+                {destinationCount} destinations
+              </li>
+              <li>
+                <span className="es-check-mark">
+                  <CheckIcon />
+                </span>
+                {regionCount} regions
+              </li>
+              <li>
+                <span className="es-check-mark">
+                  <CheckIcon />
+                </span>
+                {planCount} plan options
+              </li>
+            </ul>
+            <p className="es-hero-caption">
+              Interactive preview uses the local demo catalogue. No live activation or payment.
+            </p>
+          </div>
+
+          <div className="es-hero-visual">
+            <PhoneShowcase
+              destinations={phoneDestinations}
+              regions={phoneRegions}
+              destinationCount={destinationCount}
+              regionCount={regionCount}
+              planCount={planCount}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="es-trust" aria-label="Coverage overview">
+        <div className="es-shell">
+          <p className="es-trust-title">Coverage built for international travel</p>
+          <ul className="es-trust-list">
+            <li>
+              <GlobeIcon />
+              <span>{destinationCount} destinations</span>
+            </li>
+            <li>
+              <SignalIcon />
+              <span>{regionCount} regions</span>
+            </li>
+            <li>
+              <QrIcon />
+              <span>{planCount} plan options</span>
+            </li>
+            <li>
+              <ShieldIcon />
+              <span>Demo-safe checkout</span>
+            </li>
+            <li>
+              <CheckIcon />
+              <span>Clear demo labels</span>
+            </li>
+          </ul>
+          <p className="es-trust-note">
+            Counts come from the local demo catalogue. No partner relationship or live network
+            coverage is implied.
           </p>
-          <SearchForm />
-          <div className="hero-actions">
-            <Link className="button" href="/plans">
-              Browse demo plans <ArrowRight className="inline-icon" />
-            </Link>
-            <Link className="button button-secondary" href="/compatibility">
-              Check compatibility
+        </div>
+      </section>
+
+      <section className="es-intro" aria-labelledby="intro-title">
+        <div className="es-shell">
+          <h2 id="intro-title" className="es-intro-heading">
+            <span>Esimprove: Always Connected.</span> Instant travel data, no plastic SIM —
+            simple, digital connectivity for your next trip.
+          </h2>
+          <p>
+            Browse plans by destination, compare data and validity, and check your device
+            before you travel. Everything is clearly labelled while live integrations remain
+            disabled.
+          </p>
+        </div>
+      </section>
+
+      <section className="es-features" aria-labelledby="features-title">
+        <div className="es-shell">
+          <h2 id="features-title" className="visually-hidden">
+            What Esimprove offers
+          </h2>
+          <div className="es-feature-grid">
+            <article className="es-feature-card">
+              <h3>Global Coverage</h3>
+              <p>
+                Explore {destinationCount} destinations across {regionCount} demo regions,
+                with data, validity, and starting prices shown up front.
+              </p>
+              <div className="es-flag-cloud" aria-hidden="true">
+                {flagDestinations.map((destination) => (
+                  <span key={destination.slug} className="es-flag-chip">
+                    <CountryFlag code={destination.countryCode} label={destination.name} />
+                  </span>
+                ))}
+                <span className="es-flag-orbit" />
+              </div>
+              <Link className="es-text-link" href="/destinations">
+                Browse destinations <ArrowRight />
+              </Link>
+            </article>
+
+            <article className="es-feature-card">
+              <h3>Flexible Plans</h3>
+              <p>
+                Choose from demo data plans sized for a short break or a longer stay. The
+                selected row is the clear, green choice.
+              </p>
+              <div className="es-plan-choice">
+                {flexiblePlans.map((plan, index) => (
+                  <Link
+                    key={plan.id}
+                    href={`/plans/${plan.slug}`}
+                    className={`es-plan-option${index === selectedPlanIndex ? " is-selected" : ""}`}
+                  >
+                    <span className="es-plan-radio" aria-hidden="true" />
+                    <span className="es-plan-option-copy">
+                      <strong>
+                        {formatData(plan.dataMb)} · {plan.validityDays} days
+                      </strong>
+                      <small>{plan.destinationName}</small>
+                    </span>
+                    <strong className="es-plan-option-price">
+                      {formatMoney(plan.priceMinor, plan.currency)}
+                    </strong>
+                  </Link>
+                ))}
+              </div>
+              {flexibleDestination ? (
+                <Link
+                  className="es-text-link"
+                  href={`/destinations/${flexibleDestination.slug}`}
+                >
+                  See {flexibleDestination.name} plans <ArrowRight />
+                </Link>
+              ) : null}
+            </article>
+
+            <article className="es-feature-card">
+              <h3>Instant Activation</h3>
+              <p>
+                QR or manual installation instructions, with a written guide for iOS and
+                Android — no fake activation states.
+              </p>
+              <div className="es-qr-panel">
+                <DemoQr />
+                <span>Illustrative QR — not an activation code.</span>
+              </div>
+              <Link className="es-text-link" href="/guides">
+                Open install guide <ArrowRight />
+              </Link>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section className="es-destinations" id="destinations" aria-labelledby="destinations-title">
+        <div className="es-shell">
+          <header className="es-section-head es-section-head-center">
+            <p className="es-eyebrow">Find your next stop</p>
+            <h2 id="destinations-title">
+              Pick a Vacation <span className="es-green">Destination</span>
+            </h2>
+            <p>
+              Choose a destination to explore available packages, data allowances, and demo
+              pricing before you compare plans.
+            </p>
+          </header>
+          <DestinationExplorer destinations={explorerDestinations} regions={explorerRegions} />
+        </div>
+      </section>
+
+      <section className="es-install" id="install" aria-labelledby="install-title">
+        <div className="es-shell">
+          <header className="es-section-head es-section-head-center">
+            <p className="es-eyebrow">From code to connection</p>
+            <h2 id="install-title">
+              How to <span className="es-green">Install eSIM</span>
+            </h2>
+            <p>
+              A clear, provider-neutral walkthrough for checking compatibility, installing
+              your plan, and labelling the line.
+            </p>
+          </header>
+          <TutorialSection />
+        </div>
+      </section>
+
+      <section className="es-reviews" aria-labelledby="reviews-title">
+        <div className="es-shell">
+          <div className="es-reviews-head">
+            <h2 id="reviews-title">
+              Traveler <span className="es-green">stories</span>
+            </h2>
+            <p>
+              We only publish verified customer reviews. None are approved for this build, so
+              no review names, quotes, ratings, or platform scores are shown.
+            </p>
+          </div>
+
+          <div className="es-reviews-empty">
+            <span className="es-reviews-icon" aria-hidden="true">
+              <StarIcon />
+            </span>
+            <div>
+              <h3>No reviews published yet</h3>
+              <p>
+                When real, approved reviews are available, this section will show the review,
+                date, destination, and source. We do not invent customer identities or ratings.
+              </p>
+            </div>
+            <Link className="es-text-link" href="/about#reviews">
+              Read our review policy <ArrowRight />
             </Link>
           </div>
-          <ul className="hero-trust">
+
+          <ul className="es-review-principles">
             <li>
-              <CheckIcon className="inline-icon" /> {destinationCount} demo destinations
+              <span>01</span>
+              <strong>Real reviews only</strong>
+              <p>Published with permission and kept in context.</p>
             </li>
             <li>
-              <CheckIcon className="inline-icon" /> {planCount} demo plans
+              <span>02</span>
+              <strong>Source and date shown</strong>
+              <p>Every future review will be traceable and dated.</p>
             </li>
             <li>
-              <CheckIcon className="inline-icon" /> No live money or eSIMs
+              <span>03</span>
+              <strong>No invented ratings</strong>
+              <p>No star score, review count, or platform badge without data.</p>
             </li>
           </ul>
         </div>
+      </section>
 
-        <div className="hero-panel" aria-label="Example demo plan">
-          <span className="hero-stamp">
-            Demo
-            <br />
-            catalogue
-          </span>
-          <div className="hero-card">
-            <span className="hero-card-badge">Illustrative plan</span>
-            <h2>{heroPlan ? `${heroPlan.destinationName} · ${heroPlan.name}` : "Demo travel plan"}</h2>
+      <section className="es-faq" id="faq" aria-labelledby="faq-title">
+        <div className="es-shell es-faq-layout">
+          <div className="es-faq-intro">
+            <p className="es-eyebrow">Before you go</p>
+            <h2 id="faq-title">
+              Frequently asked <span className="es-green">questions</span>
+            </h2>
             <p>
-              {heroPlan
-                ? `${heroPlan.coverageSummary}. Real coverage, speed, and network terms require supplier verification.`
-                : "A placeholder demo plan. Real supplier data is not connected."}
+              Straight answers about eSIMs, compatibility, installation, and the limits of
+              this demo build.
             </p>
-            <div className="hero-card-row">
-              <div>
-                <span className="price-note">Demo price</span>
-                <div className="hero-card-price">
-                  {heroPlan ? formatMoney(heroPlan.priceMinor, heroPlan.currency) : "$0.00"}
-                </div>
-              </div>
-              <div className="pill-row">
-                <span className="hero-card-badge">QR + manual</span>
-                <span className="hero-card-badge">Mock</span>
+            <Link className="es-text-link" href="/guides">
+              Read the installation guides <ArrowRight />
+            </Link>
+          </div>
+
+          <div className="es-faq-list">
+            {faqItems.map((item, index) => (
+              <details key={item.question} className="es-faq-item" open={index === 0}>
+                <summary>
+                  <span>{item.question}</span>
+                  <span className="es-faq-plus" aria-hidden="true" />
+                </summary>
+                <p>{item.answer}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="es-cta" aria-labelledby="cta-title">
+        <div className="es-shell">
+          <div className="es-cta-panel">
+            <div className="es-cta-copy">
+              <p className="es-eyebrow">Start with a destination</p>
+              <h2 id="cta-title">
+                Where are you <span className="es-green">heading next?</span>
+              </h2>
+              <p>
+                Search the demo catalogue, then compare data, validity, and price before you
+                choose a plan.
+              </p>
+              <DestinationSearch id="cta-search" suggestions={searchSuggestions} size="cta" />
+              <div className="es-cta-actions">
+                <Link className="es-button es-button-primary" href="/destinations">
+                  Browse all destinations <ArrowRight />
+                </Link>
+                <Link className="es-button es-button-secondary" href="/plans">
+                  Compare plans
+                </Link>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
 
-      <section className="section" aria-labelledby="popular-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Start with a destination</p>
-            <h2 id="popular-title">Popular demo destinations</h2>
-            <p className="muted">
-              Each destination page is generated from the local demo catalogue. Prices are
-              computed by the pricing engine and are not supplier quotes.
-            </p>
+            <div className="es-cta-art" aria-hidden="true">
+              <span className="es-cta-orbit es-cta-orbit-one" />
+              <span className="es-cta-orbit es-cta-orbit-two" />
+              <span className="es-cta-globe">
+                <GlobeIcon />
+              </span>
+              {ctaFlagDestinations.map((destination, index) => (
+                <span
+                  key={destination.slug}
+                  className={`es-cta-flag es-cta-flag-${index + 1}`}
+                >
+                  <CountryFlag code={destination.countryCode} label={destination.name} />
+                </span>
+              ))}
+              <span className="es-cta-pill">
+                <CheckIcon /> {destinationCount} destinations
+              </span>
+            </div>
           </div>
-          <Link className="button button-ghost" href="/destinations">
-            All destinations <ArrowRight className="inline-icon" />
-          </Link>
-        </div>
-        <div className="grid grid-4">
-          {popularDestinations.slice(0, 8).map((destination) => (
-            <DestinationCard key={destination.id} destination={destination} />
-          ))}
-        </div>
-      </section>
 
-      <section className="section" aria-labelledby="featured-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Compare the basics</p>
-            <h2 id="featured-title">Featured demo plans</h2>
-            <p className="muted">
-              Data, validity, and price are real fields in the local database. The supplier,
-              coverage, and activation values are mock data.
-            </p>
-          </div>
-          <Link className="button button-ghost" href="/plans">
-            See all plans <ArrowRight className="inline-icon" />
-          </Link>
-        </div>
-        <div className="grid grid-3">
-          {featuredPlans.map((plan) => (
-            <PlanCard key={plan.id} plan={plan} />
-          ))}
-        </div>
-      </section>
-
-      <section className="section" aria-labelledby="how-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">How the demo works</p>
-            <h2 id="how-title">A complete local journey, with honest boundaries</h2>
-          </div>
-        </div>
-        <div className="grid grid-4">
-          <article className="card stat">
-            <GlobeIcon className="inline-icon" />
-            <strong>1</strong>
-            <span>Choose</span>
-            <p className="muted small">
-              Pick a destination and compare demo data, validity, and price.
-            </p>
-          </article>
-          <article className="card stat">
-            <SignalIcon className="inline-icon" />
-            <strong>2</strong>
-            <span>Check</span>
-            <p className="muted small">
-              Use the conservative compatibility guide, then confirm with the manufacturer.
-            </p>
-          </article>
-          <article className="card stat">
-            <QrIcon className="inline-icon" />
-            <strong>3</strong>
-            <span>Install</span>
-            <p className="muted small">
-              Follow general iOS or Android steps. Demo activation codes cannot connect.
-            </p>
-          </article>
-          <article className="card stat">
-            <ShieldIcon className="inline-icon" />
-            <strong>4</strong>
-            <span>Track</span>
-            <p className="muted small">
-              See order, payment, fulfillment, and retry states in the customer and admin
-              views.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section className="section" aria-labelledby="regions-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Browse by region</p>
-            <h2 id="regions-title">Find a region, then narrow the plan</h2>
-          </div>
-        </div>
-        <div className="grid grid-4">
-          {regions.map((region) => (
-            <article key={region.id} className={`card stat accent-${region.accent}`}>
-              <span className="badge badge-demo">{region.planCount} demo plans</span>
-              <h3>
-                <Link href={`/regions/${region.slug}`}>{region.name}</Link>
-              </h3>
-              <p className="muted small">{region.description}</p>
-              {region.fromPriceMinor !== null ? (
-                <p className="small">
-                  From <strong>{formatMoney(region.fromPriceMinor, "USD")}</strong>
-                </p>
-              ) : null}
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="section" id="demo-limits" aria-labelledby="limits-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Honest boundaries</p>
-            <h2 id="limits-title">What this build does and does not do</h2>
-          </div>
-        </div>
-        <div className="grid grid-2">
-          <article className="card form">
-            <h3>
-              <CheckIcon className="inline-icon" /> Working locally
-            </h3>
-            <ul className="check-list">
-              <li>
-                <CheckIcon className="inline-icon" /> Database schema, migrations, demo seed, and
-                catalog queries.
-              </li>
-              <li>
-                <CheckIcon className="inline-icon" /> Pricing engine, cart, idempotent checkout,
-                signed mock webhook, fulfillment jobs, encrypted activation storage, and mock
-                email logging.
-              </li>
-              <li>
-                <CheckIcon className="inline-icon" /> Customer portal, guest order links, and an
-                admin area for orders, jobs, plans, and email logs.
-              </li>
-            </ul>
-          </article>
-          <article className="card form">
-            <h3>
-              <LockIcon className="inline-icon" /> Not live
-            </h3>
-            <ul className="check-list">
-              <li>
-                <CheckIcon className="inline-icon" /> No real payment processor, supplier
-                account, carrier connection, or funded test deposit.
-              </li>
-              <li>
-                <CheckIcon className="inline-icon" /> No real eSIM, QR activation, coverage,
-                speed, price, review, rating, or company claim.
-              </li>
-              <li>
-                <CheckIcon className="inline-icon" /> No real email is sent. The delivery email
-                is logged locally and its stored body redacts the access token.
-              </li>
-            </ul>
-          </article>
-        </div>
-      </section>
-
-      <section className="section" aria-labelledby="cta-title">
-        <div className="card form">
-          <p className="eyebrow">Try the full flow</p>
-          <h2 id="cta-title">Start with a demo plan, then inspect every state.</h2>
-          <p className="lead">
-            Use the mock payment page to simulate success or failure. The admin area shows the
-            resulting order, job, and email records.
-          </p>
-          <div className="hero-actions">
-            <Link className="button" href="/plans">
-              <SparkIcon className="inline-icon" /> Browse plans
-            </Link>
-            <Link className="button button-secondary" href="/admin">
-              Open demo admin
+          <div className="es-demo-limits" id="demo-limits">
+            <div className="es-demo-limits-head">
+              <span className="es-demo-badge">Demo build</span>
+              <h3>What works — and what stays off</h3>
+            </div>
+            <div className="es-demo-limits-copy">
+              <p>
+                <strong>Working locally:</strong> catalogue, search, cart, demo checkout,
+                customer portal, admin views, and fulfilment simulation.
+              </p>
+              <p>
+                <strong>Not live:</strong> payments, supplier orders, eSIM activation, email,
+                reviews, and partner claims.
+              </p>
+            </div>
+            <Link className="es-text-link" href="/about">
+              Read the approach <ArrowRight />
             </Link>
           </div>
         </div>
       </section>
-    </>
+    </div>
   );
 }

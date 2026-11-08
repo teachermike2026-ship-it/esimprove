@@ -1,14 +1,21 @@
 import { desc, eq } from "drizzle-orm";
 import type { Database } from "@/lib/db/client";
 import {
+  auditLogs,
+  coupons,
   destinations,
   emailEvents,
   fulfillmentJobs,
+  invoices,
   orderItems,
   orders,
   payments,
   plans,
+  pricingRules,
+  refunds,
   regions,
+  supportMessages,
+  supportTickets,
   users,
 } from "@/lib/db/schema";
 import { getOrderByNumber, getOrderView, type OrderView } from "@/lib/orders";
@@ -144,4 +151,67 @@ export async function getAdminOrderDetail(
     jobs: jobRows,
     emails: emailRows,
   };
+}
+
+export async function listAdminPayments(db: Database, limit = 100) {
+  return db
+    .select({
+      payment: payments,
+      orderNumber: orders.orderNumber,
+      orderEmail: orders.email,
+      orderStatus: orders.status,
+    })
+    .from(payments)
+    .innerJoin(orders, eq(payments.orderId, orders.id))
+    .orderBy(desc(payments.createdAt))
+    .limit(limit);
+}
+
+export async function listAdminRefunds(db: Database, limit = 100) {
+  return db
+    .select({
+      refund: refunds,
+      orderNumber: orders.orderNumber,
+      customerEmail: orders.email,
+      customerName: orders.customerName,
+    })
+    .from(refunds)
+    .innerJoin(orders, eq(refunds.orderId, orders.id))
+    .orderBy(desc(refunds.createdAt))
+    .limit(limit);
+}
+
+export async function listAdminCoupons(db: Database, limit = 100) {
+  return db.select().from(coupons).orderBy(desc(coupons.updatedAt)).limit(limit);
+}
+
+export async function listAdminPricingRules(db: Database, limit = 100) {
+  return db.select().from(pricingRules).orderBy(desc(pricingRules.updatedAt)).limit(limit);
+}
+
+export async function listAdminSupportTickets(db: Database, limit = 100) {
+  const tickets = await db
+    .select()
+    .from(supportTickets)
+    .orderBy(desc(supportTickets.createdAt))
+    .limit(limit);
+  const withMessages = await Promise.all(
+    tickets.map(async (ticket) => ({
+      ticket,
+      messages: await db
+        .select()
+        .from(supportMessages)
+        .where(eq(supportMessages.ticketId, ticket.id))
+        .orderBy(supportMessages.createdAt),
+    })),
+  );
+  return withMessages;
+}
+
+export async function listAdminAuditLogs(db: Database, limit = 100) {
+  return db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(limit);
+}
+
+export async function listAdminInvoices(db: Database, limit = 100) {
+  return db.select().from(invoices).orderBy(desc(invoices.issuedAt)).limit(limit);
 }

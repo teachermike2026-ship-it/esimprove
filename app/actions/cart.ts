@@ -13,6 +13,7 @@ import {
 } from "@/lib/cart";
 import { cartItemSchema, formString } from "@/lib/validation";
 import { CART_COOKIE } from "@/lib/cart-cookie";
+import { siteUrl } from "@/lib/config";
 
 async function readCartToken(): Promise<string | null> {
   const cookieStore = await cookies();
@@ -23,7 +24,7 @@ async function writeCartToken(token: string): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(CART_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: siteUrl.startsWith("https://"),
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 30,

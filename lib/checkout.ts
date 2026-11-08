@@ -11,10 +11,11 @@ import {
 import { getCartView } from "@/lib/cart";
 import { calculateTotals } from "@/lib/pricing";
 import { createOrderAccessToken } from "@/lib/orders";
+import { getPaymentForOrder } from "@/lib/payments";
 import { getPaymentProvider } from "@/lib/integrations/payments";
 import { generateOrderNumber, newId } from "@/lib/ids";
 import { recordAudit } from "@/lib/audit";
-import { siteUrl } from "@/lib/config";
+import { mockCommerceAllowed, siteUrl } from "@/lib/config";
 
 export type CheckoutErrorCode = "empty_cart" | "price_changed" | "unavailable";
 
@@ -35,6 +36,7 @@ export interface CreateCheckoutInput {
   country: string;
   idempotencyKey: string;
   userId?: string | null;
+  termsVersion?: string;
 }
 
 export interface CheckoutResult {
@@ -48,13 +50,7 @@ export interface CheckoutResult {
 }
 
 async function paymentForOrder(db: Database, orderId: string) {
-  const rows = await db
-    .select()
-    .from(payments)
-    .where(eq(payments.orderId, orderId))
-    .orderBy(payments.createdAt)
-    .limit(1);
-  return rows[0] ?? null;
+  return getPaymentForOrder(db, orderId);
 }
 
 async function createPaymentForOrder(
@@ -97,6 +93,13 @@ export async function createCheckout(
   db: Database,
   input: CreateCheckoutInput,
 ): Promise<CheckoutResult> {
+  if (!mockCommerceAllowed) {
+    throw new CheckoutError(
+      "unavailable",
+      "Online checkout is not available in this deployment. No live payment provider is configured.",
+    );
+  }
+
   const cart = await getCartView(db, input.cartToken);
   if (!cart || cart.lines.length === 0) {
     throw new CheckoutError("empty_cart", "Your cart is empty.");
@@ -202,7 +205,7 @@ export async function createCheckout(
       totalMinor: totals.totalMinor,
       currency,
       idempotencyKey: input.idempotencyKey,
-      termsVersion: "demo-terms-v1",
+      termsVersion: input.termsVersion ?? "demo-terms-v1",
       isDemo: true,
     });
 

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getDb } from "@/lib/db/client";
-import { getPaymentById } from "@/lib/payments";
-import { createOrderAccessToken, getOrderById } from "@/lib/orders";
+import { loadAuthorizedMockPayment } from "@/lib/payment-access";
+import { mockCommerceAllowed } from "@/lib/config";
 import { formatMoney } from "@/lib/money";
 import { simulateFailureAction, simulateSuccessAction } from "./actions";
 import { AlertIcon, ArrowRight, CreditCardIcon, LockIcon } from "@/components/icons";
@@ -19,21 +19,21 @@ export default async function MockPaymentPage({
   searchParams,
 }: {
   params: Promise<{ paymentId: string }>;
-  searchParams: Promise<{ failed?: string; error?: string }>;
+  searchParams: Promise<{ failed?: string; error?: string; token?: string }>;
 }) {
   const { paymentId } = await params;
   const flags = await searchParams;
+  const token = flags.token ?? null;
+  if (!mockCommerceAllowed) notFound();
   const db = await getDb();
-  const payment = await getPaymentById(db, paymentId);
-  if (!payment) notFound();
-  const order = await getOrderById(db, payment.orderId);
-  if (!order) notFound();
+  const authorized = await loadAuthorizedMockPayment(db, paymentId, token);
+  if (!authorized) notFound();
+  const { payment, order } = authorized;
 
   if (payment.status === "paid") {
-    const token = await createOrderAccessToken(db, order.id);
-    redirect(
-      `/checkout/success?order=${encodeURIComponent(order.orderNumber)}&token=${encodeURIComponent(token)}`,
-    );
+    const query = new URLSearchParams({ order: order.orderNumber });
+    if (token) query.set("token", token);
+    redirect(`/checkout/success?${query.toString()}`);
   }
 
   const failed = payment.status === "failed" || flags.failed === "1";
@@ -109,12 +109,14 @@ export default async function MockPaymentPage({
           <div className="payment-actions">
             <form action={simulateSuccessAction}>
               <input type="hidden" name="paymentId" value={payment.id} />
+              {token ? <input type="hidden" name="token" value={token} /> : null}
               <button className="button" type="submit">
                 <LockIcon className="inline-icon" /> Simulate successful payment
               </button>
             </form>
             <form action={simulateFailureAction}>
               <input type="hidden" name="paymentId" value={payment.id} />
+              {token ? <input type="hidden" name="token" value={token} /> : null}
               <button className="button button-secondary" type="submit">
                 Simulate failed payment
               </button>

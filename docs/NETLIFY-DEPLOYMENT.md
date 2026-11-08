@@ -1,5 +1,11 @@
 # Netlify deployment plan
 
+> **Superseded (2026-11-05):** This historical plan predates the Phase 3 deployment-context,
+> database, and mock-commerce gates. Use the root-level
+> `NETLIFY_DEPLOYMENT_GUIDE.md`, `NETLIFY_ENVIRONMENT_VARIABLES.md`,
+> `NETLIFY_PRODUCTION_CHECKLIST.md`, and `NETLIFY_DEPLOYMENT_BLOCKERS.md` for current
+> instructions. Do not follow this file where it differs.
+
 **Status:** Application and `netlify.toml` exist locally; **no Netlify site, deploy, environment variable, domain, or DNS record exists**. No deploy has run.
 **Date:** 2026-10-23
 **Scope:** How the platform will be built, configured, deployed, protected, and rolled back on Netlify once the owner authorises access and the Phase 1 prerequisites are met.

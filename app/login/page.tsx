@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { LoginForm } from "@/components/auth-forms";
 import { safeNextPath } from "@/lib/validation";
+import { isAdminRole } from "@/lib/auth/roles";
 import { demoMode } from "@/lib/config";
 import { LockIcon } from "@/components/icons";
 
@@ -19,7 +20,7 @@ export default async function LoginPage({
 }) {
   const { next } = await searchParams;
   const user = await getCurrentUser();
-  if (user) redirect(safeNextPath(next, user.role === "admin" ? "/admin" : "/portal"));
+  if (user) redirect(safeNextPath(next, isAdminRole(user.role) ? "/admin" : "/portal"));
   const nextPath = safeNextPath(next, "/portal");
 
   return (
@@ -55,7 +56,8 @@ export default async function LoginPage({
       <section className="auth-form">
         <LoginForm next={nextPath} />
         <p className="form-note" style={{ textAlign: "center" }}>
-          No account? <Link href="/register">Create a customer account</Link>.
+          No account? <Link href="/register">Create a customer account</Link>.{" "}
+          <Link href="/login/forgot">Forgot password?</Link>
         </p>
       </section>
     </div>

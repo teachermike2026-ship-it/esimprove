@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 
+// HSTS is emitted only for a production build; preview and local HTTP must not
+// pin HSTS in a browser.
+const isProductionBuild = (process.env.APP_ENV ?? "").trim().toLowerCase() === "production";
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
@@ -24,6 +28,14 @@ const nextConfig: NextConfig = {
             value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
           },
           { key: "X-DNS-Prefetch-Control", value: "off" },
+          ...(isProductionBuild
+            ? [
+                {
+                  key: "Strict-Transport-Security",
+                  value: "max-age=31536000; includeSubDomains",
+                },
+              ]
+            : []),
         ],
       },
     ];

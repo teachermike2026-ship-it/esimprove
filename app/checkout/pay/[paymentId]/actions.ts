@@ -2,27 +2,32 @@
 
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db/client";
-import { getPaymentById, simulateMockPayment } from "@/lib/payments";
-import { createOrderAccessToken, getOrderById } from "@/lib/orders";
+import { simulateMockPayment } from "@/lib/payments";
+import { loadAuthorizedMockPayment } from "@/lib/payment-access";
 import { getCartByToken, clearCart } from "@/lib/cart";
 import { readCartToken, clearCartCookie } from "@/lib/cart-session";
 import { formString } from "@/lib/validation";
 
+function paymentUrl(paymentId: string, params: Record<string, string>, token: string): string {
+  const query = new URLSearchParams(params);
+  if (token) query.set("token", token);
+  return `/checkout/pay/${encodeURIComponent(paymentId)}?${query.toString()}`;
+}
+
 export async function simulateSuccessAction(formData: FormData): Promise<void> {
   const paymentId = formString(formData, "paymentId");
+  const token = formString(formData, "token");
   if (!paymentId) redirect("/cart");
 
   const db = await getDb();
-  const payment = await getPaymentById(db, paymentId);
-  if (!payment) redirect("/cart");
-  const order = await getOrderById(db, payment.orderId);
-  if (!order) redirect("/cart");
+  const authorized = await loadAuthorizedMockPayment(db, paymentId, token || null);
+  if (!authorized) redirect("/cart");
+  const { order } = authorized;
 
   try {
     await simulateMockPayment(db, paymentId, "success");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Mock payment failed";
-    redirect(`/checkout/pay/${encodeURIComponent(paymentId)}?error=${encodeURIComponent(message)}`);
+  } catch {
+    redirect(paymentUrl(paymentId, { error: "Mock payment could not be completed." }, token));
   }
 
   const cartToken = await readCartToken();
@@ -31,21 +36,22 @@ export async function simulateSuccessAction(formData: FormData): Promise<void> {
     if (cart) await clearCart(db, cart.id);
     await clearCartCookie();
   }
-  const token = await createOrderAccessToken(db, order.id);
-  redirect(
-    `/checkout/success?order=${encodeURIComponent(order.orderNumber)}&token=${encodeURIComponent(token)}`,
-  );
+  const query = new URLSearchParams({ order: order.orderNumber });
+  if (token) query.set("token", token);
+  redirect(`/checkout/success?${query.toString()}`);
 }
 
 export async function simulateFailureAction(formData: FormData): Promise<void> {
   const paymentId = formString(formData, "paymentId");
+  const token = formString(formData, "token");
   if (!paymentId) redirect("/cart");
   const db = await getDb();
+  const authorized = await loadAuthorizedMockPayment(db, paymentId, token || null);
+  if (!authorized) redirect("/cart");
   try {
     await simulateMockPayment(db, paymentId, "failure");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Mock failure could not be recorded";
-    redirect(`/checkout/pay/${encodeURIComponent(paymentId)}?error=${encodeURIComponent(message)}`);
+  } catch {
+    redirect(paymentUrl(paymentId, { error: "Mock failure could not be recorded." }, token));
   }
-  redirect(`/checkout/pay/${encodeURIComponent(paymentId)}?failed=1`);
+  redirect(paymentUrl(paymentId, { failed: "1" }, token));
 }

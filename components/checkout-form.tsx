@@ -8,11 +8,13 @@ type CheckoutState = { error?: string };
 
 export function CheckoutForm({
   idempotencyKey,
+  termsVersion,
   defaultEmail = "",
   defaultName = "",
   disabled = false,
 }: {
   idempotencyKey: string;
+  termsVersion: string;
   defaultEmail?: string;
   defaultName?: string;
   disabled?: boolean;
@@ -31,6 +33,7 @@ export function CheckoutForm({
         </div>
       ) : null}
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+      <input type="hidden" name="termsVersion" value={termsVersion} />
       <div className="field">
         <label htmlFor="checkout-email">Email for the demo order</label>
         <input
@@ -77,9 +80,14 @@ export function CheckoutForm({
           I understand this is a demo checkout. No real money will move, no real eSIM will be
           provisioned, and no email will be sent. I accept the{" "}
           <a href="/legal/terms" target="_blank" rel="noreferrer">
-            demo terms
+            Terms of Service
+          </a>{" "}
+          (version {termsVersion}) and acknowledge the{" "}
+          <a href="/legal/privacy" target="_blank" rel="noreferrer">
+            Privacy Policy
           </a>
-          .
+          . The total shown in the order summary is the amount presented on the next payment
+          step. No additional fees are added later in this build.
         </span>
       </label>
       <button className="button button-wide" type="submit" disabled={pending || disabled}>
@@ -87,8 +95,9 @@ export function CheckoutForm({
         {pending ? "Creating demo order…" : "Continue to demo payment"}
       </button>
       <p className="form-note">
-        <LockIcon className="inline-icon" /> Prices are recalculated on the server. The mock
-        payment page is the only payment step in this build.
+        <LockIcon className="inline-icon" /> Prices and tax are recalculated on the server. The
+        mock payment page is the only payment step in this build. Card details are never
+        requested or stored.
       </p>
     </form>
   );

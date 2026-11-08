@@ -5,6 +5,7 @@ import { DisabledStripePaymentProvider } from "@/lib/integrations/payments/disab
 import { DisabledLiveEmailTransport } from "@/lib/integrations/email/disabled";
 import { IntegrationDisabledError } from "@/lib/integrations/supplier/types";
 import { MockPaymentProvider, signMockWebhook, signedMockWebhook } from "@/lib/integrations/payments/mock";
+import { validateWebhookSignature } from "@/lib/integrations/payment/whop";
 
 const input = {
   transactionId: "tx-demo-001",
@@ -139,5 +140,15 @@ describe("mock payment signatures", () => {
     const invalidJson = "{not-json";
     const invalidSignature = signMockWebhook(invalidJson);
     expect(() => provider.verifyWebhook(invalidJson, invalidSignature)).toThrow();
+  });
+});
+
+describe("Whop adapter webhook guard", () => {
+  it("fails closed because official verification is not implemented", () => {
+    // Regression: this function previously returned true for any non-empty
+    // signature whenever a secret was configured, which would accept forged
+    // payment webhooks if the adapter were wired into production.
+    expect(validateWebhookSignature("{}", "any-signature", "configured-secret")).toBe(false);
+    expect(validateWebhookSignature("{}", "", "")).toBe(false);
   });
 });

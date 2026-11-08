@@ -16,6 +16,7 @@ import { sha256Hex } from "@/lib/crypto";
 import { newId } from "@/lib/ids";
 import { runOutboxAndJobs } from "@/lib/fulfillment";
 import { canTransitionPayment, type PaymentStatus } from "@/lib/state";
+import { mockCommerceAllowed } from "@/lib/config";
 
 export interface WebhookResult {
   ok: boolean;
@@ -31,6 +32,16 @@ export interface WebhookResult {
 
 export async function getPaymentById(db: Database, paymentId: string) {
   const rows = await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getPaymentForOrder(db: Database, orderId: string) {
+  const rows = await db
+    .select()
+    .from(payments)
+    .where(eq(payments.orderId, orderId))
+    .orderBy(payments.createdAt)
+    .limit(1);
   return rows[0] ?? null;
 }
 
@@ -189,6 +200,9 @@ export async function simulateMockPayment(
   paymentId: string,
   outcome: "success" | "failure",
 ): Promise<WebhookResult> {
+  if (!mockCommerceAllowed) {
+    throw new Error("Mock payments are disabled in this deployment");
+  }
   const payment = await getPaymentById(db, paymentId);
   if (!payment) throw new Error("Payment not found");
   const event = createMockPaymentEvent({
