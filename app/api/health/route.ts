@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getDbHandle } from "@/lib/db/client";
+import { listPendingMigrations } from "@/lib/db/migrate";
 import { plans } from "@/lib/db/schema";
 import { safeEqual } from "@/lib/crypto";
 import {
@@ -57,6 +58,9 @@ export async function GET(request: NextRequest) {
   try {
     const handle = await getDbHandle();
     await handle.db.select({ id: plans.id }).from(plans).limit(1);
+    const migrations = detailed
+      ? await listPendingMigrations(handle.client)
+      : null;
     return NextResponse.json(
       {
         status: "ok",
@@ -70,6 +74,13 @@ export async function GET(request: NextRequest) {
                 mockCommerceAllowed,
                 siteUrl,
                 databaseDialect: handle.dialect,
+                migrations: {
+                  schemaTablePresent: migrations!.checked,
+                  appliedCount: migrations!.applied.length,
+                  pending: migrations!.pending,
+                  upToDate:
+                    migrations!.checked && migrations!.pending.length === 0,
+                },
                 integrations: integrationModes,
                 liveFlags: {
                   payments: flags.paymentsLive,

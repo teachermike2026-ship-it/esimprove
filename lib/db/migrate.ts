@@ -39,7 +39,51 @@ function checksumOf(sql: string): string {
   return createHash("sha256").update(sql, "utf8").digest("hex");
 }
 
-async function migrateOn(client: DatabaseClient, dialect: DatabaseDialect): Promise<void> {
+async function migrationFiles(migrationDir: string): Promise<string[]> {
+  return (await readdir(migrationDir))
+    .filter((file) => file.endsWith(".sql"))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+export interface MigrationStatus {
+  /** Whether schema_migrations could be read (false on a pre-migration database). */
+  checked: boolean;
+  applied: string[];
+  pending: string[];
+}
+
+/**
+ * Read-only migration status for health checks and deployment verification.
+ * Never creates tables or applies SQL.
+ */
+export async function listPendingMigrations(
+  client: DatabaseClient,
+  options: RunMigrationsOptions = {},
+): Promise<MigrationStatus> {
+  const migrationDir =
+    options.migrationDir ?? path.join(process.cwd(), "db", "migrations");
+  const files = await migrationFiles(migrationDir);
+  try {
+    const appliedRows = await query<{ id: string }>(
+      client,
+      "SELECT id FROM schema_migrations ORDER BY id",
+    );
+    const appliedSet = new Set(appliedRows.map((row) => row.id));
+    return {
+      checked: true,
+      applied: files.filter((file) => appliedSet.has(file)),
+      pending: files.filter((file) => !appliedSet.has(file)),
+    };
+  } catch {
+    return { checked: false, applied: [], pending: files };
+  }
+}
+
+async function migrateOn(
+  client: DatabaseClient,
+  dialect: DatabaseDialect,
+  migrationDir: string,
+): Promise<void> {
   await exec(
     client,
     `CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -51,10 +95,7 @@ async function migrateOn(client: DatabaseClient, dialect: DatabaseDialect): Prom
   // than requiring a reset, then backfill on the next run.
   await exec(client, "ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum text");
 
-  const migrationDir = path.join(process.cwd(), "db", "migrations");
-  const files = (await readdir(migrationDir))
-    .filter((file) => file.endsWith(".sql"))
-    .sort((a, b) => a.localeCompare(b));
+  const files = await migrationFiles(migrationDir);
 
   const appliedRows = await query<{ id: string; checksum: string | null }>(
     client,
@@ -113,6 +154,11 @@ function isPostgresPool(client: DatabaseClient, dialect: DatabaseDialect): clien
   );
 }
 
+export interface RunMigrationsOptions {
+  /** Override the migration directory (used by upgrade tests). */
+  migrationDir?: string;
+}
+
 /**
  * Apply pending SQL migrations in filename order.
  *
@@ -124,9 +170,13 @@ function isPostgresPool(client: DatabaseClient, dialect: DatabaseDialect): clien
 export async function runMigrations(
   client: DatabaseClient,
   dialect: DatabaseDialect,
+  options: RunMigrationsOptions = {},
 ): Promise<void> {
+  const migrationDir =
+    options.migrationDir ?? path.join(process.cwd(), "db", "migrations");
+
   if (!isPostgresPool(client, dialect)) {
-    await migrateOn(client, dialect);
+    await migrateOn(client, dialect, migrationDir);
     return;
   }
 
@@ -138,7 +188,7 @@ export async function runMigrations(
       MIGRATION_LOCK_KEY,
     ]);
     locked = true;
-    await migrateOn(connection as unknown as DatabaseClient, dialect);
+    await migrateOn(connection as unknown as DatabaseClient, dialect, migrationDir);
   } finally {
     if (locked) {
       try {
