@@ -6,6 +6,7 @@ import { runOutboxAndJobs } from "@/lib/fulfillment";
 import { recordAudit } from "@/lib/audit";
 import { publishDueScheduledArticles } from "@/lib/blog-schedule";
 import { cleanupAnalytics } from "@/lib/retention";
+import { cleanupExpiredRateLimitCounters } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,17 @@ export async function POST(request: NextRequest) {
     // Retention is owned by data_retention_settings (see lib/retention.ts), not
     // by an environment variable that can drift from the reviewed policy.
     const analyticsCleanup = await cleanupAnalytics(db);
+    // Counter cleanup is best-effort: a failure must not roll back or block
+    // order fulfilment. Only expired windows are removed.
+    let rateLimitCountersDeleted = 0;
+    try {
+      rateLimitCountersDeleted = await cleanupExpiredRateLimitCounters(db);
+    } catch (error) {
+      console.error(
+        "Rate limit counter cleanup failed",
+        error instanceof Error ? error.name : "unknown error",
+      );
+    }
     await recordAudit(db, {
       actorType: "system",
       action: "jobs.run.api",
@@ -49,6 +61,11 @@ export async function POST(request: NextRequest) {
           events: analyticsCleanup.policy.eventsDays,
           aggregates: analyticsCleanup.policy.aggregatesDays,
         },
+        analyticsCleanupEnabled: {
+          events: analyticsCleanup.policy.eventsEnabled,
+          aggregates: analyticsCleanup.policy.aggregatesEnabled,
+        },
+        rateLimitCountersDeleted,
       },
     });
     return NextResponse.json({
@@ -56,6 +73,7 @@ export async function POST(request: NextRequest) {
       ...result,
       scheduledArticlesPublished: scheduled.published,
       analyticsCleanup,
+      rateLimitCountersDeleted,
     });
   } catch (error) {
     console.error("Job run failed", error instanceof Error ? error.name : "unknown error");

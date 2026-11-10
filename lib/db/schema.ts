@@ -435,11 +435,15 @@ export const activationAccessLogs = pgTable(
   (table) => [index("activation_access_logs_esim_id_idx").on(table.esimId)],
 );
 
-export const rateLimitCounters = pgTable("rate_limit_counters", {
-  key: text("key").primaryKey(),
-  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
-  count: integer("count").notNull(),
-});
+export const rateLimitCounters = pgTable(
+  "rate_limit_counters",
+  {
+    key: text("key").primaryKey(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull(),
+  },
+  (table) => [index("rate_limit_counters_window_start_idx").on(table.windowStart)],
+);
 
 export const passwordResets = pgTable(
   "password_resets",

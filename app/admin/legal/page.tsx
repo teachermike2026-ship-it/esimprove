@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getDb } from "@/lib/db/client";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { listLegalDocumentVersions } from "@/lib/legal-assets";
 import { listAccessibilityReviews, listAssetLicenses, listLegalReadinessItems, listLegalThirdParties, listRetentionSettings } from "@/lib/legal-assets";
 import { listRecentConsentEvents, listRecentCookieConsents } from "@/lib/consent";
@@ -23,7 +23,7 @@ export default async function AdminLegalPage({
 }: {
   searchParams: Promise<{ saved?: string | string[]; error?: string | string[] }>;
 }) {
-  await requireAdmin("/admin/legal");
+  await requireStaff("/admin/legal", "legal");
   const flags = await searchParams;
   const notice = typeof flags.saved === "string" ? flags.saved : null;
   const errorMessage = typeof flags.error === "string" ? flags.error : null;

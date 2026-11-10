@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { supportTickets, supportMessages, users, orders } from "@/lib/db/schema";
 import { formatDate } from "@/lib/money";
@@ -10,7 +10,7 @@ export const metadata = {
 };
 
 export default async function AdminSupportPage() {
-  await requireAdmin();
+  await requireStaff("/admin/support", "support");
   const db = await getDb();
   const [ticketRows, messageRows, userRows, orderRows] = await Promise.all([
     db.select().from(supportTickets).orderBy(supportTickets.createdAt).limit(100),

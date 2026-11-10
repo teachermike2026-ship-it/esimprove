@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { getBusinessMetrics } from "@/lib/analytics";
 import { listAdminPayments, listAdminRefunds } from "@/lib/admin";
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminFinancePage() {
-  await requireAdmin();
+  await requireStaff("/admin/finance", "finance");
   const db = await getDb();
   const metrics = await getBusinessMetrics(db);
   const payments = await listAdminPayments(db, 200);

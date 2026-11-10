@@ -49,7 +49,7 @@ async function tableExists(handle: DatabaseHandle, table: string): Promise<boole
   return result.length === 1;
 }
 
-describe("0005 to 0006 migration upgrade", () => {
+describe("0005 to 0007 migration upgrade", () => {
   let handle: DatabaseHandle;
   let partialDir: string;
 
@@ -148,10 +148,13 @@ describe("0005 to 0006 migration upgrade", () => {
 
     const full = await listPendingMigrations(handle.client);
     expect(full.checked).toBe(true);
-    expect(full.pending).toEqual(["0006_legal_compliance.sql"]);
+    expect(full.pending).toEqual([
+      "0006_legal_compliance.sql",
+      "0007_rate_limit_counter_cleanup.sql",
+    ]);
   });
 
-  it("applies 0006 without losing representative rows", async () => {
+  it("applies 0006 and 0007 without losing representative rows", async () => {
     await runMigrations(handle.client, handle.dialect);
 
     const applied = await rows<{ id: string }>(
@@ -159,11 +162,21 @@ describe("0005 to 0006 migration upgrade", () => {
       "SELECT id FROM schema_migrations ORDER BY id",
     );
     expect(applied.map((row) => row.id)).toContain("0006_legal_compliance.sql");
-    expect(applied).toHaveLength(6);
+    expect(applied.map((row) => row.id)).toContain("0007_rate_limit_counter_cleanup.sql");
+    expect(applied).toHaveLength(7);
 
     const status = await listPendingMigrations(handle.client);
     expect(status.checked).toBe(true);
     expect(status.pending).toEqual([]);
+
+    const rateLimitIndexes = await rows<{ indexname: string }>(
+      handle,
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = 'public' AND tablename = 'rate_limit_counters'`,
+    );
+    expect(rateLimitIndexes.map((row) => row.indexname)).toContain(
+      "rate_limit_counters_window_start_idx",
+    );
 
     for (const table of PHASE5_TABLES) {
       expect(await tableExists(handle, table), `${table} must exist after 0006`).toBe(true);
@@ -219,7 +232,7 @@ describe("0005 to 0006 migration upgrade", () => {
     ).toBe(15);
   });
 
-  it("re-applying 0006 is a no-op", async () => {
+  it("re-applying 0006 and 0007 is a no-op", async () => {
     const [before] = await rows<{ applied_at: string | Date }>(
       handle,
       "SELECT applied_at FROM schema_migrations WHERE id = '0006_legal_compliance.sql'",
@@ -242,11 +255,17 @@ describe("0005 to 0006 migration upgrade", () => {
       "SELECT applied_at FROM schema_migrations WHERE id = '0006_legal_compliance.sql'",
     );
     expect(new Date(after!.applied_at).getTime()).toBe(beforeAppliedAt);
-    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(6);
+    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(7);
 
     // The file itself must also be idempotent if an operator re-runs it by hand.
     const sql = await readFile(path.join(MIGRATION_DIR, "0006_legal_compliance.sql"), "utf8");
     await exec(handle, sql);
+    const cleanupSql = await readFile(
+      path.join(MIGRATION_DIR, "0007_rate_limit_counter_cleanup.sql"),
+      "utf8",
+    );
+    await exec(handle, cleanupSql);
+    await exec(handle, cleanupSql);
 
     expect(
       await scalar(handle, "SELECT count(*)::int AS value FROM legal_settings"),
@@ -260,5 +279,14 @@ describe("0005 to 0006 migration upgrade", () => {
     expect(await scalar(handle, "SELECT count(*)::int AS value FROM support_tickets")).toBe(
       seedCountsBefore.tickets,
     );
+    expect(
+      await scalar(
+        handle,
+        `SELECT count(*)::int AS value FROM pg_indexes
+         WHERE schemaname = 'public' AND tablename = 'rate_limit_counters'
+           AND indexname = 'rate_limit_counters_window_start_idx'`,
+      ),
+    ).toBe(1);
+    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(7);
   });
 });

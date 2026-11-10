@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { desc } from "drizzle-orm";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { orders, users } from "@/lib/db/schema";
 import { formatDate } from "@/lib/money";
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminCustomersPage() {
-  await requireAdmin();
+  await requireStaff("/admin/customers", "customers");
   const db = await getDb();
   const [userRows, orderRows] = await Promise.all([
     db.select().from(users).orderBy(desc(users.createdAt)).limit(200),

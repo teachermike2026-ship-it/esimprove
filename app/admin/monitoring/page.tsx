@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { listAdminAuditLogs } from "@/lib/admin";
 import { formatDate } from "@/lib/money";
@@ -9,7 +9,7 @@ export const metadata = {
 };
 
 export default async function AdminMonitoringPage() {
-  await requireAdmin();
+  await requireStaff("/admin/monitoring", "monitoring");
   const db = await getDb();
   const logs = await listAdminAuditLogs(db, 200);
 

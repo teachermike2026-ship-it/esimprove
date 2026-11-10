@@ -46,10 +46,11 @@ allowed to use labelled mock commerce; production is not.
       `RATE_LIMIT_HASH_SECRET` are unique per context and marked secret.
 - [ ] `ANALYTICS_HASH_SECRET` is a dedicated per-context secret (or an explicitly accepted
       documented fallback); preview, staging, and production values differ.
-- [ ] `data_retention_settings` matches the approved policy: 395 days for raw
-      events and 730 days for aggregated sessions/visitors, with automation
-      enabled only for those two categories. There is no retention environment
-      variable.
+- [ ] `data_retention_settings` records a documented owner decision. The seeded
+      395-day raw-event and 730-day aggregate values are proposed technical
+      defaults, not approval. Automation may be enabled only for those two
+      categories, after the owner confirms the periods. There is no retention
+      environment variable.
 - [ ] `NEXT_PUBLIC_ANALYTICS_DISABLED` is unset/`false` in production unless tracking is
       intentionally disabled.
 - [ ] `SUPPLIER_CREDENTIAL_KEK` is present in production and differs from the activation KEK.

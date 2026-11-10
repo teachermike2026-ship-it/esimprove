@@ -376,6 +376,9 @@ export async function saveRetentionAction(formData: FormData): Promise<void> {
       "Automated cleanup is only implemented for raw analytics events and aggregated analytics. Keep other categories disabled until a job exists.",
     );
   }
+  if (enabled && !automated) {
+    fail("Enable the automation flag before enabling cleanup for this category.");
+  }
   if (enabled && retentionDays === null) {
     fail("An enabled automated retention rule needs a retention period in days.");
   }
@@ -388,25 +391,29 @@ export async function saveRetentionAction(formData: FormData): Promise<void> {
     .limit(1);
   if (!existing[0]) fail("Retention category not found.");
 
-  await db
-    .update(dataRetentionSettings)
-    .set({
-      retentionDays,
-      basis,
-      automated,
-      enabled,
-      notes: str(formData, "notes", 4000),
-      updatedAt: new Date(),
-    })
-    .where(eq(dataRetentionSettings.dataKey, dataKey));
+  // The policy change and its audit evidence commit together. A failed audit
+  // insert must not leave a silently altered retention rule behind.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(dataRetentionSettings)
+      .set({
+        retentionDays,
+        basis,
+        automated,
+        enabled,
+        notes: str(formData, "notes", 4000),
+        updatedAt: new Date(),
+      })
+      .where(eq(dataRetentionSettings.dataKey, dataKey));
 
-  await recordAudit(db, {
-    actorType: "admin",
-    actorId: admin.id,
-    action: "legal.retention.updated",
-    entityType: "data_retention_setting",
-    entityId: dataKey,
-    metadata: { retentionDays, automated, enabled, basis, outcome: "success" },
+    await recordAudit(tx, {
+      actorType: "admin",
+      actorId: admin.id,
+      action: "legal.retention.updated",
+      entityType: "data_retention_setting",
+      entityId: dataKey,
+      metadata: { retentionDays, automated, enabled, basis, outcome: "success" },
+    });
   });
 
   revalidateLegal();

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
+import { hasPermission } from "@/lib/auth/roles";
 import { getDb } from "@/lib/db/client";
 import { getAdminOrderDetail } from "@/lib/admin";
 import { OrderDetail } from "@/components/order-detail";
@@ -24,9 +25,17 @@ export default async function AdminOrderDetailPage({
 }) {
   const { orderNumber } = await params;
   const { retried } = await searchParams;
-  await requireAdmin();
+  const staff = await requireStaff("/admin/orders", "orders");
+  // Retrying fulfillment mutates job state; read-only staff must not see a
+  // button that the server action would reject.
+  const canRetry = hasPermission(staff.role, "orders.write");
+  // Provider payment records are a finance read surface. Support can help with
+  // order status but must not see payment identifiers or amounts.
+  const canViewPayments = hasPermission(staff.role, "invoices.read");
   const db = await getDb();
-  const detail = await getAdminOrderDetail(db, orderNumber);
+  const detail = await getAdminOrderDetail(db, orderNumber, {
+    includePayments: canViewPayments,
+  });
   if (!detail) notFound();
   const { view, payments, jobs, emails } = detail;
 
@@ -66,46 +75,49 @@ export default async function AdminOrderDetailPage({
         <div className="callout callout-warning section-tight">
           <AlertIcon className="inline-icon" />
           <p>
-            One or more demo fulfillment jobs failed. Inspect the error, then retry the job or
-            use the order-level retry. No real supplier order exists.
+            One or more demo fulfillment jobs failed. Inspect the error
+            {canRetry ? ", then retry the job or use the order-level retry." : "."} No real
+            supplier order exists.
           </p>
         </div>
       ) : null}
 
       <div className="grid grid-2">
-        <section className="card form">
-          <h2>Payments</h2>
-          {payments.length === 0 ? (
-            <p className="muted small">No payment record.</p>
-          ) : (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Provider</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((payment) => (
-                    <tr key={payment.id}>
-                      <td>
-                        {payment.provider}
-                        <br />
-                        <code>{payment.providerPaymentId}</code>
-                      </td>
-                      <td>
-                        <StatusBadge status={payment.status} />
-                      </td>
-                      <td>{formatMoney(payment.amountMinor, payment.currency)}</td>
+        {canViewPayments ? (
+          <section className="card form">
+            <h2>Payments</h2>
+            {payments.length === 0 ? (
+              <p className="muted small">No payment record.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Provider</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Amount</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+                  </thead>
+                  <tbody>
+                    {payments.map((payment) => (
+                      <tr key={payment.id}>
+                        <td>
+                          {payment.provider}
+                          <br />
+                          <code>{payment.providerPaymentId}</code>
+                        </td>
+                        <td>
+                          <StatusBadge status={payment.status} />
+                        </td>
+                        <td>{formatMoney(payment.amountMinor, payment.currency)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        ) : null}
 
         <section className="card form">
           <h2>Fulfillment jobs</h2>
@@ -122,21 +134,24 @@ export default async function AdminOrderDetailPage({
                       {job.lastError ? ` · ${job.lastError}` : ""}
                     </p>
                   </div>
-                  <form action={retryJobAction}>
-                    <input type="hidden" name="jobId" value={job.id} />
-                    <button
-                      className="button button-secondary button-small"
-                      type="submit"
-                      disabled={!["failed", "queued", "under_investigation"].includes(job.status)}
-                    >
-                      <RetryIcon className="inline-icon" /> Retry
-                    </button>
-                  </form>
+                  {canRetry ? (
+                    <form action={retryJobAction}>
+                      <input type="hidden" name="jobId" value={job.id} />
+                      <button
+                        className="button button-secondary button-small"
+                        type="submit"
+                        disabled={!["failed", "queued", "under_investigation"].includes(job.status)}
+                      >
+                        <RetryIcon className="inline-icon" /> Retry
+                      </button>
+                    </form>
+                  ) : null}
                 </div>
               ))}
             </div>
           )}
-          {jobs.some(({ job }) =>
+          {canRetry &&
+          jobs.some(({ job }) =>
             ["failed", "queued", "under_investigation"].includes(job.status),
           ) ? (
             <form action={retryOrderJobsAction}>

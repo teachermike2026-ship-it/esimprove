@@ -8,10 +8,20 @@ import {
   CONSENT_OPEN_EVENT,
   LEGACY_CONSENT_STORAGE_KEY,
   consentIsAnalyticsGranted,
+  consentIsCurrent,
   type ConsentAction,
   type ConsentCategories,
   type StoredConsent,
 } from "@/lib/legal";
+import { browserPrivacySignalsBlockAnalytics } from "@/lib/privacy-signals";
+import { minimizedReferrer } from "@/lib/referrer";
+
+const CONSENT_ACTIONS = new Set<ConsentAction>([
+  "accept_all",
+  "reject_non_essential",
+  "custom",
+  "withdraw",
+]);
 
 const CONSENT_ID_KEY = "es_consent_id";
 const SESSION_KEY = "es_analytics_session";
@@ -59,6 +69,8 @@ function parseConsent(raw: string | null): StoredConsent | null {
     const parsed = JSON.parse(raw) as Partial<StoredConsent>;
     if (!parsed || typeof parsed !== "object") return null;
     if (typeof parsed.version !== "string" || typeof parsed.timestamp !== "string") return null;
+    if (Number.isNaN(Date.parse(parsed.timestamp))) return null;
+    if (!CONSENT_ACTIONS.has(parsed.action as ConsentAction)) return null;
     const categories = parsed.categories as Partial<ConsentCategories> | undefined;
     if (!categories || typeof categories.analytics !== "boolean") return null;
     return {
@@ -206,9 +218,7 @@ async function sendEvents(
   if (typeof window === "undefined") return;
   const consent = getConsentSnapshot();
   if (!consentIsAnalyticsGranted(consent, consentVersion)) return;
-  if (navigator.doNotTrack === "1" || (navigator as unknown as { globalPrivacyControl?: boolean }).globalPrivacyControl === true) {
-    return;
-  }
+  if (browserPrivacySignalsBlockAnalytics()) return;
 
   const visitorId = getStorageId(window.localStorage, VISITOR_KEY);
   const sessionId = getStorageId(window.sessionStorage, SESSION_KEY);
@@ -220,7 +230,7 @@ async function sendEvents(
     events: events.map((event) => ({
       ...event,
       path: event.path ?? path,
-      referrer: event.referrer ?? (document.referrer || undefined),
+      referrer: minimizedReferrer(event.referrer ?? document.referrer) ?? undefined,
     })),
   };
 
@@ -259,9 +269,19 @@ async function sendEvents(
 
 export function ConsentManager({ consentVersion }: { consentVersion: string }) {
   const stored = useSyncExternalStore(subscribe, getConsentSnapshot, getServerSnapshot);
-  const active = stored && stored.version === consentVersion ? stored : null;
+  const active = stored && consentIsCurrent(stored, consentVersion) ? stored : null;
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    // Re-check periodically so a choice that expires while the page is open
+    // causes the banner to return without requiring a reload.
+    const timer = window.setInterval(() => {
+      const current = getConsentSnapshot();
+      if (current && !consentIsCurrent(current, consentVersion)) emitChange();
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [consentVersion]);
 
   useEffect(() => {
     // One-time migration from the older granted/denied flag. A missing value is
@@ -651,9 +671,21 @@ export function AnalyticsTracker({ consentVersion }: { consentVersion: string })
   return null;
 }
 
-export function Ga4Loader({ measurementId }: { measurementId: string }) {
+export function Ga4Loader({
+  measurementId,
+  consentVersion,
+  nonce,
+}: {
+  measurementId: string;
+  consentVersion: string;
+  nonce?: string;
+}) {
   const stored = useSyncExternalStore(subscribe, getConsentSnapshot, getServerSnapshot);
-  const consented = Boolean(measurementId && stored?.categories.analytics);
+  const consented = Boolean(
+    measurementId &&
+      consentIsAnalyticsGranted(stored, consentVersion) &&
+      !browserPrivacySignalsBlockAnalytics(),
+  );
   const measurementKey = measurementId;
 
   useEffect(() => {
@@ -661,6 +693,18 @@ export function Ga4Loader({ measurementId }: { measurementId: string }) {
     const disableKey = `ga-disable-${measurementKey}`;
     if (!consented) {
       (window as unknown as Record<string, boolean>)[disableKey] = true;
+      // Google's opt-out flag prevents further measurement. Removing the
+      // injected script stops it from re-executing if the page is restored
+      // from the back/forward cache.
+      document
+        .querySelectorAll(`script[data-esimprove-ga4="${measurementKey}"]`)
+        .forEach((element) => element.remove());
+      window.gtag?.("consent", "update", {
+        analytics_storage: "denied",
+        ad_storage: "denied",
+        ad_personalization: "denied",
+        ad_user_data: "denied",
+      });
       return;
     }
 
@@ -671,6 +715,12 @@ export function Ga4Loader({ measurementId }: { measurementId: string }) {
       function gtag(...args: unknown[]) {
         window.dataLayer!.push(args);
       };
+    window.gtag("consent", "default", {
+      analytics_storage: "granted",
+      ad_storage: "denied",
+      ad_personalization: "denied",
+      ad_user_data: "denied",
+    });
     window.gtag("js", new Date());
     window.gtag("config", measurementKey, {
       anonymize_ip: true,
@@ -683,9 +733,10 @@ export function Ga4Loader({ measurementId }: { measurementId: string }) {
       script.async = true;
       script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementKey)}`;
       script.dataset.esimproveGa4 = measurementKey;
+      if (nonce) script.nonce = nonce;
       document.head.appendChild(script);
     }
-  }, [consented, measurementKey]);
+  }, [consented, measurementKey, nonce]);
 
   return null;
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import {
   listCapabilitiesForConnections,
   listConnections,
@@ -16,7 +16,7 @@ export default async function AdminIntegrationsPage({
 }: {
   searchParams: Promise<{ created?: string }>;
 }) {
-  await requireAdmin();
+  await requireStaff("/admin/integrations", "integrations");
   const { created } = await searchParams;
   const connections = await listConnections();
   const capabilities = await listCapabilitiesForConnections(connections.map((conn) => conn.id));

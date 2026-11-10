@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { getPlanBySlug, getPlansForDestination } from "@/lib/catalog";
@@ -38,6 +39,7 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
   const db = await getDb();
   const plan = await getPlanBySlug(db, slug);
   if (!plan) notFound();
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const related = (await getPlansForDestination(db, plan.destinationId)).filter(
     (item) => item.id !== plan.id,
   );
@@ -66,6 +68,7 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
     <>
       <script
         type="application/ld+json"
+        nonce={nonce}
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <nav aria-label="Breadcrumb">

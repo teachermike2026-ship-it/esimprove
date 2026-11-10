@@ -11,6 +11,7 @@ import { decryptSupplierCredential } from "@/lib/adapters/encryption";
 import { addCartItem, getOrCreateCart } from "@/lib/cart";
 import { createCheckout } from "@/lib/checkout";
 import { loadAuthorizedMockPayment } from "@/lib/payment-access";
+import { getAdminOrderDetail } from "@/lib/admin";
 
 const mockState = vi.hoisted(() => ({ token: null as string | null }));
 
@@ -333,5 +334,67 @@ describe("session-backed admin guards", () => {
       () => integrationActions.createSupplierConnectionAction(connectionForm),
       "/portal",
     );
+  });
+
+  it("omits payment records from order detail when the viewer lacks invoices.read", async () => {
+    const db = handle.db;
+    const order = await db.query.orders.findFirst();
+    expect(order).toBeTruthy();
+
+    const withPayments = await getAdminOrderDetail(db, order!.orderNumber);
+    expect(withPayments).not.toBeNull();
+    expect(withPayments!.payments.length).toBeGreaterThan(0);
+
+    const withoutPayments = await getAdminOrderDetail(db, order!.orderNumber, {
+      includePayments: false,
+    });
+    expect(withoutPayments).not.toBeNull();
+    expect(withoutPayments!.payments).toEqual([]);
+    expect(withoutPayments!.view.order.id).toBe(withPayments!.view.order.id);
+    expect(withoutPayments!.jobs.length).toBe(withPayments!.jobs.length);
+    expect(withoutPayments!.emails.length).toBe(withPayments!.emails.length);
+  });
+
+  it("routes staff through permitted console sections and rejects admin-only ones", async () => {
+    const financeId = newId("user");
+    const supportId = newId("user");
+    await handle.db.insert(users).values([
+      {
+        id: financeId,
+        email: "staff-finance@example.test",
+        name: "Staff Finance",
+        passwordHash: "unused",
+        role: "finance",
+      },
+      {
+        id: supportId,
+        email: "staff-support@example.test",
+        name: "Staff Support",
+        passwordHash: "unused",
+        role: "support",
+      },
+    ]);
+    const { requireStaff } = await import("@/lib/auth/guards");
+
+    mockState.token = (
+      await createSession(handle.db, financeId, { ttlMinutes: 60 })
+    ).token;
+    expect((await requireStaff("/admin", "overview")).role).toBe("finance");
+    expect((await requireStaff("/admin/finance", "finance")).role).toBe("finance");
+    expect((await requireStaff("/admin/payments", "payments")).role).toBe("finance");
+    await expectRedirect(() => requireStaff("/admin/legal", "legal"), "/portal");
+    await expectRedirect(() => requireStaff("/admin/plans", "plans"), "/portal");
+    await expectRedirect(() => requireStaff("/admin/jobs", "jobs"), "/portal");
+    await expectRedirect(() => requireStaff("/admin/audit", "audit"), "/portal");
+
+    mockState.token = (
+      await createSession(handle.db, supportId, { ttlMinutes: 60 })
+    ).token;
+    expect((await requireStaff("/admin", "overview")).role).toBe("support");
+    expect((await requireStaff("/admin/orders", "orders")).role).toBe("support");
+    expect((await requireStaff("/admin/support", "support")).role).toBe("support");
+    await expectRedirect(() => requireStaff("/admin/payments", "payments"), "/portal");
+    await expectRedirect(() => requireStaff("/admin/plans", "plans"), "/portal");
+    await expectRedirect(() => requireStaff("/admin/audit", "audit"), "/portal");
   });
 });

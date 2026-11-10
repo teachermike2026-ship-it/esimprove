@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import {
@@ -37,6 +38,7 @@ export default async function DestinationPage({
   const db = await getDb();
   const row = await getDestinationBySlug(db, slug);
   if (!row) notFound();
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   const plans = await getPlansForDestination(db, row.destination.id);
   const regionDestinations = await getDestinations(db, { regionSlug: row.region.slug });
@@ -67,6 +69,7 @@ export default async function DestinationPage({
     <>
       <script
         type="application/ld+json"
+        nonce={nonce}
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <nav aria-label="Breadcrumb">

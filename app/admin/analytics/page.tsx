@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import {
   TRACKED_EVENT_TYPES,
@@ -71,7 +71,7 @@ export default async function AdminAnalyticsPage({
 }: {
   searchParams: Promise<Params>;
 }) {
-  await requireAdmin("/admin/analytics");
+  await requireStaff("/admin/analytics", "analytics");
   const params = await searchParams;
   const tab = TABS.some((entry) => entry.key === stringParam(params, "tab"))
     ? stringParam(params, "tab")

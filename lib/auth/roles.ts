@@ -46,7 +46,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   customer: [],
   admin: ALL_PERMISSIONS,
   super_admin: ALL_PERMISSIONS,
-  support: ["orders.read", "invoices.read", "support.read", "support.write"],
+  support: ["orders.read", "support.read", "support.write"],
   // Refund execution is an administrator-only operation in this build. The
   // finance role remains read-only until a four-eyes approval workflow and a
   // finance-specific admin surface are implemented.

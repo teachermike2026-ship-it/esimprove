@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
+import { ADMIN_NAV_ITEMS, canAccessAdminSection } from "@/lib/auth/admin-access";
 import { demoMode, integrationModes } from "@/lib/config";
 import { ShieldIcon } from "@/components/icons";
 
@@ -10,37 +11,25 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const admin = await requireAdmin("/admin");
+  const staff = await requireStaff("/admin");
+  // Only render links the current role can actually open. Page-level guards
+  // enforce the same matrix server-side, so hiding a link is never the control.
+  const links = ADMIN_NAV_ITEMS.filter((item) =>
+    canAccessAdminSection(staff.role, item.section),
+  );
 
   return (
     <div className="admin-layout">
       <aside className="admin-nav" aria-label="Admin navigation">
         <div className="admin-nav-head">
           <span className="badge badge-demo">Operator</span>
-          <p className="small muted">{admin.email}</p>
+          <p className="small muted">{staff.email}</p>
         </div>
-        <Link href="/admin">Overview</Link>
-        <Link href="/admin/analytics">Analytics</Link>
-        <Link href="/admin/finance">Finance</Link>
-        <Link href="/admin/customers">Customers</Link>
-        <Link href="/admin/legal">Legal &amp; compliance</Link>
-        <Link href="/admin/monitoring">Monitoring &amp; alerts</Link>
-        <Link href="/admin/seo">SEO &amp; CMS</Link>
-        <Link href="/admin/blog">Blog &amp; articles</Link>
-        <Link href="/admin/help">Help center</Link>
-        <Link href="/admin/support">Support</Link>
-        <Link href="/admin/audit">Audit log</Link>
-        <Link href="/admin/provider">Supplier</Link>
-        <Link href="/admin/integrations">API Integrations</Link>
-        <Link href="/admin/jobs">Fulfillment jobs</Link>
-        <Link href="/admin/plans">Plans &amp; pricing</Link>
-        <Link href="/admin/payments">Payments</Link>
-        <Link href="/admin/refunds">Refunds</Link>
-        <Link href="/admin/coupons">Coupons</Link>
-        <Link href="/admin/pricing">Pricing rules</Link>
-        <Link href="/admin/emails">Email log</Link>
-        <Link href="/admin/settings">Settings</Link>
-        <Link href="/admin/orders">Orders</Link>
+        {links.map((item) => (
+          <Link key={item.section} href={item.href}>
+            {item.label}
+          </Link>
+        ))}
         <Link href="/">View storefront</Link>
       </aside>
       <section className="admin-main">

@@ -14,12 +14,18 @@ import { loadLegalSettings } from "@/lib/legal";
 import { makeTestDb } from "./helpers/db";
 import {
   REQUEST_RATE_LIMITS,
+  RateLimitCounterError,
+  checkRateLimit,
   checkRequestRateLimit,
+  cleanupExpiredRateLimitCounters,
   requestRateLimitKey,
 } from "@/lib/rate-limit";
 import { hashConsentSubject } from "@/lib/consent";
-import { hashIdentifier } from "@/lib/analytics-web";
-import { buildContentSecurityPolicy } from "@/lib/security-headers";
+import {
+  buildContentSecurityPolicy,
+  createSecurityNonce,
+  parseCspHosts,
+} from "@/lib/security-headers";
 
 const mockState = vi.hoisted(() => ({ token: null as string | null }));
 
@@ -222,32 +228,74 @@ describe("WP5 retention, rate limit, CSP, and analytics secret regression suite"
     expect(stored).toHaveLength(1);
   });
 
-  it("builds a strengthened content security policy", () => {
+  it("builds a nonce-based content security policy with host allowlists", () => {
+    const nonce = "dGVzdC1ub25jZS12YWx1ZQ==";
     const csp = buildContentSecurityPolicy({
+      nonce,
       development: false,
       upgradeInsecureRequests: true,
+      imageHosts: ["https://cdn.example.com"],
+      mediaHosts: ["https://media.example.com"],
     });
-    expect(csp).toContain("default-src 'self'");
-    expect(csp).toContain(
-      "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com",
-    );
+    const scriptDirective = csp
+      .split("; ")
+      .find((directive) => directive.startsWith("script-src "))!;
+    expect(scriptDirective).toContain("'self'");
+    expect(scriptDirective).toContain(`'nonce-${nonce}'`);
+    expect(scriptDirective).not.toContain("'unsafe-inline'");
+    expect(csp).toContain("script-src-attr 'none'");
     expect(csp).toContain("https://www.google-analytics.com");
     expect(csp).toContain("https://*.google-analytics.com");
     expect(csp).toContain(
       "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com",
     );
+    expect(
+      csp.split("; ").find((directive) => directive.startsWith("img-src ")),
+    ).toBe("img-src 'self' data: blob: https://cdn.example.com");
+    expect(csp).toContain("media-src 'self' https://media.example.com");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("base-uri 'self'");
     expect(csp).toContain("form-action 'self'");
     expect(csp).toContain("upgrade-insecure-requests");
 
-    const developmentCsp = buildContentSecurityPolicy({ development: true });
+    const developmentCsp = buildContentSecurityPolicy({
+      nonce,
+      development: true,
+    });
     expect(developmentCsp).toContain("'unsafe-eval'");
     expect(developmentCsp).not.toContain("upgrade-insecure-requests");
   });
 
-  it("wires the content security policy into the Next configuration", async () => {
+  it("validates nonces and configured CSP host allowlists", () => {
+    const firstNonce = createSecurityNonce();
+    const secondNonce = createSecurityNonce();
+    expect(firstNonce).not.toBe(secondNonce);
+    expect(firstNonce).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
+    expect(firstNonce.length).toBeGreaterThanOrEqual(20);
+
+    expect(
+      parseCspHosts(
+        "https://cdn.example.com, https://media.example.com:8443, http://insecure.example.com, https://bad.example.com; script-src *",
+      ),
+    ).toEqual(["https://cdn.example.com", "https://media.example.com:8443"]);
+    expect(parseCspHosts("")).toEqual([]);
+  });
+
+  it("emits a fresh CSP nonce from the proxy and no static duplicate", async () => {
+    const { proxy } = await import("@/proxy");
+    const makeRequest = () =>
+      new NextRequest("http://localhost:3000/about", {
+        headers: new Headers({ "user-agent": "vitest" }),
+      });
+    const first = await proxy(makeRequest());
+    const second = await proxy(makeRequest());
+    const firstCsp = first.headers.get("content-security-policy");
+    const secondCsp = second.headers.get("content-security-policy");
+    expect(firstCsp).toContain("script-src 'self' 'nonce-");
+    expect(firstCsp).not.toContain("script-src 'self' 'unsafe-inline'");
+    expect(firstCsp).not.toBe(secondCsp);
+
     const configModule = await import("../next.config");
     const config = configModule.default as {
       headers?: () => Promise<
@@ -255,9 +303,60 @@ describe("WP5 retention, rate limit, CSP, and analytics secret regression suite"
       >;
     };
     const headers = (await config.headers!()).flatMap((entry) => entry.headers);
-    const csp = headers.find((header) => header.key === "Content-Security-Policy");
-    expect(csp).toBeDefined();
-    expect(csp!.value).toContain("default-src 'self'");
-    expect(csp!.value).toContain("https://www.googletagmanager.com");
+    expect(headers.find((header) => header.key === "Content-Security-Policy")).toBeUndefined();
+    expect(headers.find((header) => header.key === "X-Content-Type-Options")).toBeDefined();
+  });
+
+  it("adds a CSP and login redirect to the admin gate", async () => {
+    const { proxy } = await import("@/proxy");
+    const response = await proxy(
+      new NextRequest("http://localhost:3000/admin/orders", {
+        headers: new Headers({ "user-agent": "vitest" }),
+      }),
+    );
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/login?next=%2Fadmin%2Forders");
+    expect(response.headers.get("content-security-policy")).toContain("'nonce-");
+  });
+
+  it("fails closed on invalid rate-limit settings and removes only expired counters", async () => {
+    await expect(checkRateLimit(handle.db, "invalid-limit", 0, 60)).rejects.toBeInstanceOf(
+      RateLimitCounterError,
+    );
+    await expect(checkRateLimit(handle.db, "", 1, 60)).rejects.toBeInstanceOf(
+      RateLimitCounterError,
+    );
+    await expect(checkRateLimit(handle.db, "invalid-window", 1, 0)).rejects.toBeInstanceOf(
+      RateLimitCounterError,
+    );
+    await expect(cleanupExpiredRateLimitCounters(handle.db, 0)).rejects.toBeInstanceOf(
+      RateLimitCounterError,
+    );
+
+    const now = Date.now();
+    await handle.db.insert(rateLimitCounters).values([
+      { key: "active-counter", windowStart: new Date(now), count: 3 },
+      {
+        key: "expired-counter",
+        windowStart: new Date(now - 2 * 24 * 60 * 60 * 1000),
+        count: 5,
+      },
+    ]);
+    expect(await cleanupExpiredRateLimitCounters(handle.db)).toBe(1);
+    const remaining = await handle.db
+      .select({ key: rateLimitCounters.key })
+      .from(rateLimitCounters);
+    expect(remaining.map((row) => row.key)).toEqual(["active-counter"]);
+  });
+
+  it("maps missing or malformed client addresses to one shared bucket", async () => {
+    const first = await checkRequestRateLimit(handle.db, "consent", new Headers());
+    const second = await checkRequestRateLimit(
+      handle.db,
+      "consent",
+      new Headers({ "x-forwarded-for": "not-an-ip" }),
+    );
+    expect(first.count).toBe(1);
+    expect(second.count).toBe(2);
   });
 });

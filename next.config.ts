@@ -1,10 +1,8 @@
 import type { NextConfig } from "next";
-import { buildContentSecurityPolicy } from "./lib/security-headers";
 
 // HSTS is emitted only for a production build; preview and local HTTP must not
 // pin HSTS in a browser.
 const isProductionBuild = (process.env.APP_ENV ?? "").trim().toLowerCase() === "production";
-const isDevelopment = process.env.NODE_ENV !== "production";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -25,13 +23,10 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), payment=()",
           },
-          {
-            key: "Content-Security-Policy",
-            value: buildContentSecurityPolicy({
-              development: isDevelopment,
-              upgradeInsecureRequests: isProductionBuild,
-            }),
-          },
+          // The Content-Security-Policy is emitted per request by proxy.ts so
+          // that it can contain a fresh nonce. Do not add a second static CSP
+          // here: browsers intersect multiple policies, and a duplicate would
+          // block nonced scripts.
           { key: "X-DNS-Prefetch-Control", value: "off" },
           ...(isProductionBuild
             ? [
@@ -48,3 +43,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+

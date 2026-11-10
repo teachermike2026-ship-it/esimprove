@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
+import { hasPermission } from "@/lib/auth/roles";
 import { getDb } from "@/lib/db/client";
 import { listAdminRefunds } from "@/lib/admin";
 import { formatDate, formatMoney } from "@/lib/money";
@@ -17,7 +18,8 @@ export default async function AdminRefundsPage({
 }: {
   searchParams: Promise<{ error?: string; processed?: string }>;
 }) {
-  await requireAdmin();
+  const staff = await requireStaff("/admin/refunds", "refunds");
+  const canApprove = hasPermission(staff.role, "refunds.write");
   const { error, processed } = await searchParams;
   const db = await getDb();
   const refunds = await listAdminRefunds(db, 200);
@@ -82,12 +84,16 @@ export default async function AdminRefundsPage({
                   <td>{formatDate(refund.createdAt)}</td>
                   <td>
                     {refund.status === "requested" ? (
-                      <form action={approveRefundAction}>
-                        <input type="hidden" name="refundId" value={refund.id} />
-                        <button className="button button-small" type="submit">
-                          Approve
-                        </button>
-                      </form>
+                      canApprove ? (
+                        <form action={approveRefundAction}>
+                          <input type="hidden" name="refundId" value={refund.id} />
+                          <button className="button button-small" type="submit">
+                            Approve
+                          </button>
+                        </form>
+                      ) : (
+                        <span className="small muted">Administrator approval required</span>
+                      )
                     ) : (
                       <span className="small muted">—</span>
                     )}
@@ -99,8 +105,9 @@ export default async function AdminRefundsPage({
         </div>
       )}
       <p className="muted small">
-        Demo refund approvals move mock payments through the payment state machine. Real gateway
-        confirmation is still required before any live refund could be issued.
+        Demo refund approvals move mock payments through the payment state machine. Refund
+        execution is administrator-only; finance and support roles have read-only access. Real
+        gateway confirmation is still required before any live refund could be issued.
       </p>
     </>
   );

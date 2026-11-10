@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { headers } from "next/headers";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -96,6 +97,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const [settings, legalSettings] = await Promise.all([safeSettings(), safeLegalSettings()]);
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const siteJsonLd = settings ? buildSiteJsonLd(settings) : null;
   const ga4 = settings?.ga4MeasurementId;
   const ga4Enabled = Boolean(ga4 && /^G-[A-Z0-9]{6,}$/i.test(ga4) && !noIndex);
@@ -110,6 +112,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         {siteJsonLd ? (
           <script
             type="application/ld+json"
+            nonce={nonce}
             dangerouslySetInnerHTML={{ __html: siteJsonLd }}
           />
         ) : null}
@@ -119,7 +122,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           {children}
         </main>
         <SiteFooter legalSettings={legalSettings} />
-        <Ga4Loader measurementId={ga4Enabled && ga4 ? ga4 : ""} />
+        <Ga4Loader
+          measurementId={ga4Enabled && ga4 ? ga4 : ""}
+          consentVersion={consentVersion}
+          nonce={nonce}
+        />
         <AnalyticsTracker consentVersion={consentVersion} />
         <ConsentManager consentVersion={consentVersion} />
       </body>

@@ -452,8 +452,8 @@ These are proposals, not legal conclusions. Retention must be reconciled with ta
 | Activation data | While eSIM is active + 12 months (proposal) | Then crypto-shred or delete; reinstall policy may require longer |
 | Support tickets | 3 years after closure (proposal) | Legal holds override |
 | Marketing consent | Until withdrawal + evidence period | Must preserve proof |
-| Analytics raw events | 395 days (approved database setting; default) | Consent-gated; no PII |
-| Analytics aggregates | 730 days (approved database setting; default) | HMAC identifiers only; consent-gated |
+| Analytics raw events | 395 days (proposed technical default, not owner-approved) | Consent-gated; no PII; cleanup requires automated + enabled |
+| Analytics aggregates | 730 days (proposed technical default, not owner-approved) | HMAC identifiers only; consent-gated; cleanup requires automated + enabled |
 | Security/audit logs | 1–2 years (proposal) | Immutable, access restricted |
 | Backups | 30–35 days (proposal) | Encrypted; documented RPO/RTO |
 | Guest access tokens | 7–30 days (proposal) | Re-issuable; underlying credential not deleted |

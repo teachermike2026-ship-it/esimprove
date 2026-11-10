@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { loadSeoSettings, auditSeoHealth } from "@/lib/seo";
 import { SeoSettingsForm } from "./seo-form";
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminSeoPage() {
-  await requireAdmin("/admin/seo");
+  await requireStaff("/admin/seo", "seo");
   const db = await getDb();
   const [settings, health] = await Promise.all([
     loadSeoSettings(db),

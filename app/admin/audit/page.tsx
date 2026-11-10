@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { listAdminAuditLogs } from "@/lib/admin";
 import { formatDate } from "@/lib/money";
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminAuditPage() {
-  await requireAdmin();
+  await requireStaff("/admin/audit", "audit");
   const db = await getDb();
   const logs = await listAdminAuditLogs(db, 200);
 

@@ -4,7 +4,8 @@ import type { Database } from "@/lib/db/client";
 import { sessions, users } from "@/lib/db/schema";
 import type { EncryptedSecret } from "@/lib/db/schema";
 import { getDb } from "@/lib/db/client";
-import { hashIdentifier, hashToken, randomToken } from "@/lib/crypto";
+import { hashToken, randomToken } from "@/lib/crypto";
+import { clientIpHash } from "@/lib/request-ip";
 import { sessionCookieName, siteUrl } from "@/lib/config";
 import { newId } from "@/lib/ids";
 
@@ -157,11 +158,11 @@ export async function promotePendingSession(
 
 export async function requestMeta(): Promise<{ ipHash: string; userAgent: string }> {
   const headerStore = await headers();
-  const forwarded = headerStore.get("x-forwarded-for");
-  const ip =
-    forwarded?.split(",")[0]?.trim() || headerStore.get("x-real-ip") || "unknown";
   return {
-    ipHash: hashIdentifier(ip),
-    userAgent: headerStore.get("user-agent") || "unknown",
+    // Use the same trusted-address resolver as the rate limiter. Deployed
+    // traffic trusts Netlify's observed address; client-supplied
+    // x-forwarded-for values are ignored there.
+    ipHash: clientIpHash(headerStore),
+    userAgent: (headerStore.get("user-agent") || "unknown").slice(0, 255),
   };
 }

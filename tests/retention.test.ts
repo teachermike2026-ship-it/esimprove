@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { and, eq, inArray } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { eq, inArray } from "drizzle-orm";
 import type { DatabaseHandle } from "@/lib/db/client";
 import {
   analyticsEvents,
@@ -103,6 +103,7 @@ async function setRetention(
   dataKey: string,
   retentionDays: number | null,
   enabled: boolean,
+  automated = enabled,
 ): Promise<void> {
   await handle.db
     .insert(dataRetentionSettings)
@@ -112,7 +113,7 @@ async function setRetention(
       label: dataKey,
       retentionDays,
       basis: "technical_default",
-      automated: enabled,
+      automated,
       enabled,
       updatedAt: new Date(),
     })
@@ -120,7 +121,7 @@ async function setRetention(
       target: dataRetentionSettings.dataKey,
       set: {
         retentionDays,
-        automated: enabled,
+        automated,
         enabled,
         updatedAt: new Date(),
       },
@@ -204,7 +205,7 @@ describe("analytics retention policy", () => {
     expect(DEFAULT_ANALYTICS_RETENTION_DAYS.analytics_aggregates).not.toBe(CONSENT_VALIDITY_DAYS);
   });
 
-  it("uses the 0006 seed defaults when retention rows are missing", async () => {
+  it("does not delete anything when the retention rows are missing", async () => {
     await handle.db
       .delete(dataRetentionSettings)
       .where(inArray(dataRetentionSettings.dataKey, [...ANALYTICS_RETENTION_KEYS]));
@@ -215,29 +216,64 @@ describe("analytics retention policy", () => {
       aggregatesDays: DEFAULT_ANALYTICS_RETENTION_DAYS.analytics_aggregates,
       eventsSource: "default",
       aggregatesSource: "default",
+      eventsEnabled: false,
+      aggregatesEnabled: false,
+      databaseAvailable: true,
     });
 
-    const mixed = await seedActivity(handle, "defaults-mixed", {
-      eventDaysAgo: 500,
-      aggregateDaysAgo: 500,
-    });
-    const result = await cleanupAnalytics(handle.db);
-    expect(result.events).toBeGreaterThanOrEqual(1);
-    expect(result.sessions).toBe(0);
-    expect(result.visitors).toBe(0);
-    expect(await countRows(handle, mixed.eventId, "events")).toBe(0);
-    expect(await countRows(handle, mixed.sessionId, "sessions")).toBe(1);
-    expect(await countRows(handle, mixed.visitorId, "visitors")).toBe(1);
-
-    const old = await seedActivity(handle, "defaults-old", {
+    const kept = await seedActivity(handle, "defaults-kept", {
       eventDaysAgo: 800,
       aggregateDaysAgo: 800,
     });
-    const second = await cleanupAnalytics(handle.db);
-    expect(second.sessions).toBeGreaterThanOrEqual(1);
-    expect(second.visitors).toBeGreaterThanOrEqual(1);
-    expect(await countRows(handle, old.sessionId, "sessions")).toBe(0);
-    expect(await countRows(handle, old.visitorId, "visitors")).toBe(0);
+    const result = await cleanupAnalytics(handle.db);
+    expect(result.events).toBe(0);
+    expect(result.sessions).toBe(0);
+    expect(result.visitors).toBe(0);
+    expect(await countRows(handle, kept.eventId, "events")).toBe(1);
+    expect(await countRows(handle, kept.sessionId, "sessions")).toBe(1);
+    expect(await countRows(handle, kept.visitorId, "visitors")).toBe(1);
+  });
+
+  it("disables cleanup when the policy table cannot be read", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const failingDb = {
+        select: () => {
+          throw new Error("database offline");
+        },
+      } as unknown as typeof handle.db;
+      const policy = await loadAnalyticsRetentionPolicy(failingDb);
+      expect(policy.databaseAvailable).toBe(false);
+      expect(policy.eventsEnabled).toBe(false);
+      expect(policy.aggregatesEnabled).toBe(false);
+      expect(policy.eventsSource).toBe("default");
+      expect(policy.aggregatesSource).toBe("default");
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("requires both automation and enablement for each category", async () => {
+    // Enabled without automation, and automated without enablement: neither
+    // may delete data, even with a valid period.
+    await setRetention(handle, "analytics_events", 10, true, false);
+    await setRetention(handle, "analytics_aggregates", 10, false, true);
+
+    const policy = await loadAnalyticsRetentionPolicy(handle.db);
+    expect(policy.eventsEnabled).toBe(false);
+    expect(policy.aggregatesEnabled).toBe(false);
+
+    const kept = await seedActivity(handle, "flag-mismatch", {
+      eventDaysAgo: 30,
+      aggregateDaysAgo: 30,
+    });
+    const result = await cleanupAnalytics(handle.db);
+    expect(result.events).toBe(0);
+    expect(result.sessions).toBe(0);
+    expect(result.visitors).toBe(0);
+    expect(await countRows(handle, kept.eventId, "events")).toBe(1);
+    expect(await countRows(handle, kept.sessionId, "sessions")).toBe(1);
+    expect(await countRows(handle, kept.visitorId, "visitors")).toBe(1);
   });
 
   it("applies database settings separately to events and aggregates", async () => {
@@ -287,22 +323,25 @@ describe("analytics retention policy", () => {
     expect(await countRows(handle, kept.visitorId, "visitors")).toBe(1);
   });
 
-  it("falls back to the reviewed default when an enabled row has an invalid period", async () => {
+  it("disables a category when an enabled row has an invalid period", async () => {
     await setRetention(handle, "analytics_events", 0, true);
 
     const policy = await loadAnalyticsRetentionPolicy(handle.db);
+    // The default is displayed for context but must not authorize deletion.
     expect(policy.eventsDays).toBe(DEFAULT_ANALYTICS_RETENTION_DAYS.analytics_events);
     expect(policy.eventsSource).toBe("default");
+    expect(policy.eventsEnabled).toBe(false);
 
-    const rows = await handle.db
-      .select({ dataKey: dataRetentionSettings.dataKey })
-      .from(dataRetentionSettings)
-      .where(
-        and(
-          eq(dataRetentionSettings.dataKey, "analytics_events"),
-          eq(dataRetentionSettings.enabled, true),
-        ),
-      );
-    expect(rows).toHaveLength(1);
+    const kept = await seedActivity(handle, "invalid-period", {
+      eventDaysAgo: 800,
+      aggregateDaysAgo: 10,
+    });
+    const result = await cleanupAnalytics(handle.db);
+    expect(result.events).toBe(0);
+    expect(result.sessions).toBe(0);
+    expect(result.visitors).toBe(0);
+    expect(await countRows(handle, kept.eventId, "events")).toBe(1);
+    expect(await countRows(handle, kept.sessionId, "sessions")).toBe(1);
+    expect(await countRows(handle, kept.visitorId, "visitors")).toBe(1);
   });
 });

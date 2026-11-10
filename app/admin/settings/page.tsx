@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { plans } from "@/lib/db/schema";
 import {
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminSettingsPage() {
-  await requireAdmin();
+  await requireStaff("/admin/settings", "settings");
   const db = await getDb();
   await db.select({ id: plans.id }).from(plans).limit(1);
   const databaseMode = process.env.DATABASE_URL ? "PostgreSQL (DATABASE_URL)" : "PGlite local";

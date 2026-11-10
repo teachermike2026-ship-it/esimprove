@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { listAdminJobs } from "@/lib/admin";
 import { formatDate } from "@/lib/money";
@@ -19,7 +19,7 @@ export default async function AdminJobsPage({
   searchParams: Promise<{ ran?: string; failed?: string; retried?: string }>;
 }) {
   const { ran, failed, retried } = await searchParams;
-  await requireAdmin();
+  await requireStaff("/admin/jobs", "jobs");
   const db = await getDb();
   const jobs = await listAdminJobs(db, 200);
 

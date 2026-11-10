@@ -124,14 +124,22 @@ export interface AdminOrderDetail {
 export async function getAdminOrderDetail(
   db: Database,
   orderNumber: string,
+  options: { includePayments?: boolean } = {},
 ): Promise<AdminOrderDetail | null> {
   const order = await getOrderByNumber(db, orderNumber);
   if (!order) return null;
   const view = await getOrderView(db, order.id);
   if (!view) return null;
+  const includePayments = options.includePayments !== false;
 
   const [paymentRows, jobRows, emailRows] = await Promise.all([
-    db.select().from(payments).where(eq(payments.orderId, order.id)).orderBy(desc(payments.createdAt)),
+    includePayments
+      ? db
+          .select()
+          .from(payments)
+          .where(eq(payments.orderId, order.id))
+          .orderBy(desc(payments.createdAt))
+      : Promise.resolve([]),
     db
       .select({ job: fulfillmentJobs, planName: orderItems.planName })
       .from(fulfillmentJobs)

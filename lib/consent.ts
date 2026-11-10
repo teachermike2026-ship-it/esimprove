@@ -47,12 +47,22 @@ export async function recordCookieConsent(
   }
   const subjectHash = hashConsentSubject(input.consentId);
   const now = new Date();
+  // The action is authoritative for the categories it implies. A caller cannot
+  // claim "withdraw" or "reject" while leaving analytics granted.
+  const analytics =
+    input.action === "withdraw" || input.action === "reject_non_essential"
+      ? false
+      : input.categories.analytics === true;
+  const marketing =
+    input.action === "withdraw" || input.action === "reject_non_essential"
+      ? false
+      : input.categories.marketing === true;
   const values = {
     id: newId("cconsent"),
     subjectHash,
     consentVersion: input.consentVersion,
-    analytics: input.categories.analytics === true,
-    marketing: input.categories.marketing === true,
+    analytics,
+    marketing,
     action: input.action,
     countryCode: input.countryCode ?? null,
     userAgent: input.userAgent?.slice(0, 255) ?? null,
@@ -116,8 +126,11 @@ export async function hasAnalyticsConsent(
   const row = await getCookieConsent(db, consentId);
   if (!row) return false;
   if (!row.analytics) return false;
+  if (row.action === "withdraw" || row.action === "reject_non_essential") return false;
   if (row.consentVersion !== currentVersion) return false;
   const ageMs = now.getTime() - row.updatedAt.getTime();
+  // Reject materially future timestamps as well as expired records.
+  if (ageMs < -5 * 60 * 1000) return false;
   return ageMs <= CONSENT_VALIDITY_DAYS * 24 * 60 * 60 * 1000;
 }
 

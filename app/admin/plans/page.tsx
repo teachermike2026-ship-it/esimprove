@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { listAdminPlans } from "@/lib/admin";
 import { formatMoney } from "@/lib/money";
@@ -18,7 +18,7 @@ export default async function AdminPlansPage({
   searchParams: Promise<{ updated?: string; error?: string }>;
 }) {
   const { updated, error } = await searchParams;
-  await requireAdmin();
+  await requireStaff("/admin/plans", "plans");
   const db = await getDb();
   const rows = await listAdminPlans(db, 200);
 

@@ -16,6 +16,7 @@ import {
 import { newId } from "@/lib/ids";
 import { analyticsHashSecret } from "@/lib/config";
 import { hmacHex } from "@/lib/crypto";
+import { minimizedReferrer, referrerHost } from "@/lib/referrer";
 
 /* -------------------------------------------------------------------------- */
 /* Event definitions and validation                                           */
@@ -98,7 +99,10 @@ export function validateTrackingPayload(input: unknown): TrackingPayload | null 
     if (typeof event.title === "string") parsed.title = event.title.slice(0, 300);
     if (typeof event.gameId === "string" && event.gameId.length <= 100) parsed.gameId = event.gameId;
     if (typeof event.referrer === "string" && event.referrer.length <= 1000) {
-      parsed.referrer = event.referrer.slice(0, 1000);
+      // Store only the source host. Paths, query strings, fragments, and
+      // credentials are discarded before the event reaches the database.
+      const host = minimizedReferrer(event.referrer);
+      if (host) parsed.referrer = host;
     }
     if (event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata)) {
       const metadata: Record<string, unknown> = {};
@@ -140,12 +144,14 @@ export function classifyReferrer(referrer: string | null | undefined): {
   host: string | null;
 } {
   if (!referrer) return { source: "direct", host: null };
-  let host: string;
-  try {
-    host = new URL(referrer).hostname.toLowerCase();
-  } catch {
-    return { source: "referral", host: null };
-  }
+  // Referrers are persisted as host-only values. Accept a full URL for callers
+  // that still pass raw browser data, but normalise both forms to a host.
+  const host =
+    referrerHost(referrer) ??
+    (/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(referrer.trim())
+      ? referrer.trim().toLowerCase()
+      : null);
+  if (!host) return { source: "referral", host: null };
   if (
     /(^|\.)(google|bing|duckduckgo|yahoo|baidu|yandex|ecosia|ask|naver|seznam)\.[a-z.]+$/.test(host)
   ) {
@@ -250,7 +256,8 @@ export async function recordAnalyticsEvents(
 
   const firstEvent = payload.events[0];
   const lastEvent = payload.events[payload.events.length - 1];
-  const { source } = classifyReferrer(firstEvent.referrer ?? null);
+  const entryReferrer = minimizedReferrer(firstEvent.referrer);
+  const { source } = classifyReferrer(entryReferrer);
   const pageViews = payload.events.filter((event) => event.type === "page_view").length;
 
   const [existingSession] = await db
@@ -287,7 +294,7 @@ export async function recordAnalyticsEvents(
       browser: ua.browser,
       os: ua.os,
       countryCode,
-      referrer: firstEvent.referrer ?? null,
+      referrer: entryReferrer,
       source,
       isNew: isNewVisitor,
       isInternal: internal,
@@ -311,7 +318,7 @@ export async function recordAnalyticsEvents(
       countryCode,
       deviceType: ua.deviceType,
       browser: ua.browser,
-      referrer: event.referrer ?? null,
+      referrer: minimizedReferrer(event.referrer),
       metadata: event.metadata ?? {},
       isInternal: internal,
       createdAt: now,
@@ -960,11 +967,8 @@ export async function getSourceBreakdown(
 
   const referrers = referrerRows
     .map((row) => {
-      try {
-        return { host: new URL(row.referrer ?? "").hostname, sessions: Number(row.sessions) };
-      } catch {
-        return null;
-      }
+      const host = referrerHost(row.referrer) ?? row.referrer?.toLowerCase() ?? null;
+      return host ? { host, sessions: Number(row.sessions) } : null;
     })
     .filter((row): row is { host: string; sessions: number } => row !== null);
 

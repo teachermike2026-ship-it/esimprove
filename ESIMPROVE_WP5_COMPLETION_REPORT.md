@@ -44,7 +44,7 @@
 
 - `scripts/setup.ts` generates a dedicated local `ANALYTICS_HASH_SECRET`.
 - `.env.example` documents the dedicated secret requirement and clarifies that retention and consent validity are separate policies.
-- `docs/DATA-MODEL.md` retention table now reflects the approved analytics retention values (395/730 days) instead of the stale proposal range.
+- `docs/DATA-MODEL.md` retention table now reflects the seeded analytics values (395/730 days) and labels them proposed technical defaults, not approved policy.
 
 ## Files changed
 
@@ -98,7 +98,7 @@ The full suite grew from the previous 21 files / 209 tests to 22 files / 219 tes
 
 ## Remaining limitations and owner-dependent actions
 
-- Migration seed notes still ask the owner to confirm the final analytics retention periods; the build treats the seeded 395/730 values as the reviewed defaults and keeps the database authoritative.
+- Migration seed notes still ask the owner to confirm the final analytics retention periods; the seeded 395/730 values are proposed technical defaults, not an approval, and cleanup now requires both `automated=true` and `enabled=true` with a valid period.
 - A nonce/hash-based CSP rollout remains a later hardening step because Next.js App Router inline bootstrap scripts require it.
 - Production `ANALYTICS_HASH_SECRET` values have not been set; deploys still fail closed until they are provided through the platform environment.
 - External launch prerequisites remain BLOCKED: Netlify, production PostgreSQL, domain/DNS/HTTPS, production secrets/KEKs, scheduler, backup/restore, monitoring, media host, live providers, GSC, legal/tax approval, and production analytics.

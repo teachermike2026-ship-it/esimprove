@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
+import { canAccessAdminSection } from "@/lib/auth/admin-access";
 import { getDb } from "@/lib/db/client";
 import {
   getAdminStats,
@@ -19,7 +20,10 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminDashboardPage() {
-  await requireAdmin();
+  const staff = await requireStaff("/admin", "overview");
+  const canRunJobs = canAccessAdminSection(staff.role, "jobs");
+  const canViewEmails = canAccessAdminSection(staff.role, "emails");
+  const canViewPlans = canAccessAdminSection(staff.role, "plans");
   const db = await getDb();
   const [stats, orders, jobs, emails] = await Promise.all([
     getAdminStats(db),
@@ -39,11 +43,13 @@ export default async function AdminDashboardPage() {
             are demo data.
           </p>
         </div>
-        <form action={runJobsAction}>
-          <button className="button" type="submit">
-            <RetryIcon className="inline-icon" /> Run due jobs
-          </button>
-        </form>
+        {canRunJobs ? (
+          <form action={runJobsAction}>
+            <button className="button" type="submit">
+              <RetryIcon className="inline-icon" /> Run due jobs
+            </button>
+          </form>
+        ) : null}
       </div>
 
       <div className="stat-grid">
@@ -114,9 +120,11 @@ export default async function AdminDashboardPage() {
         <section className="card form">
           <div className="admin-toolbar">
             <h2>Fulfillment jobs</h2>
-            <Link className="button button-ghost button-small" href="/admin/jobs">
-              All jobs <ArrowRight className="inline-icon" />
-            </Link>
+            {canRunJobs ? (
+              <Link className="button button-ghost button-small" href="/admin/jobs">
+                All jobs <ArrowRight className="inline-icon" />
+              </Link>
+            ) : null}
           </div>
           {jobs.length === 0 ? (
             <p className="muted small">No jobs have been queued.</p>
@@ -152,36 +160,40 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="grid grid-2 section-tight">
-        <section className="card form">
-          <h2>Latest email events</h2>
-          {emails.length === 0 ? (
-            <p className="muted small">No mock delivery emails have been logged.</p>
-          ) : (
-            <ul className="check-list">
-              {emails.map(({ email, orderNumber }) => (
-                <li key={email.id}>
-                  <StatusBadge status={email.status} />
-                  <span>
-                    {email.recipient} · {email.subject}
-                    {orderNumber ? ` · ${orderNumber}` : ""}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <Link className="button button-ghost button-small" href="/admin/emails">
-            Open email log <ArrowRight className="inline-icon" />
-          </Link>
-        </section>
+        {canViewEmails ? (
+          <section className="card form">
+            <h2>Latest email events</h2>
+            {emails.length === 0 ? (
+              <p className="muted small">No mock delivery emails have been logged.</p>
+            ) : (
+              <ul className="check-list">
+                {emails.map(({ email, orderNumber }) => (
+                  <li key={email.id}>
+                    <StatusBadge status={email.status} />
+                    <span>
+                      {email.recipient} · {email.subject}
+                      {orderNumber ? ` · ${orderNumber}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Link className="button button-ghost button-small" href="/admin/emails">
+              Open email log <ArrowRight className="inline-icon" />
+            </Link>
+          </section>
+        ) : null}
         <section className="card form">
           <h2>Demo catalogue</h2>
           <p className="muted small">
             {stats.publishedPlans} published plans, of which {stats.demoPlans} are labelled demo.
             {stats.customers} customer account{stats.customers === 1 ? "" : "s"} exist locally.
           </p>
-          <Link className="button button-secondary" href="/admin/plans">
-            Manage plans and pricing
-          </Link>
+          {canViewPlans ? (
+            <Link className="button button-secondary" href="/admin/plans">
+              Manage plans and pricing
+            </Link>
+          ) : null}
         </section>
       </div>
     </>

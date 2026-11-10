@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { listAllCategories } from "@/lib/blog";
 import { saveCategoryAction, deleteCategoryAction } from "../actions";
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function BlogCategoriesPage() {
-  await requireAdmin("/admin/blog/categories");
+  await requireStaff("/admin/blog/categories", "blog");
   const db = await getDb();
   const categories = await listAllCategories(db);
 

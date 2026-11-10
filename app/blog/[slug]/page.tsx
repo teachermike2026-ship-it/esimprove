@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { getPublishedArticleBySlug, getRelatedArticles } from "@/lib/blog";
@@ -81,6 +82,7 @@ export default async function BlogArticlePage({
     loadSeoSettings(db),
   ]);
   if (!article) notFound();
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   const related = await getRelatedArticles(db, article.id, article.categoryId, 3);
   const canonical = article.canonicalUrl || absoluteUrl(`/blog/${article.slug}`);
@@ -106,10 +108,12 @@ export default async function BlogArticlePage({
     <div className="es-page">
       <script
         type="application/ld+json"
+        nonce={nonce}
         dangerouslySetInnerHTML={{ __html: articleJsonLd }}
       />
       <script
         type="application/ld+json"
+        nonce={nonce}
         dangerouslySetInnerHTML={{ __html: breadcrumbJsonLd }}
       />
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { listBlogArticlesAdmin, listAllCategories, listAllTags } from "@/lib/blog";
 import { deleteArticleAction, setArticleStatusAction } from "./actions";
@@ -22,7 +22,7 @@ export default async function AdminBlogPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireAdmin("/admin/blog");
+  await requireStaff("/admin/blog", "blog");
   const params = await searchParams;
   const status = typeof params.status === "string" ? params.status : "all";
   const search = typeof params.search === "string" ? params.search : "";

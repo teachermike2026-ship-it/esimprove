@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { getBlogArticleAdmin, listAllCategories, listAllTags } from "@/lib/blog";
 import { ArticleForm } from "../../article-form";
@@ -16,7 +16,7 @@ export default async function EditArticlePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin("/admin/blog");
+  await requireStaff("/admin/blog", "blog");
   const { id } = await params;
   const db = await getDb();
   const [article, categories, tags] = await Promise.all([

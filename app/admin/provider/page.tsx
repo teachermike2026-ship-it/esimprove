@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { checkSupplierHealth } from "@/lib/provider-health";
 import { listProviderBalanceSnapshots, listProviderSyncJobs } from "@/lib/operations";
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminProviderPage() {
-  await requireAdmin();
+  await requireStaff("/admin/provider", "provider");
   const db = await getDb();
   const health = await checkSupplierHealth(db, "mock");
   const syncJobs = await listProviderSyncJobs(db, 20);

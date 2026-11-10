@@ -332,14 +332,47 @@ export interface StoredConsent {
 export function consentIsAnalyticsGranted(
   consent: StoredConsent | null,
   currentVersion: string,
+  now = new Date(),
 ): boolean {
   return Boolean(
-    consent &&
-      consent.version === currentVersion &&
+    consentIsCurrent(consent, currentVersion, now) &&
+      consent &&
+      consent.action !== "withdraw" &&
       consent.categories.analytics === true &&
       consent.categories.necessary === true,
   );
 }
+
+/**
+ * A stored choice is current only when its version matches the published
+ * consent version, its timestamp is valid, and it is younger than the consent
+ * validity period. A withdrawal remains a current choice (analytics off), but
+ * it never counts as analytics permission.
+ */
+export function consentIsCurrent(
+  consent: StoredConsent | null,
+  currentVersion: string,
+  now = new Date(),
+): boolean {
+  if (!consent) return false;
+  if (consent.version !== currentVersion) return false;
+  if (consent.categories.necessary !== true) return false;
+  if (!CONSENT_ACTIONS.has(consent.action)) return false;
+  const timestamp = Date.parse(consent.timestamp);
+  if (Number.isNaN(timestamp)) return false;
+  const ageMs = now.getTime() - timestamp;
+  // Reject timestamps materially in the future (clock tampering or bad data)
+  // and choices older than the published validity period.
+  if (ageMs < -5 * 60 * 1000) return false;
+  return ageMs <= CONSENT_VALIDITY_DAYS * 24 * 60 * 60 * 1000;
+}
+
+const CONSENT_ACTIONS = new Set<ConsentAction>([
+  "accept_all",
+  "reject_non_essential",
+  "custom",
+  "withdraw",
+]);
 
 export const LEGAL_DISCLAIMER =
   "This document is a project draft based on the functionality implemented in this build. It is not a substitute for advice from a qualified lawyer in the relevant jurisdiction.";

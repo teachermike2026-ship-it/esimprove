@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireStaff } from "@/lib/auth/guards";
 import { createSupplierConnectionAction } from "../actions";
 
 export const metadata = {
@@ -12,7 +12,7 @@ export default async function AddIntegrationsPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  await requireAdmin();
+  await requireStaff("/admin/integrations/new", "integrations");
   const { error } = await searchParams;
 
   return (

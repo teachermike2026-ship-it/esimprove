@@ -202,6 +202,8 @@ export interface AdminLegalDashboardProps {
     aggregatesDays: number;
     eventsSource: string;
     aggregatesSource: string;
+    eventsEnabled: boolean;
+    aggregatesEnabled: boolean;
   };
   reviews: AccessibilityReviewRow[];
   readiness: LegalReadinessItemRow[];
@@ -589,10 +591,13 @@ export function AdminLegalDashboard({
       <section id="retention" className="section-tight" aria-labelledby="retention-heading">
         <h2 id="retention-heading">Data retention</h2>
         <p className="muted small">
-          Automated analytics cleanup currently uses raw events {analyticsRetention.eventsDays} days
-          ({analyticsRetention.eventsSource}) and aggregates {analyticsRetention.aggregatesDays} days
-          ({analyticsRetention.aggregatesSource}). Other categories are manual until an approved job
-          exists.
+          Automated analytics cleanup is {analyticsRetention.eventsEnabled ? "enabled" : "disabled"} for
+          raw events ({analyticsRetention.eventsDays} days, {analyticsRetention.eventsSource}) and{" "}
+          {analyticsRetention.aggregatesEnabled ? "enabled" : "disabled"} for aggregates (
+          {analyticsRetention.aggregatesDays} days, {analyticsRetention.aggregatesSource}). The
+          395/730-day values are proposed technical defaults, not owner-approved periods. Cleanup
+          only runs when both automation and enablement are selected and the period is valid. Other
+          categories are manual until an approved job exists.
         </p>
         {retention.length === 0 ? (
           <EmptyState>No retention categories are registered.</EmptyState>
@@ -608,7 +613,13 @@ export function AdminLegalDashboard({
                     <span className="badge badge-neutral">
                       {row.retentionDays === null ? "No period set" : `${row.retentionDays} days`}
                     </span>{" "}
-                    {row.enabled ? <span className="badge badge-success">Automated</span> : <span className="badge badge-warning">Manual</span>}
+                    {row.enabled && row.automated ? (
+                      <span className="badge badge-success">Automated</span>
+                    ) : row.enabled ? (
+                      <span className="badge badge-danger">Enabled without automation</span>
+                    ) : (
+                      <span className="badge badge-warning">Manual</span>
+                    )}
                   </summary>
                   <form action={saveRetentionAction} className="form">
                     <input type="hidden" name="dataKey" value={row.dataKey} />
@@ -631,16 +642,23 @@ export function AdminLegalDashboard({
                       </div>
                     </div>
                     {supportsAutomation ? (
-                      <div className="pill-row">
-                        <label className="checkbox">
-                          <input type="checkbox" name="automated" defaultChecked={row.automated} />
-                          <span>Automated cleanup is implemented for this category</span>
-                        </label>
-                        <label className="checkbox">
-                          <input type="checkbox" name="enabled" defaultChecked={row.enabled} />
-                          <span>Enable cleanup</span>
-                        </label>
-                      </div>
+                      <>
+                        <div className="pill-row">
+                          <label className="checkbox">
+                            <input type="checkbox" name="automated" defaultChecked={row.automated} />
+                            <span>Automated cleanup is implemented for this category</span>
+                          </label>
+                          <label className="checkbox">
+                            <input type="checkbox" name="enabled" defaultChecked={row.enabled} />
+                            <span>Enable cleanup</span>
+                          </label>
+                        </div>
+                        <p className="form-note">
+                          Cleanup runs only when both boxes are selected. An unbalanced direct
+                          database edit (enabled without automated) is treated as disabled by the
+                          cleanup job.
+                        </p>
+                      </>
                     ) : (
                       <p className="form-note">
                         Automated cleanup is not implemented for this category. Keep it disabled
