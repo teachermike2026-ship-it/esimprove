@@ -18,7 +18,7 @@ export default async function AdminCouponsPage() {
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Demo operations</p>
+          <p className="eyebrow">Operations</p>
           <h1>Coupons</h1>
           <p className="muted">Promo codes and redemption records.</p>
         </div>

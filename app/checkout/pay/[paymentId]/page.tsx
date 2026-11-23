@@ -3,32 +3,36 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { loadAuthorizedMockPayment } from "@/lib/payment-access";
-import { mockCommerceAllowed } from "@/lib/config";
+import { mockCommerceAllowed, onlineCheckoutAvailable } from "@/lib/config";
+import { isWhopCheckoutUrl } from "@/lib/integrations/payment/whop";
 import { formatMoney } from "@/lib/money";
-import { simulateFailureAction, simulateSuccessAction } from "./actions";
-import { AlertIcon, ArrowRight, CreditCardIcon, LockIcon } from "@/components/icons";
+import { AlertIcon, ArrowRight, CreditCardIcon } from "@/components/icons";
 
 export const metadata: Metadata = {
-  title: "Mock payment",
-  description: "Simulated payment page. No real money moves.",
+  title: "Payment",
+  description: "Complete your eSIM order.",
   robots: { index: false, follow: false },
 };
 
-export default async function MockPaymentPage({
+export default async function PaymentPage({
   params,
   searchParams,
 }: {
   params: Promise<{ paymentId: string }>;
-  searchParams: Promise<{ failed?: string; error?: string; token?: string }>;
+  searchParams: Promise<{ token?: string }>;
 }) {
   const { paymentId } = await params;
   const flags = await searchParams;
   const token = flags.token ?? null;
-  if (!mockCommerceAllowed) notFound();
   const db = await getDb();
   const authorized = await loadAuthorizedMockPayment(db, paymentId, token);
   if (!authorized) notFound();
   const { payment, order } = authorized;
+
+  // Preserve the original mock-payment gate. A recorded Whop payment remains
+  // viewable by its owner even while checkout is disabled, but it can only be
+  // opened again when the storefront currently allows online checkout.
+  if (payment.provider === "mock" && !mockCommerceAllowed) notFound();
 
   if (payment.status === "paid") {
     const query = new URLSearchParams({ order: order.orderNumber });
@@ -36,47 +40,39 @@ export default async function MockPaymentPage({
     redirect(`/checkout/success?${query.toString()}`);
   }
 
-  const failed = payment.status === "failed" || flags.failed === "1";
+  const failed = payment.status === "failed";
+  const isWhop = payment.provider === "whop";
+  const canResume =
+    isWhop &&
+    !failed &&
+    payment.status === "pending" &&
+    onlineCheckoutAvailable() &&
+    isWhopCheckoutUrl(payment.checkoutUrl);
+  const orderHref = `/orders/${order.orderNumber}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 
   return (
     <div className="centered">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Mock payment</p>
-          <h1>Demo payment page</h1>
-          <p className="muted">
-            This page is a sandbox. It cannot charge a card, contact a processor, or move
-            money.
+          <p className="eyebrow">Payment</p>
+          <h1>
+            {failed
+              ? "Payment not completed"
+              : isWhop
+                ? "Payment is awaiting confirmation"
+                : "Online payment is not available yet"}
+          </h1>
+          <p className="lead">
+            {failed
+              ? "Your order was recorded, but the payment did not complete. This store has not marked the order as paid."
+              : isWhop
+                ? "Your order has been recorded. It is not paid until the payment provider confirms the payment."
+                : "Your order has been recorded, but we cannot take payment online right now. Nothing has been charged."}
           </p>
         </div>
       </div>
 
       <section className="card payment-card">
-        <div className="payment-demo">
-          <CreditCardIcon className="inline-icon" />
-          <p>
-            <strong>Sandbox only.</strong> The buttons below generate a signed mock webhook
-            event. No payment provider is connected.
-          </p>
-        </div>
-
-        {flags.error ? (
-          <div className="form-error" role="alert">
-            <AlertIcon className="inline-icon" />
-            <span>{flags.error}</span>
-          </div>
-        ) : null}
-
-        {failed ? (
-          <div className="callout callout-warning">
-            <AlertIcon className="inline-icon" />
-            <p>
-              This mock payment is marked failed. Return to the demo checkout to create a new
-              payment session. No money moved and the cart was not charged.
-            </p>
-          </div>
-        ) : null}
-
         <dl className="meta-list">
           <div>
             <dt>Order</dt>
@@ -90,45 +86,51 @@ export default async function MockPaymentPage({
             <dt>Amount</dt>
             <dd>{formatMoney(payment.amountMinor, payment.currency)}</dd>
           </div>
-          <div>
-            <dt>Provider</dt>
-            <dd>{payment.provider} (mock sandbox)</dd>
-          </div>
         </dl>
 
         {failed ? (
-          <div className="payment-actions">
-            <Link className="button" href="/checkout">
-              Return to checkout <ArrowRight className="inline-icon" />
-            </Link>
-            <Link className="button button-ghost" href="/cart">
-              Review cart
-            </Link>
+          <div className="callout callout-warning">
+            <AlertIcon className="inline-icon" />
+            <p>
+              This payment could not be completed. No money was charged, and your cart has not
+              been billed.
+            </p>
           </div>
-        ) : (
-          <div className="payment-actions">
-            <form action={simulateSuccessAction}>
-              <input type="hidden" name="paymentId" value={payment.id} />
-              {token ? <input type="hidden" name="token" value={token} /> : null}
-              <button className="button" type="submit">
-                <LockIcon className="inline-icon" /> Simulate successful payment
-              </button>
-            </form>
-            <form action={simulateFailureAction}>
-              <input type="hidden" name="paymentId" value={payment.id} />
-              {token ? <input type="hidden" name="token" value={token} /> : null}
-              <button className="button button-secondary" type="submit">
-                Simulate failed payment
-              </button>
-            </form>
-          </div>
-        )}
+        ) : null}
 
-        <p className="form-note">
-          <LockIcon className="inline-icon" /> The signed webhook path is shared with the API
-          route at <code>/api/webhooks/payments/mock</code>. This page is for local
-          demonstration only.
+        <p>
+          {isWhop && !failed ? (
+            <>
+              Complete the payment on the secure payment page. Your eSIM will be issued only
+              after the payment provider confirms the payment.
+            </>
+          ) : (
+            <>
+              To complete this order, contact our support team and quote your order number{" "}
+              <strong>{order.orderNumber}</strong>. Your eSIM will be issued once payment is
+              confirmed.
+            </>
+          )}
         </p>
+
+        <div className="payment-actions">
+          {canResume ? (
+            <a className="button" href={payment.checkoutUrl} rel="noreferrer">
+              <CreditCardIcon className="inline-icon" /> Continue to secure payment{" "}
+              <ArrowRight className="inline-icon" />
+            </a>
+          ) : null}
+          <Link className="button" href={orderHref}>
+            <CreditCardIcon className="inline-icon" /> View your order{" "}
+            <ArrowRight className="inline-icon" />
+          </Link>
+          <Link className="button button-secondary" href="/contact">
+            Contact support
+          </Link>
+          <Link className="button button-ghost" href="/plans">
+            Continue shopping
+          </Link>
+        </div>
       </section>
     </div>
   );

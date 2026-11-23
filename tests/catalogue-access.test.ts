@@ -145,6 +145,152 @@ describe("demo seed and catalogue", () => {
   });
 });
 
+describe("catalogue administration guards", () => {
+  let handle: DatabaseHandle;
+
+  beforeAll(async () => {
+    handle = await makeTestDb();
+  });
+
+  afterAll(async () => {
+    await handle.close();
+  });
+
+  it("blocks deleting regions with destinations, destinations with plans, and sold plans", async () => {
+    const db = handle.db;
+    const {
+      createPlan,
+      createRegion,
+      deleteDestination,
+      deletePlan,
+      deleteRegion,
+    } = await import("@/lib/catalogue");
+
+    // Seeded catalogue: regions contain destinations, destinations contain plans.
+    const seededRegions = await db.select().from(regions).limit(1);
+    await expect(deleteRegion(db, seededRegions[0]!.id, "admin_guard_test")).rejects.toThrow(
+      /still contains/,
+    );
+    const seededDestinations = await db.select().from(destinations).limit(1);
+    await expect(
+      deleteDestination(db, seededDestinations[0]!.id, "admin_guard_test"),
+    ).rejects.toThrow(/still contains/);
+
+    // Create a fresh region/destination/plan chain and sell the plan.
+    const createdRegion = await createRegion(db, {
+      name: "Guard Test Region",
+      slug: "guard-test-region",
+      description: "Region reserved for catalogue guard tests.",
+      accent: "teal",
+      sortOrder: 999,
+      actorId: "admin_guard_test",
+    });
+    const { createDestination } = await import("@/lib/catalogue");
+    const createdDestination = await createDestination(db, {
+      regionId: createdRegion.id,
+      name: "Guard Test Destination",
+      slug: "guard-test-destination",
+      countryCode: "GT",
+      summary: "Destination reserved for catalogue guard tests.",
+      description: "Destination reserved for catalogue guard tests.",
+      popular: false,
+      actorId: "admin_guard_test",
+    });
+    const createdPlan = await createPlan(db, {
+      destinationId: createdDestination.id,
+      name: "Guard Test Plan",
+      slug: "guard-test-plan",
+      supplierKey: "mock",
+      supplierProductId: "guard-test-product",
+      dataMb: 500,
+      validityDays: 7,
+      cost: "1.00",
+      markupBps: 2000,
+      currency: "USD",
+      taxBps: 0,
+      coverageSummary: "Guard coverage summary.",
+      networkSummary: "Guard network summary.",
+      description: "Guard test plan description for the audit trail.",
+      status: "draft",
+      isDemo: true,
+      actorId: "admin_guard_test",
+    });
+
+    // The unsold plan deletes cleanly, then its destination and region do too.
+    await deletePlan(db, createdPlan.id, "admin_guard_test");
+    await deleteDestination(db, createdDestination.id, "admin_guard_test");
+    await deleteRegion(db, createdRegion.id, "admin_guard_test");
+
+    const auditRows = await db
+      .select()
+      .from(auditLogs)
+      .where(eq(auditLogs.actorId, "admin_guard_test"));
+    const actions = auditRows.map((row) => row.action);
+    expect(actions).toContain("admin.region.create");
+    expect(actions).toContain("admin.destination.create");
+    expect(actions).toContain("admin.plan.create");
+    expect(actions).toContain("admin.plan.delete");
+    expect(actions).toContain("admin.destination.delete");
+    expect(actions).toContain("admin.region.delete");
+
+    // Selling a plan locks it against deletion.
+    const soldRegion = await createRegion(db, {
+      name: "Guard Sold Region",
+      slug: "guard-sold-region",
+      description: "Region reserved for the sold-plan guard test.",
+      accent: "teal",
+      sortOrder: 998,
+      actorId: "admin_guard_test",
+    });
+    const soldDestination = await createDestination(db, {
+      regionId: soldRegion.id,
+      name: "Guard Sold Destination",
+      slug: "guard-sold-destination",
+      countryCode: "GS",
+      summary: "Destination reserved for the sold-plan guard test.",
+      description: "Destination reserved for the sold-plan guard test.",
+      popular: false,
+      actorId: "admin_guard_test",
+    });
+    const soldPlan = await createPlan(db, {
+      destinationId: soldDestination.id,
+      name: "Guard Sold Plan",
+      slug: "guard-sold-plan",
+      supplierKey: "mock",
+      supplierProductId: "guard-sold-product",
+      dataMb: 1000,
+      validityDays: 14,
+      cost: "2.00",
+      markupBps: 2000,
+      currency: "USD",
+      taxBps: 0,
+      coverageSummary: "Guard sold coverage summary.",
+      networkSummary: "Guard sold network summary.",
+      description: "Guard sold plan description for the audit trail.",
+      status: "published",
+      isDemo: true,
+      actorId: "admin_guard_test",
+    });
+    const cart = await getOrCreateCart(db);
+    await addCartItem(db, cart.cartId, soldPlan.id, 1);
+    await createCheckout(db, {
+      cartToken: cart.token,
+      email: "guard@example.com",
+      name: "Guard Buyer",
+      country: "US",
+      idempotencyKey: "guard-sold-checkout",
+    });
+    await expect(deletePlan(db, soldPlan.id, "admin_guard_test")).rejects.toThrow(/sold in/i);
+    // The destination/region are also locked while the sold plan exists.
+    await expect(
+      deleteDestination(db, soldDestination.id, "admin_guard_test"),
+    ).rejects.toThrow(/still contains/);
+    await expect(deleteRegion(db, soldRegion.id, "admin_guard_test")).rejects.toThrow(
+      /still contains/,
+    );
+  }, 60_000);
+});
+
 describe("order access control", () => {
   let handle: DatabaseHandle;
 

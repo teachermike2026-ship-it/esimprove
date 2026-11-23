@@ -23,9 +23,14 @@ export class DisabledStripePaymentProvider implements PaymentProvider {
     return this.fail("createCheckout");
   }
 
-  verifyWebhook(rawBody: string, signature: string | null): PaymentEvent {
+  verifyWebhook(
+    rawBody: string,
+    signature: string | null,
+    headers?: Record<string, string>,
+  ): PaymentEvent {
     void rawBody;
     void signature;
+    void headers;
     return this.fail("verifyWebhook");
   }
 }
@@ -51,9 +56,14 @@ export class DisabledUnconfiguredPaymentProvider implements PaymentProvider {
     return this.fail("createCheckout");
   }
 
-  verifyWebhook(rawBody: string, signature: string | null): PaymentEvent {
+  verifyWebhook(
+    rawBody: string,
+    signature: string | null,
+    headers?: Record<string, string>,
+  ): PaymentEvent {
     void rawBody;
     void signature;
+    void headers;
     return this.fail("verifyWebhook");
   }
 }

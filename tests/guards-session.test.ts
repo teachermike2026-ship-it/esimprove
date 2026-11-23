@@ -4,7 +4,7 @@ import { createDatabase } from "@/lib/db/client";
 import { runMigrations } from "@/lib/db/migrate";
 import { seedDemoData } from "@/lib/db/seed";
 import { eq } from "drizzle-orm";
-import { auditLogs, payments, supplierConnections, users } from "@/lib/db/schema";
+import { auditLogs, supplierConnections, users } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
 import { createSession } from "@/lib/auth/session";
 import { decryptSupplierCredential } from "@/lib/adapters/encryption";
@@ -212,22 +212,10 @@ describe("session-backed admin guards", () => {
       await loadAuthorizedMockPayment(db, checkout.paymentId, checkout.accessToken),
     ).not.toBeNull();
 
-    const { simulateSuccessAction } = await import(
-      "@/app/checkout/pay/[paymentId]/actions"
-    );
     mockState.token = (
       await createSession(db, otherId, { ttlMinutes: 60 })
     ).token;
-    const form = new FormData();
-    form.set("paymentId", checkout.paymentId);
-    await expectRedirect(() => simulateSuccessAction(form), "/cart");
-
-    const paymentRows = await db
-      .select()
-      .from(payments)
-      .where(eq(payments.id, checkout.paymentId))
-      .limit(1);
-    expect(paymentRows[0]?.status).toBe("pending");
+    expect(await loadAuthorizedMockPayment(db, checkout.paymentId, null)).toBeNull();
   });
 
   it("rejects an anonymous request with a login redirect", async () => {
@@ -303,10 +291,19 @@ describe("session-backed admin guards", () => {
       await createSession(handle.db, customerId, { ttlMinutes: 60 })
     ).token;
     const adminActions = await import("@/app/admin/actions");
+    const catalogueActions = await import("@/app/admin/catalogue-actions");
     await expectRedirect(() => adminActions.approveRefundAction(new FormData()), "/portal");
     await expectRedirect(() => adminActions.runJobsAction(), "/portal");
     await expectRedirect(
-      () => adminActions.updatePlanAction(new FormData()),
+      () => catalogueActions.upsertDestinationAction(new FormData()),
+      "/portal",
+    );
+    await expectRedirect(
+      () => catalogueActions.upsertPlanAction(new FormData()),
+      "/portal",
+    );
+    await expectRedirect(
+      () => catalogueActions.deleteRegionAction(new FormData()),
       "/portal",
     );
 
@@ -318,7 +315,15 @@ describe("session-backed admin guards", () => {
     await expectRedirect(() => adminActions.approveRefundAction(new FormData()), "/portal");
     await expectRedirect(() => adminActions.runJobsAction(), "/portal");
     await expectRedirect(
-      () => adminActions.updatePlanAction(new FormData()),
+      () => catalogueActions.upsertRegionAction(new FormData()),
+      "/portal",
+    );
+    await expectRedirect(
+      () => catalogueActions.deletePlanAction(new FormData()),
+      "/portal",
+    );
+    await expectRedirect(
+      () => catalogueActions.deleteDestinationAction(new FormData()),
       "/portal",
     );
 

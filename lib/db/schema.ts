@@ -36,6 +36,7 @@ export const users = pgTable(
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     totpEnabled: boolean("totp_enabled").notNull().default(false),
     totpSecretEncrypted: jsonb("totp_secret_encrypted").$type<EncryptedSecret>(),
+    passwordChangeRequired: boolean("password_change_required").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -453,11 +454,15 @@ export const passwordResets = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     tokenHash: text("token_hash").notNull(),
+    purpose: text("purpose").notNull().default("password_reset"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     consumedAt: timestamp("consumed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("password_resets_user_id_idx").on(table.userId)],
+  (table) => [
+    index("password_resets_user_id_idx").on(table.userId),
+    index("password_resets_purpose_idx").on(table.purpose),
+  ],
 );
 
 export const invoices = pgTable(
@@ -497,6 +502,9 @@ export const refunds = pgTable(
     reason: text("reason").notNull(),
     status: text("status").notNull().default("requested"),
     providerRefundId: text("provider_refund_id"),
+    resolutionNote: text("resolution_note").notNull().default(""),
+    resolvedBy: text("resolved_by").references(() => users.id, { onDelete: "set null" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     idempotencyKey: text("idempotency_key").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -515,12 +523,20 @@ export const supportTickets = pgTable(
     orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
     requesterEmail: text("requester_email").notNull().default(""),
     subject: text("subject").notNull(),
+    category: text("category").notNull().default("general"),
     status: text("status").notNull().default("open"),
     priority: text("priority").notNull().default("normal"),
+    assignedTo: text("assigned_to").references(() => users.id, { onDelete: "set null" }),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("support_tickets_user_id_idx").on(table.userId)],
+  (table) => [
+    index("support_tickets_user_id_idx").on(table.userId),
+    index("support_tickets_status_idx").on(table.status, table.updatedAt),
+    index("support_tickets_assigned_idx").on(table.assignedTo),
+  ],
 );
 
 export const supportMessages = pgTable(

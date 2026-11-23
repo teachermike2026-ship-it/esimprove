@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/empty-state";
 export const metadata: Metadata = {
   title: "Destinations",
   description:
-    "Browse demo eSIM destinations by region. All coverage and pricing data is illustrative.",
+    "Browse eSIM destinations and compare plans by region, validity, and price.",
   alternates: { canonical: "/destinations" },
 };
 
@@ -29,11 +29,11 @@ export default async function DestinationsPage({
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Demo catalogue</p>
+          <p className="eyebrow">Destination catalogue</p>
           <h1>Destinations</h1>
           <p className="lead">
-            Choose a country or region to see demo plans. Coverage, network, and supplier
-            details are not verified.
+            Choose a country or region to see plans. Coverage, network, and supplier terms vary by
+            plan and operator; each plan page shows the specifics that apply.
           </p>
         </div>
         <SearchForm />
@@ -61,8 +61,8 @@ export default async function DestinationsPage({
           ))}
         </div>
       ) : (
-        <EmptyState title="No destinations in this demo filter" action={{ href: "/destinations", label: "Show all destinations" }}>
-          The demo catalogue does not have a destination for that region yet.
+        <EmptyState title="No destinations in this filter" action={{ href: "/destinations", label: "Show all destinations" }}>
+          The catalogue does not have a destination for that region yet.
         </EmptyState>
       )}
     </>

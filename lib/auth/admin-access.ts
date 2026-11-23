@@ -74,33 +74,84 @@ export interface AdminNavItem {
   section: AdminSection;
   href: string;
   label: string;
+  /** Rendered as a clearly-disabled entry; the surface is unavailable in this build. */
+  comingLater?: boolean;
 }
 
-/** Sidebar order. Keep entries in sync with the pages they link to. */
-export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
-  { section: "overview", href: "/admin", label: "Overview" },
-  { section: "analytics", href: "/admin/analytics", label: "Analytics" },
-  { section: "finance", href: "/admin/finance", label: "Finance" },
-  { section: "customers", href: "/admin/customers", label: "Customers" },
-  { section: "legal", href: "/admin/legal", label: "Legal & compliance" },
-  { section: "monitoring", href: "/admin/monitoring", label: "Monitoring & alerts" },
-  { section: "seo", href: "/admin/seo", label: "SEO & CMS" },
-  { section: "blog", href: "/admin/blog", label: "Blog & articles" },
-  { section: "help", href: "/admin/help", label: "Help center" },
-  { section: "support", href: "/admin/support", label: "Support" },
-  { section: "audit", href: "/admin/audit", label: "Audit log" },
-  { section: "provider", href: "/admin/provider", label: "Supplier" },
-  { section: "integrations", href: "/admin/integrations", label: "API Integrations" },
-  { section: "jobs", href: "/admin/jobs", label: "Fulfillment jobs" },
-  { section: "plans", href: "/admin/plans", label: "Plans & pricing" },
-  { section: "payments", href: "/admin/payments", label: "Payments" },
-  { section: "refunds", href: "/admin/refunds", label: "Refunds" },
-  { section: "coupons", href: "/admin/coupons", label: "Coupons" },
-  { section: "pricing", href: "/admin/pricing", label: "Pricing rules" },
-  { section: "emails", href: "/admin/emails", label: "Email log" },
-  { section: "settings", href: "/admin/settings", label: "Settings" },
-  { section: "orders", href: "/admin/orders", label: "Orders" },
+export interface AdminNavGroup {
+  label: string;
+  items: AdminNavItem[];
+}
+
+/** Sidebar grouped by area of work. Keep entries in sync with the pages they link to. */
+export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
+  { label: "Overview", items: [{ section: "overview", href: "/admin", label: "Overview" }] },
+  { label: "Analytics", items: [{ section: "analytics", href: "/admin/analytics", label: "Analytics" }] },
+  {
+    label: "Orders",
+    items: [
+      { section: "orders", href: "/admin/orders", label: "Orders" },
+      { section: "finance", href: "/admin/finance", label: "Finance" },
+    ],
+  },
+  { label: "Customers", items: [{ section: "customers", href: "/admin/customers", label: "Customers" }] },
+  {
+    label: "Plans & Catalogue",
+    items: [
+      { section: "plans", href: "/admin/plans", label: "Plans & pricing" },
+      { section: "pricing", href: "/admin/pricing", label: "Pricing rules" },
+      { section: "coupons", href: "/admin/coupons", label: "Coupons" },
+    ],
+  },
+  {
+    label: "Destinations",
+    items: [
+      { section: "plans", href: "/admin/plans/destinations", label: "Destinations" },
+      { section: "plans", href: "/admin/plans/regions", label: "Regions" },
+    ],
+  },
+  { label: "Refunds", items: [{ section: "refunds", href: "/admin/refunds", label: "Refunds" }] },
+  {
+    label: "Support",
+    items: [
+      { section: "support", href: "/admin/support", label: "Support" },
+      { section: "help", href: "/admin/help", label: "Help center" },
+    ],
+  },
+  {
+    label: "Fulfillment",
+    items: [{ section: "jobs", href: "/admin/jobs", label: "Fulfillment jobs" }],
+  },
+  {
+    label: "Monitoring",
+    items: [
+      { section: "monitoring", href: "/admin/monitoring", label: "Monitoring & alerts" },
+      { section: "emails", href: "/admin/emails", label: "Email log" },
+    ],
+  },
+  { label: "Activity Logs", items: [{ section: "audit", href: "/admin/audit", label: "Audit log" }] },
+  {
+    label: "Payments — Coming Later",
+    items: [{ section: "payments", href: "/admin/payments", label: "Payments", comingLater: true }],
+  },
+  {
+    label: "Supplier — Coming Later",
+    items: [{ section: "provider", href: "/admin/provider", label: "Supplier", comingLater: true }],
+  },
+  {
+    label: "Settings",
+    items: [
+      { section: "settings", href: "/admin/settings", label: "Settings" },
+      { section: "legal", href: "/admin/legal", label: "Legal & compliance" },
+      { section: "integrations", href: "/admin/integrations", label: "API Integrations" },
+      { section: "seo", href: "/admin/seo", label: "SEO & CMS" },
+      { section: "blog", href: "/admin/blog", label: "Blog & articles" },
+    ],
+  },
 ];
+
+/** Flat compatibility export: every reachable console route. */
+export const ADMIN_NAV_ITEMS: AdminNavItem[] = ADMIN_NAV_GROUPS.flatMap((group) => group.items);
 
 export function canAccessAdminSection(
   role: string | null | undefined,

@@ -10,6 +10,7 @@ import {
   requestPasswordResetAction,
   resetPasswordAction,
 } from "@/lib/auth/actions";
+import { LEGAL_DOCUMENT_VERSION } from "@/lib/legal-profile";
 import { AlertIcon, LockIcon } from "@/components/icons";
 
 type AuthState = { error?: string };
@@ -90,8 +91,7 @@ export function TwoFactorForm({ next = "/admin" }: { next?: string }) {
           aria-describedby="totp-help"
         />
         <p id="totp-help" className="form-note">
-          Open your authenticator app and enter the current code. Demo operators can run
-          <code>npm run totp</code> to print a local code.
+          Open your authenticator app and enter the current 6-digit code.
         </p>
       </div>
       <button className="button" type="submit" disabled={pending}>
@@ -102,21 +102,13 @@ export function TwoFactorForm({ next = "/admin" }: { next?: string }) {
   );
 }
 
-export function RegisterForm({
-  termsVersion,
-  privacyVersion,
-  minimumAge,
-}: {
-  termsVersion: string;
-  privacyVersion: string;
-  minimumAge: number | null;
-}) {
+export function RegisterForm() {
   const [state, formAction, pending] = useActionState<AuthState, FormData>(registerAction, {});
   return (
     <form className="form card" action={formAction}>
       <ErrorMessage error={state.error} />
-      <input type="hidden" name="termsVersion" value={termsVersion} />
-      <input type="hidden" name="privacyVersion" value={privacyVersion} />
+      <input type="hidden" name="termsVersion" value={LEGAL_DOCUMENT_VERSION} />
+      <input type="hidden" name="privacyVersion" value={LEGAL_DOCUMENT_VERSION} />
       <div className="field">
         <label htmlFor="register-name">Name</label>
         <input
@@ -153,7 +145,7 @@ export function RegisterForm({
           aria-describedby="register-password-help"
         />
         <p id="register-password-help" className="form-note">
-          At least 10 characters. This demo does not send verification email.
+          At least 10 characters. This build does not send verification email.
         </p>
       </div>
       <div className="field">
@@ -175,7 +167,7 @@ export function RegisterForm({
           <Link href="/legal/terms" target="_blank" rel="noreferrer">
             Terms of Service
           </Link>{" "}
-          (version {termsVersion}).
+          (version {LEGAL_DOCUMENT_VERSION}).
         </span>
       </label>
       <label className="checkbox">
@@ -191,9 +183,8 @@ export function RegisterForm({
       <label className="checkbox">
         <input type="checkbox" name="age" required />
         <span>
-          {minimumAge
-            ? `I confirm that I am at least ${minimumAge} years old.`
-            : "I confirm that I am old enough to enter a binding contract where I live, or that a parent or guardian has agreed to this account. The site is not directed at children, and the owner has not yet set a minimum age."}
+          I confirm that I am old enough to enter a binding contract where I live, or that a
+          parent or guardian has agreed to this account. The site is not directed at children.
         </span>
       </label>
       <label className="checkbox">

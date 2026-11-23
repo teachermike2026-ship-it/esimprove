@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { OrderView } from "@/lib/orders";
+import type { RefundRow } from "@/lib/db/schema";
 import { fulfillmentStatusLabel, orderStatusLabel } from "@/lib/orders";
 import { StatusBadge } from "@/components/status-badge";
 import { formatData, formatDate, formatMoney } from "@/lib/money";
@@ -8,9 +9,11 @@ import { AlertIcon, ArrowRight, ClockIcon, QrIcon } from "@/components/icons";
 export function OrderDetail({
   view,
   accessToken,
+  refunds = [],
 }: {
   view: OrderView;
   accessToken?: string | null;
+  refunds?: RefundRow[];
 }) {
   const { order, items, events } = view;
   return (
@@ -18,7 +21,7 @@ export function OrderDetail({
       <section className="card form" aria-labelledby="order-summary-title">
         <div className="order-head">
           <div>
-            <p className="eyebrow">Demo order</p>
+            <p className="eyebrow">Order</p>
             <h2 id="order-summary-title">{order.orderNumber}</h2>
             <div className="order-meta">
               <span>
@@ -36,11 +39,11 @@ export function OrderDetail({
             />
           </div>
         </div>
-        <div className="callout callout-warning">
-          <AlertIcon className="inline-icon" />
+        <div className="callout">
+          <QrIcon className="inline-icon" />
           <p>
-            This is a demo order. No real payment was taken, no supplier order was placed, and
-            the activation code cannot connect to a network.
+            Your eSIM will be issued once payment is confirmed. Activation details will appear
+            in this order as soon as your eSIM is ready.
           </p>
         </div>
       </section>
@@ -96,7 +99,7 @@ export function OrderDetail({
             <span>{formatMoney(order.subtotalMinor, order.currency)}</span>
           </div>
           <div className="summary-row">
-            <span>Tax (demo mode)</span>
+            <span>Tax (estimate)</span>
             <span>{formatMoney(order.taxMinor, order.currency)}</span>
           </div>
           <div className="summary-total">
@@ -125,16 +128,54 @@ export function OrderDetail({
           <div className="callout callout-warning">
             <AlertIcon className="inline-icon" />
             <p>
-              Demo fulfillment needs attention. An admin can inspect the job and retry it from
-              the admin area.
+              Fulfillment needs attention. Please contact support with your order number.
             </p>
           </div>
         ) : null}
       </section>
 
+      <section className="card form" aria-labelledby="order-refunds-title">
+        <h2 id="order-refunds-title">Refund requests</h2>
+        {refunds.length === 0 ? (
+          <p className="muted small">
+            No refund requests have been recorded for this order.
+          </p>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Requested</th>
+                  <th scope="col">Amount</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Decision</th>
+                </tr>
+              </thead>
+              <tbody>
+                {refunds.map((refund) => (
+                  <tr key={refund.id}>
+                    <td>{formatDate(refund.createdAt)}</td>
+                    <td>{formatMoney(refund.amountMinor, refund.currency)}</td>
+                    <td>
+                      <StatusBadge status={refund.status} />
+                    </td>
+                    <td>
+                      {refund.resolvedAt ? formatDate(refund.resolvedAt) : "Awaiting review"}
+                      {refund.resolutionNote ? (
+                        <p className="small muted">{refund.resolutionNote}</p>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <div className="hero-actions">
         <Link className="button button-secondary" href="/plans">
-          Browse more demo plans <ArrowRight className="inline-icon" />
+          Browse more plans <ArrowRight className="inline-icon" />
         </Link>
         <Link className="button button-ghost" href="/portal">
           Customer portal

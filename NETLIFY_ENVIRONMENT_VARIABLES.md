@@ -1,7 +1,11 @@
 # Netlify Environment Variables — Esimprove
 
-**Status:** Inventory and instructions only. No Netlify environment variable, secret, database,
-or domain has been created or changed. No secret value is reproduced in this document.
+**Status (2026-11-23):** Inventory and instructions only. A Neon PostgreSQL project named
+`esimprove` has been created by the owner, and its pooled/direct connection strings are stored
+outside this repository. `esimprove.com` is still parked on Hostinger; no Netlify site, deploy,
+database migration, or Netlify-scoped environment variable exists. The Whop adapter remains
+fail-closed; its catalogue is empty and live payments remain disabled. No secret value is
+reproduced in this document.
 
 Legend for **Required**:
 
@@ -27,6 +31,8 @@ Netlify Functions at runtime, **M** = migration/test tooling only.
 | `DATABASE_URL` | Prod | ✓ | ✓ | **Yes** | Provider pooled/session URL with TLS |
 | `DATABASE_MIGRATION_URL` | Migration | — | — | **Yes** | Direct/session URL; not set in runtime functions |
 | `SITE_URL` | Prod | ✓ | ✓ | No | Verified `https://` origin, no trailing slash |
+| `APP_URL` | Optional | ✓ | ✓ | No | `https://esimprove.com` after DNS/HTTPS; functionally required only when Whop checkout is enabled |
+| `PAYMENT_PROVIDER` | Optional | ✓ | ✓ | No | Leave unset for this deployment; `whop` fails closed until the full Whop configuration and approval exist |
 | `DEMO_MODE` | Prod | ✓ | ✓ | No | `false` |
 | `SEED_DEMO_DATA` | Prod | ✓ | ✓ | No | `false` |
 | `AUTH_SECRET` | Prod | ✓ | ✓ | **Yes** | At least 32 random characters |
@@ -61,7 +67,7 @@ Same as production except:
 | `DEMO_MODE` | Preview | ✓ | ✓ | No | `true` for preview; `true` recommended for staging |
 | `SEED_DEMO_DATA` | Optional | ✓ | ✓ | No | `true` only for isolated demo data |
 | `MOCK_PAYMENT_WEBHOOK_SECRET` | Preview | ✓ | ✓ | **Yes** | Preview-only random secret |
-| `ANALYTICS_HASH_SECRET` | Optional | ✓ | ✓ | **Yes** | Recommended per-preview value; falls back to `RATE_LIMIT_HASH_SECRET`/`AUTH_SECRET` |
+| `ANALYTICS_HASH_SECRET` | Preview | ✓ | ✓ | **Yes** | Dedicated ≥32-character value, distinct from `AUTH_SECRET` and `RATE_LIMIT_HASH_SECRET`; no fallback in deployed contexts |
 | `SUPPLIER_CREDENTIAL_KEK` | Optional | ✓ | ✓ | **Yes** | Recommended; local demo may use fallback |
 | `SUPPLIER_CREDENTIAL_ALLOW_ACTIVATION_KEK_FALLBACK` | Optional | ✓ | ✓ | No | `false` unless a demo explicitly needs fallback |
 | All live flags | Preview | ✓ | ✓ | No | `false` |
@@ -88,8 +94,8 @@ production KEKs.
 
 | Variable | Purpose | Required | Scope | Secret | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `DATABASE_URL` | Runtime PostgreSQL connection | All deployed | B/R | **Yes** | Pooled/session URL; never PGlite in a deployed context |
-| `DATABASE_MIGRATION_URL` | Direct/session connection for migrations/seeding | Migration | M | **Yes** | Read only by `db:migrate` and `db:seed`; keep out of runtime scope |
+| `DATABASE_URL` | Runtime PostgreSQL connection | All deployed | B/R | **Yes** | Neon pooled URL with TLS; never PGlite in a deployed context |
+| `DATABASE_MIGRATION_URL` | Direct/session connection for migrations/seeding | Migration | M | **Yes** | Neon direct/session URL; read only by `db:migrate` and `db:seed`; keep out of runtime scope |
 | `DATABASE_SSL` | TLS mode | Optional | B/R | No | `require`, `verify-ca`, `verify-full`, or `disable`; `disable` rejected when deployed |
 | `DATABASE_SSL_CA` | Optional provider CA bundle | Optional | B/R | No | PEM text; never commit a private key |
 | `DATABASE_POOL_MAX` | Maximum pool size per function instance | Optional | B/R | No | Default 3 deployed, 5 local; 1–10 |
@@ -134,7 +140,7 @@ production KEKs.
 
 | Variable | Purpose | Required | Scope | Secret | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `ANALYTICS_HASH_SECRET` | HMAC key for anonymous visitor/session hashes | Prod | B/R | **Yes** | Falls back to `RATE_LIMIT_HASH_SECRET`, then `AUTH_SECRET`, then a local-only value. Set a dedicated value in preview and production |
+| `ANALYTICS_HASH_SECRET` | HMAC key for anonymous visitor/session hashes | All deployed | B/R | **Yes** | At least 32 characters and distinct from `AUTH_SECRET` and `RATE_LIMIT_HASH_SECRET`. Deployed contexts never fall back; local demo/test uses a non-secret fallback |
 | `NEXT_PUBLIC_ANALYTICS_DISABLED` | Global tracking kill switch | Optional | R | No | `true` makes `/api/track` return 204 before storage. The client may still attempt a request; nothing is stored. Public, not a secret |
 | `ANALYTICS_ENABLED` | Legacy/reserved analytics flag | Optional | B/R | No | Must stay `false`; preflight rejects `true` because no third-party analytics adapter exists. This does **not** disable first-party analytics |
 
@@ -159,12 +165,14 @@ variables. They are stored in the `seo_settings` table and edited at **Admin →
 | --- | --- | --- | --- | --- | --- |
 | `MOCK_PAYMENT_WEBHOOK_SECRET` | Signs mock payment webhooks | Preview/staging | B/R | **Yes** | Not required in production; mock webhook returns 404 there |
 | `MOCK_SUPPLIER_FAIL_ONCE` | Simulates one supplier failure | Optional | R | No | Mock only; never production |
-| `PAYMENT_PROVIDER` | Reserved provider label | Reserved | — | No | Not read by the current build; production mock payments are disabled by code |
+| `PAYMENT_PROVIDER` | Selects the payment adapter | Optional | B/R | No | Defaults to `mock`; production mock checkout is disabled by code. Leave unset for this deployment. `whop` requires the complete Whop configuration and approval |
 | `EMAIL_PROVIDER` | Reserved provider label | Reserved | — | No | Not read by the current build |
 | `SUPPLIER_DEFAULT` | Reserved supplier label | Reserved | — | No | Not read by the current build |
-| `WHOP_COMPANY_API_KEY` | Whop adapter credential | Optional | R | **Yes** | Adapter is not wired to checkout; no approval/credentials exist |
-| `WHOP_WEBHOOK_SECRET` | Whop webhook verification | Optional | R | **Yes** | Adapter is not wired to checkout |
-| `WHOP_SANDBOX` | Whop sandbox toggle | Optional | R | No | Default `false`; do not enable without approval |
+| `WHOP_COMPANY_API_KEY` | Whop Account API key | Optional | R | **Yes** | Adapter is implemented and fail-closed. A credential exists only in the local environment; never copy it into a commit or report |
+| `WHOP_WEBHOOK_SECRET` | Whop webhook signing secret | Optional | R | **Yes** | Required before Whop checkout can be enabled; not configured locally |
+| `WHOP_SANDBOX` | Whop sandbox toggle | Optional | R | No | Must be explicit `true`/`false` when `PAYMENT_PROVIDER=whop`; currently `false` locally and inactive |
+| `WHOP_ACCOUNT_ID` | Whop business account ID | Optional | R | No | `biz_...`; required by the discovery script, optional for checkout when the Account API key is scoped to one business |
+| `WHOP_PLAN_VARIANT_MAP` | ESIMPROVE plan → Whop variant map | Optional | R | No | Currently `{}`; the Whop catalogue has 0 products and 0 variants, so no mapping exists |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_API_VERSION`, `STRIPE_LIVE_MODE` | Reserved Stripe placeholders | Reserved | — | **Some** | Not read by the current build |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, `EMAIL_WEBHOOK_SECRET`, `EMAIL_TEST_RECIPIENT` | Reserved email placeholders | Reserved | — | **Some** | Not read by the current build |
 | `ESIM_ACCESS_*`, `ESIM_GO_*`, `SUPPLIER_BALANCE_RESERVE_MINOR` | Reserved supplier placeholders | Reserved | — | **Some** | No live supplier transport exists; see N-07 |
@@ -221,10 +229,12 @@ connection being replaced by a direct one.
 | Item | Status |
 | --- | --- |
 | Netlify site/environment variables | Not created — owner action |
-| Preview PostgreSQL database | Not selected/provisioned — owner action |
-| Production PostgreSQL database | Not selected/provisioned — owner action |
-| Production domain/DNS/HTTPS | Not owned/configured — owner action |
-| Live payment credentials | None — externally blocked |
+| Preview PostgreSQL database | Not provisioned; create an isolated Neon branch/database before enabling previews |
+| Production PostgreSQL database | Neon project `esimprove` created; not configured in Netlify, connected, or migrated |
+| Neon credentials file | Present on the owner's Desktop, outside this repository; excluded by `.gitignore` |
+| Production domain/DNS/HTTPS | `esimprove.com` registered but parked on Hostinger (`2.57.91.91`); not connected to Netlify — owner action |
+| Whop integration | Prepared and fail-closed; permissions verified, catalogue empty, live checkout disabled |
+| Live payment credentials | Local Whop key only; no Netlify scope, no webhook secret, no plan mapping |
 | Live supplier credentials/approval | None — externally blocked; N-07 open |
 | Live email domain/provider | None — externally blocked |
 | Production secrets/KEKs | Not generated or stored in this repository |

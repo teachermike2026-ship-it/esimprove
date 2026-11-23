@@ -27,7 +27,7 @@ export default async function AdminJobsPage({
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Demo operations</p>
+          <p className="eyebrow">Operations</p>
           <h1>Fulfillment jobs</h1>
           <p className="muted">
             The worker is mock-only. It never contacts a supplier. Failed jobs can be retried

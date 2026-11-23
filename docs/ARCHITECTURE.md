@@ -12,7 +12,7 @@
 
 | Area | Implemented locally | Not implemented / not evidenced |
 |---|---|---|
-| App | Next.js 16.4.2 App Router, React 19.3.1, TypeScript 5.9.3 | Netlify deployment, staging, production runtime |
+| App | Next.js 16.4.6 App Router, React 19.3.1, TypeScript 5.9.3 | Netlify deployment, staging, production runtime |
 | UI | Custom CSS design tokens/components; responsive storefront, auth, portal, admin | Tailwind, browser E2E, axe audit, visual regression |
 | Data | Drizzle schema + SQL migration; PGlite local DB; seed 8 regions / 33 destinations / 99 demo plans | Managed PostgreSQL, pooling, backup/restore, migration rollback |
 | Auth | Custom DB sessions, scrypt, admin TOTP, rate limits, server guards | Email verification, password reset, backup codes, full RBAC, security review |
@@ -69,7 +69,7 @@ real mobile network.
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Web application | Next.js App Router, React, TypeScript | Implemented: Next.js 16.4.2, React 19.3.1, TypeScript 5.9.3; Server Components by default |
+| Web application | Next.js App Router, React, TypeScript | Implemented: Next.js 16.4.6, React 19.3.1, TypeScript 5.9.3; Server Components by default |
 | Styling | Custom CSS design tokens/components | Implemented in `app/globals.css`; no Tailwind dependency; WCAG 2.2 AA target, not audited |
 | Hosting/CDN | Netlify (OpenNext adapter) | Not deployed; `netlify.toml` exists as configuration only |
 | Database | PostgreSQL | Client path exists; no managed instance provisioned |

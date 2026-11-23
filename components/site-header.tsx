@@ -7,7 +7,6 @@ import { logoutAction } from "@/lib/auth/actions";
 import { getDb } from "@/lib/db/client";
 import { getCartView } from "@/lib/cart";
 import { CART_COOKIE } from "@/lib/cart-cookie";
-import { demoMode } from "@/lib/config";
 import {
   AdminIcon,
   CartIcon,
@@ -103,6 +102,8 @@ export async function SiteHeader() {
                   {user.name || user.email}
                 </span>
                 <Link href="/portal">My eSIMs &amp; orders</Link>
+                <Link href="/portal/profile">Profile &amp; security</Link>
+                <Link href="/portal/support">Support</Link>
                 {isAdminRole(user.role) ? (
                   <Link href="/admin">
                     <AdminIcon /> Admin area
@@ -139,6 +140,8 @@ export async function SiteHeader() {
                 {user ? (
                   <>
                     <Link href="/portal">My eSIMs &amp; orders</Link>
+                    <Link href="/portal/profile">Profile &amp; security</Link>
+                    <Link href="/portal/support">Support</Link>
                     {isAdminRole(user.role) ? <Link href="/admin">Admin area</Link> : null}
                     <form action={logoutAction}>
                       <button className="es-menu-button" type="submit">
@@ -149,10 +152,9 @@ export async function SiteHeader() {
                 ) : (
                   <Link href="/login">Sign in</Link>
                 )}
-                {demoMode ? <Link href="/admin">Demo admin</Link> : null}
               </div>
               <p className="es-mobile-note">
-                English only in this build. Support channels are not live.
+                The interface is currently available in English.
               </p>
             </div>
           </details>

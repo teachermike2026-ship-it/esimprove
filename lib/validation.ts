@@ -113,10 +113,155 @@ export const changePasswordSchema = z
     path: ["confirmPassword"],
   });
 
-export const adminPlanSchema = z.object({
-  planId: z.string().min(1),
+export const ownerFirstLoginPasswordSchema = z
+  .object({
+    password: passwordSchema,
+    confirmPassword: passwordSchema,
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+export const refundRequestSchema = z.object({
+  orderNumber: z.string().trim().min(1).max(40),
+  amount: z
+    .string()
+    .trim()
+    .regex(/^\d{1,9}(?:\.\d{1,3})?$/, "Enter a refund amount such as 12.50")
+    .max(20),
+  reason: z
+    .string()
+    .trim()
+    .min(10, "Describe why you are requesting a refund")
+    .max(1000, "Keep the reason under 1000 characters"),
+  confirm: z.literal("on", {
+    message: "Confirm that you understand the refund policy",
+  }),
+});
+
+export const adminRefundRejectSchema = z.object({
+  refundId: z.string().min(1),
+  note: z
+    .string()
+    .trim()
+    .min(5, "Explain why the refund is being rejected")
+    .max(1000),
+});
+
+export const profileSchema = z.object({
+  name: z.string().trim().min(2, "Enter your name").max(80),
+  locale: z.enum(["en", "pt", "es"]),
+  marketing: z.string().optional(),
+  productUpdates: z.string().optional(),
+  orderUpdates: z.string().optional(),
+});
+
+export const customerSupportTicketSchema = z.object({
+  orderNumber: z.string().trim().max(40).optional(),
+  category: z.enum([
+    "general",
+    "payment",
+    "installation",
+    "activation",
+    "compatibility",
+    "coverage",
+    "data_usage",
+    "top_up",
+    "refund",
+    "delivery",
+    "technical",
+  ]),
+  subject: z.string().trim().min(3, "Enter a subject").max(160),
+  message: z.string().trim().min(10, "Describe your question").max(4000),
+});
+
+export const customerSupportReplySchema = z.object({
+  ticketId: z.string().min(1),
+  message: z.string().trim().min(1, "Enter a message").max(4000),
+});
+
+export const adminSupportUpdateSchema = z.object({
+  ticketId: z.string().min(1),
+  status: z.enum(["open", "pending_customer", "pending_staff", "resolved", "closed"]),
+  priority: z.enum(["low", "normal", "high", "urgent"]),
+  category: z.enum([
+    "general",
+    "payment",
+    "installation",
+    "activation",
+    "compatibility",
+    "coverage",
+    "data_usage",
+    "top_up",
+    "refund",
+    "delivery",
+    "technical",
+  ]),
+  assignedTo: z.string().trim().max(80).optional(),
+});
+
+export const adminSupportReplySchema = z.object({
+  ticketId: z.string().min(1),
+  message: z.string().trim().min(1, "Enter a reply").max(4000),
+});
+
+const slugSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(2, "Enter a slug")
+  .max(80)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and hyphens");
+
+export const catalogueRegionSchema = z.object({
+  name: z.string().trim().min(2, "Enter a region name").max(80),
+  slug: slugSchema,
+  description: z.string().trim().min(10, "Describe the region").max(600),
+  accent: z.string().trim().min(1).max(30),
+  sortOrder: z.coerce.number().int().min(0).max(10_000),
+});
+
+export const catalogueDestinationSchema = z.object({
+  regionId: z.string().min(1, "Choose a region"),
+  name: z.string().trim().min(2, "Enter a destination name").max(80),
+  slug: slugSchema,
+  countryCode: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z]{2,3}$/, "Use a two or three letter country code"),
+  summary: z.string().trim().min(5, "Enter a short summary").max(300),
+  description: z.string().trim().min(10, "Describe the destination").max(2000),
+  popular: z.string().optional(),
+});
+
+export const cataloguePlanSchema = z.object({
+  destinationId: z.string().min(1, "Choose a destination"),
+  name: z.string().trim().min(2, "Enter a plan name").max(100),
+  slug: slugSchema,
+  supplierKey: z.string().trim().min(1, "Enter a supplier key").max(60),
+  supplierProductId: z.string().trim().min(1, "Enter a supplier product ID").max(120),
+  dataMb: z.coerce.number().int().min(1).max(10_000_000),
+  validityDays: z.coerce.number().int().min(1).max(3650),
+  cost: z
+    .string()
+    .trim()
+    .regex(/^\d{1,9}(?:\.\d{1,3})?$/, "Enter a cost such as 4.50")
+    .max(20),
   markupBps: z.coerce.number().int().min(0).max(100_000),
+  currency: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z]{3}$/, "Use a three letter currency code"),
+  taxBps: z.coerce.number().int().min(0).max(100_000),
+  coverageSummary: z.string().trim().min(3, "Enter coverage").max(300),
+  networkSummary: z.string().trim().min(3, "Enter networks").max(300),
+  description: z.string().trim().min(10, "Describe the plan").max(4000),
+  features: z.string().trim().max(2000).optional(),
   status: z.enum(["published", "draft", "archived"]),
+  isDemo: z.string().optional(),
 });
 
 export const supplierConnectionSchema = z.object({

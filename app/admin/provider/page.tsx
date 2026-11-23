@@ -21,7 +21,7 @@ export default async function AdminProviderPage() {
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Demo operations</p>
+          <p className="eyebrow">Operations</p>
           <h1>Supplier</h1>
           <p className="muted">Provider health, synchronization, and balance snapshot status.</p>
         </div>

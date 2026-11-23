@@ -37,7 +37,12 @@ export class MockPaymentProvider implements PaymentProvider {
     };
   }
 
-  verifyWebhook(rawBody: string, signature: string | null): PaymentEvent {
+  verifyWebhook(
+    rawBody: string,
+    signature: string | null,
+    headers?: Record<string, string>,
+  ): PaymentEvent {
+    void headers;
     if (!signature) {
       throw new Error("Missing mock webhook signature");
     }

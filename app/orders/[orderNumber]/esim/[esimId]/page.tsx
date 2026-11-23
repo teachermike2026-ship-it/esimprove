@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import QRCode from "qrcode";
 import { getDb } from "@/lib/db/client";
@@ -13,11 +14,10 @@ import {
 } from "@/lib/orders";
 import { decryptSecret } from "@/lib/crypto";
 import { ActivationCard } from "@/components/activation-card";
-import { EmptyState } from "@/components/empty-state";
-import { AlertIcon, ArrowRight } from "@/components/icons";
+import { ArrowRight } from "@/components/icons";
 
 export const metadata: Metadata = {
-  title: "Demo activation",
+  title: "Activation",
   robots: { index: false, follow: false },
 };
 
@@ -33,11 +33,7 @@ export default async function ActivationPage({
   const db = await getDb();
   const order = await getOrderByNumber(db, orderNumber);
   if (!order) {
-    return (
-      <EmptyState title="Order not found" action={{ href: "/plans", label: "Browse demo plans" }}>
-        The order could not be found.
-      </EmptyState>
-    );
+    notFound();
   }
 
   const user = await getCurrentUser();
@@ -47,11 +43,7 @@ export default async function ActivationPage({
     token: token ?? null,
   });
   if (!allowed) {
-    return (
-      <EmptyState title="Activation access required" action={{ href: "/login", label: "Sign in" }}>
-        Use the secure order link or sign in as the customer who placed the order.
-      </EmptyState>
-    );
+    notFound();
   }
 
   const rows = await db
@@ -62,11 +54,7 @@ export default async function ActivationPage({
     .limit(1);
   const row = rows[0];
   if (!row) {
-    return (
-      <EmptyState title="Activation not found" action={{ href: `/orders/${orderNumber}`, label: "Back to order" }}>
-        This activation does not belong to the order or has not been provisioned yet.
-      </EmptyState>
-    );
+    notFound();
   }
 
   const encrypted: EncryptedSecret = {
@@ -83,12 +71,9 @@ export default async function ActivationPage({
   try {
     lpa = decryptSecret(encrypted);
   } catch {
-    return (
-      <EmptyState title="Activation data could not be decrypted" action={{ href: `/orders/${orderNumber}`, label: "Back to order" }}>
-        Check that the server encryption key is configured and matches the key version used
-        for this record.
-      </EmptyState>
-    );
+    // Decryption failure is a server-side configuration problem, not a client
+    // error. Surface it as a 500 so it is visible in logs and monitoring.
+    throw new Error("Activation data could not be decrypted");
   }
 
   const qrDataUrl = await QRCode.toDataURL(lpa, {
@@ -120,11 +105,10 @@ export default async function ActivationPage({
       </nav>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Demo activation</p>
-          <h1>Your mock eSIM</h1>
+          <p className="eyebrow">Activation</p>
+          <h1>Your eSIM</h1>
           <p className="muted">
-            The activation data was decrypted for this authorized view. Access has been
-            written to the activation audit log.
+            Activation data is shown only for this authorized view.
           </p>
         </div>
       </div>
@@ -135,13 +119,6 @@ export default async function ActivationPage({
         lpa={lpa}
         qrDataUrl={qrDataUrl}
       />
-      <div className="callout callout-warning section-tight">
-        <AlertIcon className="inline-icon" />
-        <p>
-          This code is a mock. It uses the reserved <code>.invalid</code> domain, cannot be
-          installed on a real eSIM, and must not be shared as a real activation.
-        </p>
-      </div>
       <div className="hero-actions section-tight">
         <Link className="button button-secondary" href={`/orders/${orderNumber}${token ? `?token=${encodeURIComponent(token)}` : ""}`}>
           Back to order <ArrowRight className="inline-icon" />

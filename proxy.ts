@@ -27,6 +27,7 @@ function withCsp<T extends NextResponse>(response: T, csp: string): T {
 function nextWithNonce(request: NextRequest, nonce: string, csp: string): NextResponse {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
   // Next.js parses the nonce from this request header and applies it to its
   // inline bootstrap, hydration, and flight scripts.
   requestHeaders.set("Content-Security-Policy", csp);
@@ -68,19 +69,21 @@ export async function proxy(request: NextRequest) {
     );
   }
 
-  // Early admin gate: missing session cookie → redirect to login with the
-  // preserved path/query. Deeper role/permission authorization is enforced by
-  // the admin layout, pages, and server actions.
-  if (!pathname.startsWith("/admin")) {
-    return nextWithNonce(request, nonce, csp);
-  }
-
-  const cookieName = sessionCookieName();
-  const sessionCookie = request.cookies.get(cookieName);
-  if (!sessionCookie) {
-    const redirectUrl = new URL("/login", request.url);
-    redirectUrl.searchParams.set("next", pathname + search);
-    return withCsp(NextResponse.redirect(redirectUrl, 307), csp);
+  // Early gate for authenticated areas: missing session cookie → redirect to
+  // login with the preserved path/query. The root loading boundary streams the
+  // page shell (and then a client-side redirect) before page-level guards run,
+  // so without this check anonymous visitors receive a 200 from pages that will
+  // ultimately force a client-side login redirect. Deeper role/permission
+  // authorization stays with the admin layout, pages, and server actions.
+  const gated = pathname.startsWith("/admin") || pathname.startsWith("/portal");
+  if (gated) {
+    const cookieName = sessionCookieName();
+    const sessionCookie = request.cookies.get(cookieName);
+    if (!sessionCookie) {
+      const redirectUrl = new URL("/login", request.url);
+      redirectUrl.searchParams.set("next", pathname + search);
+      return withCsp(NextResponse.redirect(redirectUrl, 307), csp);
+    }
   }
 
   return nextWithNonce(request, nonce, csp);

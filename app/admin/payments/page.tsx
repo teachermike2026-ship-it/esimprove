@@ -20,9 +20,9 @@ export default async function AdminPaymentsPage() {
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Demo operations</p>
+          <p className="eyebrow">Operations</p>
           <h1>Payments</h1>
-          <p className="muted">Payment gateway sessions and mock transaction records.</p>
+          <p className="muted">Payment gateway sessions and verified transaction records.</p>
         </div>
       </div>
       {payments.length === 0 ? (
@@ -30,48 +30,57 @@ export default async function AdminPaymentsPage() {
           <p className="muted">No payments recorded yet.</p>
         </div>
       ) : (
-        <div className="table-wrap">
+        <div className="table-wrapper">
           <table className="data-table">
             <thead>
               <tr>
                 <th scope="col">Payment</th>
                 <th scope="col">Order</th>
                 <th scope="col">Customer</th>
+                <th scope="col">Provider</th>
                 <th scope="col">Amount</th>
                 <th scope="col">Status</th>
+                <th scope="col">Provider reference</th>
                 <th scope="col">Created</th>
               </tr>
             </thead>
             <tbody>
-              {payments.map(({ payment, orderNumber, orderEmail, orderStatus }) => (
-                <tr key={payment.id}>
-                  <td>
-                    <strong>{payment.id}</strong>
-                    <br />
-                    <span className="small muted">{payment.provider}</span>
-                  </td>
-                  <td>
-                    <Link href={`/admin/orders/${orderNumber}`}>{orderNumber}</Link>
-                    <br />
-                    <span className="small muted">{orderStatus}</span>
-                  </td>
-                  <td>
-                    {orderEmail}
-                  </td>
-                  <td>{formatMoney(payment.amountMinor, payment.currency)}</td>
-                  <td>
-                    <StatusBadge status={payment.status} />
-                  </td>
-                  <td>{formatDate(payment.createdAt)}</td>
-                </tr>
-              ))}
+              {payments.map(({ payment, orderNumber, orderEmail, orderStatus }) => {
+                const isWhop = payment.provider === "whop";
+                // Before the webhook confirms, providerPaymentId holds the
+                // Whop checkout configuration ID (ch_...). After confirmation
+                // it holds the Whop payment ID (pay_...). Both are non-secret.
+                return (
+                  <tr key={payment.id}>
+                    <td>
+                      <strong>{payment.id}</strong>
+                    </td>
+                    <td>
+                      <Link href={`/admin/orders/${orderNumber}`}>{orderNumber}</Link>
+                      <br />
+                      <span className="small muted">{orderStatus}</span>
+                    </td>
+                    <td>
+                      {orderEmail}
+                    </td>
+                    <td>
+                      {isWhop ? "Whop" : "Mock"}
+                    </td>
+                    <td>{formatMoney(payment.amountMinor, payment.currency)}</td>
+                    <td>
+                      <StatusBadge status={payment.status} />
+                    </td>
+                    <td className="small muted">
+                      {payment.providerPaymentId || "—"}
+                    </td>
+                    <td>{formatDate(payment.createdAt)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
-      <p className="muted small">
-        Demo payments never move real funds. Mock gateway records are local to the demo build.
-      </p>
     </>
   );
 }

@@ -5,6 +5,11 @@
 **Mode:** Read-only audit — no fixes, migrations, deployments, account changes, commits, pushes, or secret disclosure  
 **Final status:** **SIGNIFICANT ISSUES FOUND — FURTHER WORK REQUIRED**
 
+> **Historical snapshot.** This report predates the 2026-11-23 deployment preparation. Domain
+> ownership, Whop preparation, environment enforcement, and DNS status have changed. Use the
+> current `NETLIFY_*` documents and `ESIMPROVE_GITHUB_NETLIFY_DEPLOYMENT_PREPARATION.md` for
+> current status.
+
 ---
 
 ## Status key
@@ -486,6 +491,11 @@ For a deployed context, `lib/config.ts` requires or enforces:
 - Live flags (`PAYMENTS_LIVE_ENABLED`, `SUPPLIER_LIVE_ENABLED`, `EMAIL_LIVE_ENABLED`, `CATALOGUE_SYNC_ENABLED`, `ANALYTICS_ENABLED`, `STAGING_ACCESS_ENABLED`) are rejected because the adapters are unimplemented.
 
 The environment inventory also lists `ANALYTICS_HASH_SECRET` as required for production, but `getConfigurationProblems()` does not enforce it; the analytics code falls back to `RATE_LIMIT_HASH_SECRET`, then `AUTH_SECRET`, then a hardcoded local value.
+
+> **Correction (2026-11-23):** This statement is no longer accurate. Deployed configuration now
+> requires `ANALYTICS_HASH_SECRET` (at least 32 characters) and rejects values equal to
+> `AUTH_SECRET` or `RATE_LIMIT_HASH_SECRET`. There is no deployed fallback; only local demo/test
+> uses a non-secret fallback.
 
 The local preflight was skipped because `APP_ENV=local`; it did not validate production configuration.
 

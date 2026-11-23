@@ -68,7 +68,7 @@ export async function dispatchOutbox(db: Database, limit = 20): Promise<Dispatch
           id: newId("orderevent"),
           orderId,
           type: "fulfillment.queued",
-          message: "Fulfillment jobs queued for each demo order item.",
+          message: "Fulfillment jobs queued for each item in the order.",
           metadata: { itemCount: items.length },
         });
       } else {

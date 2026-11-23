@@ -133,7 +133,8 @@ export function PrivacyRequestForm({ defaultEmail = "" }: { defaultEmail?: strin
           {pending ? "Recording request…" : "Submit privacy request"}
         </button>
         <p className="form-note">
-          Email delivery is disabled in this build. Submitting the form does not send an email.
+          Submitting the form records your request; no confirmation email is sent automatically.
+          Keep the reference you receive and check the status below.
         </p>
       </form>
     </div>

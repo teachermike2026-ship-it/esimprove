@@ -7,8 +7,8 @@ import { SearchForm } from "@/components/search-form";
 import { EmptyState } from "@/components/empty-state";
 
 export const metadata: Metadata = {
-  title: "Search demo plans",
-  description: "Search illustrative demo eSIM plans by destination, region, or data amount.",
+  title: "Search plans",
+  description: "Search eSIM plans by destination, region, or data amount.",
   alternates: { canonical: "/search" },
 };
 
@@ -27,10 +27,9 @@ export default async function SearchPage({
       <div className="section-heading">
         <div>
           <p className="eyebrow">Search</p>
-          <h1>Find a demo plan</h1>
+          <h1>Find a plan</h1>
           <p className="lead">
-            Search the local catalogue by destination, region, or plan name. Results are
-            illustrative and not live supplier availability.
+            Search the catalogue by destination, region, or plan name.
           </p>
         </div>
       </div>
@@ -52,9 +51,8 @@ export default async function SearchPage({
         )}
       </div>
       {query && plans.length === 0 ? (
-        <EmptyState title="No demo plans found" action={{ href: "/plans", label: "Browse all plans" }}>
-          Try a country name, a region, or a data amount such as “5 GB”. The catalogue is
-          limited to local demo data.
+        <EmptyState title="No plans found" action={{ href: "/plans", label: "Browse all plans" }}>
+          Try a country name, a region, or a data amount such as “5 GB”.
         </EmptyState>
       ) : null}
       {plans.length > 0 ? (

@@ -69,9 +69,9 @@ pooler. The advisory lock and `BEGIN`/`COMMIT` must stay on one session.
 npm run db:migrate
 ```
 
-The command prints the PostgreSQL hostname (not the connection string), the
-dialect, and then `Migrations applied on postgres.` Exit code 0 means every file
-is recorded in `schema_migrations`.
+The command prints only the dialect and context, never the host or credentials,
+and then `Migrations applied on postgres.` Exit code 0 means every file is
+recorded in `schema_migrations`.
 
 ## After applying
 

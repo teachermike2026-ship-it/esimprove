@@ -3,7 +3,6 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/session";
 import { ContactForm } from "@/components/contact-form";
 import {
-  AlertIcon,
   ArrowRight,
   CheckIcon,
   HeadsetIcon,
@@ -14,7 +13,7 @@ import {
 export const metadata: Metadata = {
   title: "Contact",
   description:
-    "Contact routes and honest support limitations for the Esimprove demo storefront. No live support channel is connected.",
+    "Contact ESIMPROVE for support, order questions, refunds, and privacy requests.",
   alternates: { canonical: "/contact" },
 };
 
@@ -32,12 +31,12 @@ const helpRoutes = [
   {
     href: "/#faq",
     title: "Frequently asked questions",
-    description: "Answers about eSIMs, validity, hotspot use, calls, refunds, and this demo.",
+    description: "Answers about eSIMs, validity, hotspot use, calls, and refunds.",
   },
   {
     href: "/legal/refunds",
-    title: "Refund policy draft",
-    description: "The current draft and the conditions that still require approval.",
+    title: "Refund policy",
+    description: "When you can cancel or request a refund, and how to ask.",
   },
 ];
 
@@ -50,10 +49,9 @@ export default function ContactPage() {
           Let&apos;s talk <span className="es-green">connectivity.</span>
         </h1>
         <p className="es-page-lead">
-          This demo does not run a live support desk. The contact form below stores a local
-          support ticket for administrator review, but it does not send an email. There is no
-          monitored inbox, telephone line, live chat, or response-time promise connected to this
-          build.
+          Questions about an order, an eSIM, or a refund? Send us a message using the form below
+          or email <a href="mailto:contact@esimprove.com">contact@esimprove.com</a>. Please
+          include your order reference so we can help quickly.
         </p>
         <div className="es-page-actions">
           <Link className="es-button es-button-primary" href="/guides">
@@ -68,11 +66,11 @@ export default function ContactPage() {
       <section className="es-page-section" aria-labelledby="contact-form-title">
         <div className="es-page-section-head">
           <p className="es-eyebrow">Message form</p>
-          <h2 id="contact-form-title">Record a support message</h2>
+          <h2 id="contact-form-title">Send us a message</h2>
           <p>
-            The message is stored as a local support ticket visible in the administrator dashboard.
-            No email is sent and no live response is promised. Do not include passwords, one-time
-            codes, or full payment card numbers.
+            Tell us what happened and include your order reference where relevant. We aim to
+            respond as soon as reasonably possible; no specific response time is promised. Do not
+            include passwords, one-time codes, or full payment card numbers.
           </p>
         </div>
         <ContactFormSection />
@@ -84,15 +82,16 @@ export default function ContactPage() {
             <HeadsetIcon />
           </span>
           <div>
-            <p className="es-eyebrow">Support status</p>
-            <h2 id="support-status-title">Live customer support is not connected</h2>
+            <p className="es-eyebrow">Customer support</p>
+            <h2 id="support-status-title">Support by email</h2>
             <p>
-              A real support email, phone number, chat channel, and published service window
-              must be staffed and verified before launch. None are invented on this page.
+              Contact us at{" "}
+              <a href="mailto:contact@esimprove.com">contact@esimprove.com</a>. ESIMPROVE
+              operates online and has no telephone support line.
             </p>
           </div>
           <span className="es-status-pill">
-            <AlertIcon /> Not live
+            <MailIcon /> contact@esimprove.com
           </span>
         </div>
       </section>
@@ -102,8 +101,8 @@ export default function ContactPage() {
           <p className="es-eyebrow">Self-service</p>
           <h2 id="help-routes-title">Where to find answers now</h2>
           <p>
-            These routes are available in the demo and use provider-neutral guidance rather than
-            claims about a specific supplier.
+            These routes are provider-neutral guidance rather than claims about a specific
+            supplier.
           </p>
         </div>
         <div className="es-page-grid es-page-grid-2">
@@ -123,28 +122,28 @@ export default function ContactPage() {
         <div className="es-page-split">
           <div className="es-static-card">
             <h3>
-              <CheckIcon /> Before a real support channel exists
+              <CheckIcon /> Before you write to us
             </h3>
             <ul className="es-check-list">
               <li>Confirm your device supports eSIM and is carrier-unlocked.</li>
               <li>Keep your order reference and activation details together.</li>
               <li>Do not repeatedly scan or delete an eSIM during installation.</li>
-              <li>Review the draft refund policy before assuming eligibility.</li>
+              <li>Review the refund policy before assuming eligibility.</li>
             </ul>
           </div>
           <div className="es-static-card">
             <h3>
-              <LockIcon /> What is intentionally missing
+              <MailIcon /> How to reach us
             </h3>
             <ul className="es-check-list">
-              <li>No monitored support email inbox or live-chat widget.</li>
-              <li>No telephone number or published service window.</li>
-              <li>No office address, registration number, or social profiles.</li>
-              <li>No response-time or 24/7 support promise.</li>
+              <li>Email <a href="mailto:contact@esimprove.com">contact@esimprove.com</a> or use the form above.</li>
+              <li>Include your order reference and the email address used for the order.</li>
+              <li>For privacy requests, use the privacy request form — it handles access, correction, deletion, and more.</li>
+              <li>There is no telephone line or live chat at this time.</li>
             </ul>
             <p className="es-muted-note">
-              <MailIcon /> The contact form stores a local ticket only. Real staffed channels will
-              appear only when they exist and are verified.
+              <LockIcon /> Never share passwords, one-time codes, or full card numbers. We will
+              never ask for them.
             </p>
           </div>
         </div>

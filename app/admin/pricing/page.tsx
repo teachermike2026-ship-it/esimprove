@@ -18,7 +18,7 @@ export default async function AdminPricingPage() {
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Demo operations</p>
+          <p className="eyebrow">Operations</p>
           <h1>Pricing rules</h1>
           <p className="muted">Central pricing rules and synced plan cost/selling price pairs.</p>
         </div>
@@ -47,7 +47,7 @@ export default async function AdminPricingPage() {
                     <td>{rule.type}</td>
                     <td>{rule.value}</td>
                     <td>
-                      <span className="badge badge-neutral">{rule.isDemo ? "demo" : "live"}</span>
+                      <span className="badge badge-neutral">{rule.isDemo ? "illustrative" : "live"}</span>
                     </td>
                   </tr>
                 ))}

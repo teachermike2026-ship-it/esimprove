@@ -134,6 +134,9 @@ describe("phase 2 backend foundations", () => {
         idempotencyKey: "phase2-refund-cumulative-checkout",
       });
       await simulateMockPayment(db, checkout.paymentId, "success");
+      const adminRow = (
+        await db.select().from(users).where(eq(users.email, "admin@demo.local")).limit(1)
+      )[0]!;
 
       const half = Math.max(1, Math.floor(checkout.totalMinor / 2));
       const first = await requestRefund(db, {
@@ -142,7 +145,7 @@ describe("phase 2 backend foundations", () => {
         reason: "First partial refund",
         actorType: "admin",
       });
-      await applyRefund(db, first.id, { actorType: "admin", actorId: "admin-test" });
+      await applyRefund(db, first.id, { actorType: "admin", actorId: adminRow.id });
 
       await expect(
         requestRefund(db, {
@@ -163,7 +166,7 @@ describe("phase 2 backend foundations", () => {
         });
         const applied = await applyRefund(db, second.id, {
           actorType: "admin",
-          actorId: "admin-test",
+          actorId: adminRow.id,
         });
         expect(applied.status).toBe("approved");
         const orderRows = await db

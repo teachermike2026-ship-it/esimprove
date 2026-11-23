@@ -16,7 +16,7 @@ export default function ForgotPasswordPage() {
         <p className="eyebrow">Account security</p>
         <h1>Reset your password</h1>
         <p className="lead">
-          Enter the email address for your Esimprove demo account and we will generate a one-time
+          Enter the email address for your Esimprove account and we will generate a one-time
           password reset link.
         </p>
         <ul className="check-list">
@@ -31,16 +31,15 @@ export default function ForgotPasswordPage() {
         {!mockCommerceAllowed ? (
           <div className="callout callout-warning">
             <p>
-              Password reset email is unavailable in this deployment because no live email
-              provider and verified sending domain are configured. Contact support for account
-              help.
+              Password reset email is unavailable at this time. Contact{" "}
+              <a href="mailto:contact@esimprove.com">contact@esimprove.com</a> for account help.
             </p>
           </div>
         ) : demoMode ? (
-          <div className="callout callout-warning">
+          <div className="callout">
             <p>
-              Demo mode: reset links are delivered through the local mock transport. No real email
-              is sent and no live delivery provider is configured.
+              Password reset links are generated on demand. If you have not received yours, contact{" "}
+              <a href="mailto:contact@esimprove.com">contact@esimprove.com</a> for assistance.
             </p>
           </div>
         ) : null}

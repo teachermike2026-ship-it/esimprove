@@ -6,7 +6,7 @@ import { noIndex } from "@/lib/config";
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // Demo/preview deployments must not advertise indexable URLs.
+  // Preview deployments must not advertise indexable URLs.
   if (noIndex) return [];
   const db = await getDb();
   return buildSitemap(db);

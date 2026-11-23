@@ -7,11 +7,10 @@ import { updateCartAction, removeCartAction } from "@/app/actions/cart";
 import { formatData, formatMoney } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
 import { ArrowRight, CartIcon, TrashIcon } from "@/components/icons";
-import { DemoBadge } from "@/components/badges";
 
 export const metadata: Metadata = {
   title: "Cart",
-  description: "Review demo eSIM plans in your local cart.",
+  description: "Review eSIM plans in your cart.",
   robots: { index: false, follow: false },
 };
 
@@ -26,12 +25,11 @@ export default async function CartPage() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">Cart</p>
-            <h1>Your demo cart</h1>
+            <h1>Your cart</h1>
           </div>
         </div>
-        <EmptyState title="Your cart is empty" action={{ href: "/plans", label: "Browse demo plans" }}>
-          Add a clearly labelled demo plan to walk through checkout, mock payment, and mock
-          fulfillment.
+        <EmptyState title="Your cart is empty" action={{ href: "/plans", label: "Browse plans" }}>
+          Browse eSIM plans by destination and add them to your cart.
         </EmptyState>
       </>
     );
@@ -42,13 +40,11 @@ export default async function CartPage() {
       <div className="section-heading">
         <div>
           <p className="eyebrow">Cart</p>
-          <h1>Your demo cart</h1>
+          <h1>Your cart</h1>
           <p className="muted">
-            Prices are recalculated from the local catalogue when you continue. No real
-            payment will be taken.
+            Prices, taxes, and available plans are confirmed at checkout.
           </p>
         </div>
-        <DemoBadge />
       </div>
 
       <div className="checkout-layout">
@@ -64,7 +60,7 @@ export default async function CartPage() {
                     <Link href={`/plans/${line.planSlug}`}>{line.planName}</Link>
                   </h2>
                   <p className="muted small">
-                    {line.validityDays} days · {line.isDemo ? "Demo plan" : "Plan"}
+                    {line.validityDays} days validity
                   </p>
                 </div>
                 <span className="price">{formatMoney(line.unitPriceMinor, line.currency)}</span>
@@ -111,7 +107,7 @@ export default async function CartPage() {
               <span>{formatMoney(cart.subtotalMinor, cart.currency)}</span>
             </div>
             <div className="summary-row">
-              <span>Tax (demo)</span>
+              <span>Tax (estimate)</span>
               <span>{formatMoney(cart.taxMinor, cart.currency)}</span>
             </div>
             <div className="summary-total">
@@ -119,18 +115,12 @@ export default async function CartPage() {
               <span>{formatMoney(cart.totalMinor, cart.currency)}</span>
             </div>
             <Link className="button button-wide" href="/checkout">
-              Continue to demo checkout <ArrowRight className="inline-icon" />
+              Continue to checkout <ArrowRight className="inline-icon" />
             </Link>
             <Link className="button button-ghost button-wide" href="/plans">
               Keep browsing
             </Link>
           </section>
-          <div className="callout callout-warning">
-            <p>
-              The cart, prices, and checkout are real local application behavior. The supplier
-              and payment provider are mock adapters, not live connections.
-            </p>
-          </div>
         </aside>
       </div>
     </>

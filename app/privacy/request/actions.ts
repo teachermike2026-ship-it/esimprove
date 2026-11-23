@@ -5,7 +5,7 @@ import { getCurrentUser, requestMeta } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { hashToken } from "@/lib/crypto";
 import { recordConsentEvent } from "@/lib/consent";
-import { loadLegalSettings } from "@/lib/legal";
+import { LEGAL_DOCUMENT_VERSION } from "@/lib/legal-profile";
 import {
   createPrivacyRequest,
   findPrivacyRequestForStatus,
@@ -79,7 +79,6 @@ export async function submitPrivacyRequestAction(
     };
   }
 
-  const legal = await loadLegalSettings(db);
   const user = await getCurrentUser();
   const email = normalizeEmail(parsed.data.email);
   const matchingUser = user && normalizeEmail(user.email) === email ? user : null;
@@ -99,7 +98,7 @@ export async function submitPrivacyRequestAction(
       subjectId:
         matchingUser?.id ?? `privacy-request:${hashToken(email)}`,
       purpose: "privacy_request_notice",
-      version: legal.privacyVersion,
+      version: LEGAL_DOCUMENT_VERSION,
       granted: true,
       surface: "privacy_request",
       ipHash: meta.ipHash,
@@ -113,7 +112,7 @@ export async function submitPrivacyRequestAction(
       status: privacyRequestStatusLabel(created.request.status),
       message: verified
         ? "Your signed-in email matched this account, so the request is verified and queued for administrator review."
-        : "The request is recorded. Identity must be verified by an administrator before any account data is disclosed or deleted. Email delivery is disabled in this build, so no verification email has been sent.",
+        : "The request is recorded. Identity must be verified by an administrator before any account data is disclosed or deleted. No confirmation email is sent automatically — please keep your reference and check the status below.",
     };
   } catch (error) {
     console.error(

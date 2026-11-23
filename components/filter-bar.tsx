@@ -23,7 +23,7 @@ export function FilterBar({
   action?: string;
 }) {
   return (
-    <form className="filter-bar card" action={action} method="get" aria-label="Filter demo plans">
+    <form className="filter-bar card" action={action} method="get" aria-label="Filter plans">
       <div className="filter-grid">
         <div className="field">
           <label htmlFor="filter-q">Search</label>
@@ -115,7 +115,7 @@ export function FilterBar({
         </div>
       </div>
       <p className="filter-note">
-        Every plan shown is demo data. Filters and prices are functional locally, but no
+        Every plan shown is sample data. Filters and prices are functional locally, but no
         supplier price or coverage has been verified.
       </p>
     </form>

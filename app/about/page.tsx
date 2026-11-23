@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getDb } from "@/lib/db/client";
 import { getRegions } from "@/lib/catalog";
-import { ArrowRight, CheckIcon, GlobeIcon, LockIcon, ShieldIcon } from "@/components/icons";
+import { ArrowRight, GlobeIcon, LockIcon, ShieldIcon } from "@/components/icons";
 
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Learn how the Esimprove demo storefront works, what is implemented, and which claims and integrations remain deliberately unavailable.",
+    "Learn how Esimprove works — destination-first travel eSIM plans, transparent pricing, and how your eSIM is delivered and installed.",
   alternates: { canonical: "/about" },
 };
 
@@ -29,8 +29,7 @@ export default async function AboutPage() {
         </h1>
         <p className="es-page-lead">
           Esimprove is a travel eSIM storefront built around destination-first browsing, clear
-          plan details, and honest labels. This build is a working demonstration — not a live
-          reseller.
+          plan details, and transparent pricing.
         </p>
         <div className="es-page-actions">
           <Link className="es-button es-button-primary" href="/destinations">
@@ -45,10 +44,10 @@ export default async function AboutPage() {
       <section className="es-page-section" id="how-it-works" aria-labelledby="how-title">
         <div className="es-page-section-head">
           <p className="es-eyebrow">How it works</p>
-          <h2 id="how-title">A complete local journey, with clear boundaries</h2>
+          <h2 id="how-title">How your eSIM journey works</h2>
           <p>
-            The catalogue, cart, checkout, customer portal, admin views, and fulfilment
-            simulation all run locally. Live commercial and carrier integrations stay off.
+            Browse destinations, compare plans, check out, and install your eSIM when it is
+            delivered — from first search to connected in a few clear steps.
           </p>
         </div>
         <div className="es-page-grid es-page-grid-3">
@@ -58,19 +57,18 @@ export default async function AboutPage() {
             </span>
             <h3>Destination-first catalogue</h3>
             <p>
-              Browse actual demo records for {destinationCount} destinations across{" "}
-              {regionCount} regions, with plan data, validity, and pricing computed by the
-              local pricing engine.
+              Compare plans for {destinationCount} destinations across {regionCount} regions, with
+              data, validity, and pricing shown for every option.
             </p>
           </article>
           <article className="es-static-card">
             <span className="es-static-icon">
               <ShieldIcon />
             </span>
-            <h3>Clearly labelled checkout</h3>
+            <h3>Simple, transparent checkout</h3>
             <p>
-              Payments are simulated, no card data is stored, and no real eSIM is provisioned.
-              Every order state is visible in the customer and admin areas.
+              Prices are shown up front with no hidden fees, and card details are never stored
+              on our site. Your order status is always visible in your account.
             </p>
           </article>
           <article className="es-static-card">
@@ -80,40 +78,9 @@ export default async function AboutPage() {
             <h3>No unverified claims</h3>
             <p>
               No partner logos, live coverage promises, review scores, customer counts, discounts,
-              or company contact details are invented for this build.
+              or company contact details are invented.
             </p>
           </article>
-        </div>
-      </section>
-
-      <section className="es-page-section" aria-labelledby="approach-title">
-        <div className="es-page-section-head">
-          <p className="es-eyebrow">Our approach</p>
-          <h2 id="approach-title">What changes before launch</h2>
-        </div>
-        <div className="es-page-split">
-          <div className="es-static-card">
-            <h3>
-              <CheckIcon /> Working today
-            </h3>
-            <ul className="es-check-list">
-              <li>Catalogue search, destination pages, region pages, and plan filters.</li>
-              <li>Cart, idempotent demo checkout, mock payment states, and fulfilment jobs.</li>
-              <li>Customer portal, guest order links, admin order and email views.</li>
-              <li>Device compatibility guidance and provider-neutral installation guides.</li>
-            </ul>
-          </div>
-          <div className="es-static-card">
-            <h3>
-              <LockIcon /> Required before launch
-            </h3>
-            <ul className="es-check-list">
-              <li>A verified supplier catalogue, live prices, and real coverage terms.</li>
-              <li>A live payment provider, managed database, transactional email, and monitoring.</li>
-              <li>Approved legal policies, company details, support channels, and refund terms.</li>
-              <li>Verified reviews and partner permissions before publishing either.</li>
-            </ul>
-          </div>
         </div>
       </section>
 
@@ -123,8 +90,8 @@ export default async function AboutPage() {
           <h2 id="reviews-policy-title">Real stories, or no stories</h2>
           <p>
             No customer reviews, names, ratings, review counts, or platform scores are displayed
-            in this build. The testimonials section shows an empty state until genuine reviews
-            are approved.
+            today. The testimonials section shows an empty state until genuine reviews are
+            approved.
           </p>
         </div>
         <div className="es-static-card">
@@ -136,8 +103,8 @@ export default async function AboutPage() {
             <li>A correction or removal process for inaccurate or withdrawn reviews.</li>
           </ul>
           <p className="es-muted-note">
-            No review platform is connected, so no rating badge or “read more reviews” link is
-            shown.
+            Until a review platform is connected and reviews are verified, no rating badge or
+            “read more reviews” link is shown.
           </p>
         </div>
       </section>
@@ -145,11 +112,10 @@ export default async function AboutPage() {
       <section className="es-page-section" aria-labelledby="company-title">
         <div className="es-static-cta">
           <div>
-            <h2 id="company-title">Questions about this build?</h2>
+            <h2 id="company-title">Questions about ESIMPROVE?</h2>
             <p>
-              The Contact page explains which support routes are available and which are not
-              connected yet. No company address, registration number, phone number, or support
-              email is invented here.
+              The Contact page explains how to reach us and what to include in your message.
+              We&apos;ll help with orders, eSIM setup, refunds, and privacy requests.
             </p>
           </div>
           <Link className="es-button es-button-primary" href="/contact">

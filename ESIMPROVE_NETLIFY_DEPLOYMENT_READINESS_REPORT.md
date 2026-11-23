@@ -1,5 +1,11 @@
 # Netlify Deployment Readiness Report — Esimprove.com
 
+> **Historical snapshot (2026-11-03).** This report is retained for history only. It is superseded
+> by `NETLIFY_DEPLOYMENT_GUIDE.md`, `NETLIFY_ENVIRONMENT_VARIABLES.md`,
+> `NETLIFY_DEPLOYMENT_BLOCKERS.md`, and the 2026-11-23 preparation report. Domain ownership, Whop
+> credentials, the build command, and several environment requirements have changed since this
+> snapshot; do not treat it as current evidence.
+
 Status system: PASS / FAIL / BLOCKED / NOT DONE / NOT APPLICABLE
 
 ## Framework and runtime
@@ -17,7 +23,8 @@ Status system: PASS / FAIL / BLOCKED / NOT DONE / NOT APPLICABLE
 - `DATABASE_URL` — required at runtime; currently local/test.
 - `SITE_URL` — required; currently `http://localhost:3000`.
 - `APP_URL` — used in some services; same as site URL.
-- `WHOP_COMPANY_API_KEY` / `WHOP_WEBHOOK_SECRET` — blocked; no credentials.
+- `WHOP_COMPANY_API_KEY` / `WHOP_WEBHOOK_SECRET` — credential exists only in the local environment;
+  no webhook secret, Netlify scope, or catalogue mapping. Integration is fail-closed.
 - `DEMO_MODE` — currently `true`; must stay true until live verification.
 - Authentication/session secrets — required; not exposed.
 - `NEXT_PUBLIC_` variables: none required by this project (no public client-only config needed for sensitive data).

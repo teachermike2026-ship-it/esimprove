@@ -1,14 +1,21 @@
 # Esimprove — demo-first eSIM travel commerce platform
 
+> **Recovery notice:** The preserved database has not yet been backed up and verified, and the owner login is not ready. The current port-3000 server may use a disposable database. Do not run setup, seed, migrations, or start against the preserved database until the [database recovery guidance](docs/project/DATABASE_GUIDE.md) is followed. See the [current project documentation](docs/project/README.md) and [admin access status](docs/project/ADMIN_ACCESS.md). The quick-start and verification results below are historical and must not be treated as current recovery instructions or evidence.
+
 Working codename for a new eSIM travel storefront intended for **esimprove.com** and **Netlify**.
 
-> **Current status (2026-10-23): a functional local demo, not a live commerce service.**
+> **Current status (2026-11-23): a functional local demo, not a live commerce service.**
 >
 > The storefront, checkout, mock payment, mock fulfillment, encrypted demo activation records,
-> customer portal, and basic admin exist and run locally. **Nothing is deployed.** The domain is
-> not owned, no supplier/payment/email account is connected, no real credentials exist, no real
-> money moves, no real eSIM is provisioned, and no real email is sent. All live integration flags
-> remain `false`.
+> customer portal, and admin run locally. **Nothing is deployed.** `esimprove.com` is registered
+> but still parked on Hostinger. No supplier or email account is connected. A Whop hosted-checkout
+> adapter is prepared and fail-closed, but its catalogue is empty, no plan mapping or webhook
+> secret exists, and production checkout remains unavailable. No real money moves, no real eSIM is
+> provisioned, and no real email is sent. All live integration flags remain `false`. The current
+> `next@16.4.2` build was also stopped by a security advisory. `next@16.4.6` is now applied in this
+> working tree and verified (typecheck, lint, focused tests, production build, production audit),
+> but it is not yet committed or pushed. A Neon PostgreSQL project named `esimprove` now exists;
+> this checkout still uses local PGlite. See `ESIMPROVE_NEON_NETLIFY_SETUP_REPORT.md`.
 
 This is the implementation that follows the Phase 0 discovery package. Phase 0 documents remain
 in [`docs/`](docs/) for history and decision context.
@@ -137,7 +144,8 @@ APIs: `GET /api/health`, `POST /api/webhooks/payments/mock`, and the protected
 | Auth | Custom DB sessions + scrypt + TOTP | **Demo implementation** | Security review, password reset/verification, production key custody, RBAC hardening |
 
 `SITE_URL` is the only public-origin configuration value. Do not add a second public-origin
-setting. The default is intentionally local; no domain has been purchased or configured.
+setting. The default is intentionally local; `https://esimprove.com` becomes the production value
+only after Netlify DNS and HTTPS are active.
 
 ## Safety boundaries
 
@@ -148,30 +156,34 @@ setting. The default is intentionally local; no domain has been purchased or con
 - Demo data is labelled `isDemo` and is never counted as production supplier data.
 - The mock LPA is non-functional by design and must never be presented as a real activation.
 - Stored activation data is encrypted; guest access tokens are hashed and expiring.
-- No card data is collected or stored. No live payment, supplier, or email network call exists.
+- No card data is collected or stored. No live payment, supplier, or email network call is enabled
+  in this deployment.
 - The legal pages are **drafts**, not legal advice, and must be replaced before any launch.
 
 ## What is deliberately not built yet
 
 - Real supplier catalogue sync, order placement, usage, top-up, cancellation, or supplier webhooks.
-- Real payment checkout, refunds, disputes, or chargeback handling.
+- Real payment capture, refunds, disputes, or chargeback handling. The Whop checkout adapter is
+  prepared, but no real catalogue, mapping, webhook secret, or live authorization exists.
 - Real email delivery, email verification, password reset, or support inboxes.
 - Full RBAC/roles, four-eyes approvals, admin re-authentication, or break-glass controls.
 - Tax/FX/multi-currency calculation, invoices, or accounting exports.
-- Analytics, monitoring, error tracking, backups, or incident tooling.
-- Playwright/axe browser tests, load tests, or a managed-Postgres compatibility run.
-- Any Netlify deploy, DNS change, or domain purchase.
+- Production analytics evidence, managed-Postgres verification, monitoring, backups, or incident
+  tooling.
+- Playwright/axe browser tests or load tests.
+- Any Netlify deploy or DNS change.
 
 ## Owner actions before launch
 
-1. **Domain:** decide whether to buy `esimprove.com` (or choose another name/domain). Do not
-   configure DNS until ownership is confirmed.
+1. **Domain:** `esimprove.com` is registered but parked. Create the Netlify site first, then apply
+   Netlify's exact DNS records and wait for HTTPS before setting `SITE_URL`.
 2. **Legal/business:** choose the legal entity, jurisdiction, target markets, tax treatment,
    consumer/refund terms, privacy roles, and support contacts. Have the drafts reviewed.
 3. **Supplier:** select a supplier, obtain written reseller approval, sign the contract, fund a
    capped test account, and provide credentials through a secret store.
-4. **Payments:** obtain processor approval for the business model and provide test/live credentials
-   only after the refund/dispute process is defined.
+4. **Payments:** decide whether to activate Whop. Real products/variants, exact mappings, a webhook
+   secret, sandbox evidence, and a written refund/dispute process are required first. Otherwise
+   keep checkout disabled.
 5. **Email:** choose a provider, verify a sending domain, configure DNS, and test bounce/complaint
    handling.
 6. **Database/hosting:** provide a managed PostgreSQL project and Netlify site/team access. Do not

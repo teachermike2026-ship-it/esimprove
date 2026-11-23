@@ -18,7 +18,7 @@ export default async function AdminAuditPage() {
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Demo operations</p>
+          <p className="eyebrow">Operations</p>
           <h1>Audit log</h1>
           <p className="muted">Administrative and operational audit events.</p>
         </div>

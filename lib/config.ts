@@ -36,6 +36,9 @@ export const mockCommerceAllowed = !isProduction;
 export const noIndex = demoMode || isPreview || isStaging;
 
 export const siteUrl = (process.env.SITE_URL || DEFAULT_SITE_URL).replace(/\/+$/, "");
+// Optional public origin used for hosted-provider redirect URLs. Falls back to
+// SITE_URL so existing local/test deployments keep working without a new value.
+export const appUrl = (process.env.APP_URL?.trim() || siteUrl).replace(/\/+$/, "");
 export const siteName = process.env.NEXT_PUBLIC_SITE_NAME || "Esimprove";
 
 export const flags = {
@@ -48,6 +51,67 @@ export const flags = {
   maintenanceBanner: envFlag("MAINTENANCE_BANNER_ENABLED"),
   admin2faRequired: process.env.ADMIN_2FA_REQUIRED !== "false",
 };
+
+/**
+ * Payment provider selection is an explicit server-side choice. The default is
+ * the local mock provider so existing demo deployments do not silently switch
+ * processors when a key is added to the environment.
+ */
+export function paymentProviderKey(): string {
+  return (process.env.PAYMENT_PROVIDER || "mock").trim().toLowerCase();
+}
+
+/**
+ * WHOP_SANDBOX must be explicit. An empty/misspelled value fails closed rather
+ * than defaulting a real API key into live mode.
+ */
+export function whopSandboxSetting(): boolean | null {
+  const value = (process.env.WHOP_SANDBOX ?? "").trim().toLowerCase();
+  if (value === "true" || value === "1") return true;
+  if (value === "false" || value === "0") return false;
+  return null;
+}
+
+function whopPlanMapConfigured(): boolean {
+  const raw = process.env.WHOP_PLAN_VARIANT_MAP?.trim();
+  if (!raw) return false;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Boolean(
+      parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed) &&
+        Object.keys(parsed).length > 0,
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the public checkout UI may accept an order. Mock commerce remains
+ * available outside production. Whop sandbox is allowed outside production
+ * only; Whop live requires the existing live-payment gate.
+ *
+ * Whop checkout fails closed until the API key, webhook signing secret,
+ * explicit public APP_URL, sandbox/live setting, and at least one plan mapping
+ * are present. Without the webhook secret an order could be paid but never
+ * confirmed, so checkout stays disabled.
+ */
+export function onlineCheckoutAvailable(): boolean {
+  if (paymentProviderKey() === "whop") {
+    if (!process.env.WHOP_COMPANY_API_KEY?.trim()) return false;
+    if (!process.env.WHOP_WEBHOOK_SECRET?.trim()) return false;
+    const publicAppUrl = process.env.APP_URL?.trim();
+    if (!publicAppUrl || !isPublicHttpsUrl(publicAppUrl)) return false;
+    if (!whopPlanMapConfigured()) return false;
+    const sandbox = whopSandboxSetting();
+    if (sandbox === true && !isProduction) return true;
+    if (sandbox === false && flags.paymentsLive) return true;
+    return false;
+  }
+  return mockCommerceAllowed;
+}
 
 /**
  * The database target must declare the same environment as APP_ENV. Netlify
@@ -66,6 +130,22 @@ export function canonicalUrl(path = "/"): string {
 function isLoopbackHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
   return host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".local");
+}
+
+/**
+ * Hosted providers redirect the customer to APP_URL, and the public webhook
+ * endpoint is derived from the same origin. A local or non-HTTPS origin is not
+ * a public return URL, so checkout must fail closed rather than sending a live
+ * customer back to localhost.
+ */
+function isPublicHttpsUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:" || !parsed.hostname) return false;
+    return !isLoopbackHost(parsed.hostname);
+  } catch {
+    return false;
+  }
 }
 
 function validateSiteUrl(problems: string[]): void {
@@ -172,6 +252,33 @@ function validateLiveFlags(problems: string[]): void {
   if (flags.stagingAccess) problems.push("STAGING_ACCESS_ENABLED is not implemented in this build");
 }
 
+function validateWhopConfiguration(problems: string[]): void {
+  if (paymentProviderKey() !== "whop") return;
+  if (!process.env.WHOP_COMPANY_API_KEY?.trim()) {
+    problems.push("WHOP_COMPANY_API_KEY is required when PAYMENT_PROVIDER=whop");
+  }
+  if (!process.env.WHOP_WEBHOOK_SECRET?.trim()) {
+    problems.push("WHOP_WEBHOOK_SECRET is required when PAYMENT_PROVIDER=whop");
+  }
+  const publicAppUrl = process.env.APP_URL?.trim();
+  if (!publicAppUrl) {
+    problems.push("APP_URL is required when PAYMENT_PROVIDER=whop");
+  } else if (!isPublicHttpsUrl(publicAppUrl)) {
+    problems.push("APP_URL must be a public HTTPS origin when PAYMENT_PROVIDER=whop");
+  }
+  const sandbox = whopSandboxSetting();
+  if (sandbox === null) {
+    problems.push("WHOP_SANDBOX must be explicitly true or false when PAYMENT_PROVIDER=whop");
+    return;
+  }
+  if (isProduction && sandbox) {
+    problems.push("Whop sandbox cannot be used in production");
+  }
+  if (!isProduction && !sandbox && !flags.paymentsLive) {
+    problems.push("Whop live checkout requires PAYMENTS_LIVE_ENABLED=true and explicit approval");
+  }
+}
+
 /**
  * Returns actionable, non-secret configuration problems. Values are never
  * included; only variable names and safe context identifiers.
@@ -192,6 +299,7 @@ export function getConfigurationProblems(): string[] {
   validateDatabaseEnvironment(problems);
   validateSharedDeploymentSecrets(problems);
   validateLiveFlags(problems);
+  validateWhopConfiguration(problems);
 
   if (!flags.admin2faRequired) {
     problems.push("ADMIN_2FA_REQUIRED must be true in a deployed environment");
@@ -311,17 +419,25 @@ export function sessionCookieName(): string {
   return `${process.env.SESSION_COOKIE_PREFIX || "esimprove"}_session`;
 }
 
+function paymentsIntegrationMode(): string {
+  if (paymentProviderKey() === "whop") {
+    if (!process.env.WHOP_COMPANY_API_KEY?.trim()) return "whop-unconfigured";
+    const sandbox = whopSandboxSetting();
+    if (sandbox === true) return "whop-sandbox";
+    if (sandbox === false) return "whop-live";
+    return "whop-unconfigured";
+  }
+  if (flags.paymentsLive) return "live-disabled";
+  return mockCommerceAllowed ? "mock-sandbox" : "disabled";
+}
+
 export const integrationModes = {
   supplier: flags.supplierLive
     ? "live-disabled"
     : mockCommerceAllowed
       ? "mock-sandbox"
       : "disabled",
-  payments: flags.paymentsLive
-    ? "live-disabled"
-    : mockCommerceAllowed
-      ? "mock-sandbox"
-      : "disabled",
+  payments: paymentsIntegrationMode(),
   email: flags.emailLive
     ? "live-disabled"
     : mockCommerceAllowed

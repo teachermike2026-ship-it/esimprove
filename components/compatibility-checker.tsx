@@ -73,11 +73,11 @@ export function CompatibilityChecker() {
           </select>
         </div>
         <button className="button" type="submit">
-          <QrIcon className="inline-icon" /> Check demo compatibility
+          <QrIcon className="inline-icon" /> Check compatibility
         </button>
         <p className="form-note">
-          This checker uses a small illustrative list. It is not an official compatibility
-          database and does not guarantee that a device or carrier will accept an eSIM.
+          This checker is a guide, not an official compatibility database, and does not
+          guarantee that a device or carrier will accept an eSIM.
         </p>
       </form>
 
@@ -92,14 +92,14 @@ export function CompatibilityChecker() {
             <div className="callout callout-warning">
               <AlertIcon className="inline-icon" />
               <p>
-                Before buying any real plan, confirm eSIM support with the manufacturer and
-                check that the device is carrier-unlocked.
+                Before buying, confirm eSIM support with the manufacturer and check that the
+                device is carrier-unlocked.
               </p>
             </div>
           </>
         ) : (
           <>
-            <span className="badge badge-demo">Illustrative data</span>
+            <span className="badge badge-neutral">Guidance</span>
             <h2>Check the device, then check the settings</h2>
             <p>
               Choose a brand and model family. The result is a cautious guide, not a

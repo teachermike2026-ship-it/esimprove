@@ -151,6 +151,8 @@ describe("0005 to 0007 migration upgrade", () => {
     expect(full.pending).toEqual([
       "0006_legal_compliance.sql",
       "0007_rate_limit_counter_cleanup.sql",
+      "0008_owner_first_login_password_change.sql",
+      "0009_account_refund_support_workflows.sql",
     ]);
   });
 
@@ -163,7 +165,9 @@ describe("0005 to 0007 migration upgrade", () => {
     );
     expect(applied.map((row) => row.id)).toContain("0006_legal_compliance.sql");
     expect(applied.map((row) => row.id)).toContain("0007_rate_limit_counter_cleanup.sql");
-    expect(applied).toHaveLength(7);
+    expect(applied.map((row) => row.id)).toContain("0008_owner_first_login_password_change.sql");
+    expect(applied.map((row) => row.id)).toContain("0009_account_refund_support_workflows.sql");
+    expect(applied).toHaveLength(9);
 
     const status = await listPendingMigrations(handle.client);
     expect(status.checked).toBe(true);
@@ -230,6 +234,39 @@ describe("0005 to 0007 migration upgrade", () => {
     expect(
       await scalar(handle, "SELECT count(*)::int AS value FROM legal_readiness_items"),
     ).toBe(15);
+
+    const accountColumns = await rows<{ column_name: string }>(
+      handle,
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'support_tickets'
+         AND column_name IN ('category', 'assigned_to', 'assigned_at', 'closed_at')`,
+    );
+    expect(accountColumns).toHaveLength(4);
+    const refundColumns = await rows<{ column_name: string }>(
+      handle,
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'refunds'
+         AND column_name IN ('resolution_note', 'resolved_by', 'resolved_at')`,
+    );
+    expect(refundColumns).toHaveLength(3);
+    const resetColumns = await rows<{ column_name: string }>(
+      handle,
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'password_resets'
+         AND column_name = 'purpose'`,
+    );
+    expect(resetColumns).toHaveLength(1);
+    const [ticketAfter] = await rows<{ id: string; category: string }>(
+      handle,
+      "SELECT id, category FROM support_tickets WHERE id = 'ticket_upgrade'",
+    );
+    expect(ticketAfter?.category).toBe("general");
+    expect(
+      await scalar(
+        handle,
+        "SELECT count(*)::int AS value FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'password_resets_purpose_idx'",
+      ),
+    ).toBe(1);
   });
 
   it("re-applying 0006 and 0007 is a no-op", async () => {
@@ -255,7 +292,7 @@ describe("0005 to 0007 migration upgrade", () => {
       "SELECT applied_at FROM schema_migrations WHERE id = '0006_legal_compliance.sql'",
     );
     expect(new Date(after!.applied_at).getTime()).toBe(beforeAppliedAt);
-    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(7);
+    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(9);
 
     // The file itself must also be idempotent if an operator re-runs it by hand.
     const sql = await readFile(path.join(MIGRATION_DIR, "0006_legal_compliance.sql"), "utf8");
@@ -266,6 +303,13 @@ describe("0005 to 0007 migration upgrade", () => {
     );
     await exec(handle, cleanupSql);
     await exec(handle, cleanupSql);
+
+    const accountSql = await readFile(
+      path.join(MIGRATION_DIR, "0009_account_refund_support_workflows.sql"),
+      "utf8",
+    );
+    await exec(handle, accountSql);
+    await exec(handle, accountSql);
 
     expect(
       await scalar(handle, "SELECT count(*)::int AS value FROM legal_settings"),
@@ -287,6 +331,6 @@ describe("0005 to 0007 migration upgrade", () => {
            AND indexname = 'rate_limit_counters_window_start_idx'`,
       ),
     ).toBe(1);
-    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(7);
+    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(9);
   });
 });

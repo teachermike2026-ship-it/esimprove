@@ -2,19 +2,18 @@
 
 import { useActionState } from "react";
 import { createCheckoutAction } from "@/app/checkout/actions";
+import { LEGAL_DOCUMENT_VERSION } from "@/lib/legal-profile";
 import { AlertIcon, CreditCardIcon, LockIcon } from "@/components/icons";
 
 type CheckoutState = { error?: string };
 
 export function CheckoutForm({
   idempotencyKey,
-  termsVersion,
   defaultEmail = "",
   defaultName = "",
   disabled = false,
 }: {
   idempotencyKey: string;
-  termsVersion: string;
   defaultEmail?: string;
   defaultName?: string;
   disabled?: boolean;
@@ -33,9 +32,9 @@ export function CheckoutForm({
         </div>
       ) : null}
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
-      <input type="hidden" name="termsVersion" value={termsVersion} />
+      <input type="hidden" name="termsVersion" value={LEGAL_DOCUMENT_VERSION} />
       <div className="field">
-        <label htmlFor="checkout-email">Email for the demo order</label>
+        <label htmlFor="checkout-email">Email for the order</label>
         <input
           id="checkout-email"
           name="email"
@@ -77,27 +76,25 @@ export function CheckoutForm({
       <label className="checkbox">
         <input type="checkbox" name="terms" required />
         <span>
-          I understand this is a demo checkout. No real money will move, no real eSIM will be
-          provisioned, and no email will be sent. I accept the{" "}
+          I accept the{" "}
           <a href="/legal/terms" target="_blank" rel="noreferrer">
             Terms of Service
           </a>{" "}
-          (version {termsVersion}) and acknowledge the{" "}
+          (version {LEGAL_DOCUMENT_VERSION}) and acknowledge the{" "}
           <a href="/legal/privacy" target="_blank" rel="noreferrer">
             Privacy Policy
           </a>
-          . The total shown in the order summary is the amount presented on the next payment
-          step. No additional fees are added later in this build.
+          . The total shown in the order summary is the amount due at the next step. No
+          additional fees are added later.
         </span>
       </label>
       <button className="button button-wide" type="submit" disabled={pending || disabled}>
         <CreditCardIcon className="inline-icon" />
-        {pending ? "Creating demo order…" : "Continue to demo payment"}
+        {pending ? "Creating order…" : "Continue to payment"}
       </button>
       <p className="form-note">
-        <LockIcon className="inline-icon" /> Prices and tax are recalculated on the server. The
-        mock payment page is the only payment step in this build. Card details are never
-        requested or stored.
+        <LockIcon className="inline-icon" /> Prices and tax are confirmed before your order is
+        placed.
       </p>
     </form>
   );

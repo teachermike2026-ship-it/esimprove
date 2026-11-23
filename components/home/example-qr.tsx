@@ -1,4 +1,4 @@
-export function DemoQr() {
+export function ExampleQr() {
   const modules: Array<{ x: number; y: number }> = [];
   const finderOrigins = [
     [0, 0],
@@ -25,11 +25,7 @@ export function DemoQr() {
   }
 
   return (
-    <div
-      className="es-qr"
-      role="img"
-      aria-label="Illustrative QR pattern. This is not a usable activation code."
-    >
+    <div className="es-qr" role="img" aria-label="Example eSIM QR code">
       <svg viewBox="0 0 21 21" aria-hidden="true" focusable="false">
         <rect width="21" height="21" fill="#ffffff" />
         {modules.map((module) => (
@@ -50,9 +46,6 @@ export function DemoQr() {
           </g>
         ))}
       </svg>
-      <span className="es-qr-stamp" aria-hidden="true">
-        DEMO
-      </span>
     </div>
   );
 }

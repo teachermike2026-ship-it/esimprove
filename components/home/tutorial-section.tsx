@@ -78,8 +78,8 @@ export function TutorialSection() {
           </div>
           <h2 id="es-guide-title">Install your eSIM, step by step</h2>
           <p className="es-guide-lead">
-            No tutorial video is published in this build. This is a written, provider-neutral
-            walkthrough; exact menus vary by device and operating-system version.
+            This is a written, provider-neutral walkthrough; exact menus vary by device and
+            operating-system version.
           </p>
           <ol className="es-guide-steps">
             <li>
@@ -124,7 +124,7 @@ export function TutorialSection() {
             </li>
           </ol>
           <p className="es-guide-note">
-            This demo does not issue a working eSIM, QR activation code, or carrier
+            This build does not issue a working eSIM, QR activation code, or carrier
             connection. Read the full guides for device-specific steps.
           </p>
           <div className="es-guide-actions">

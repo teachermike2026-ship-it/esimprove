@@ -11,7 +11,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const guide = getGuide(slug);
-  if (!guide) return { title: "Guide not found" };
+  if (!guide) notFound();
   return {
     title: guide.title,
     description: guide.summary,
@@ -57,10 +57,11 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
         </article>
         <aside className="checkout-sidebar">
           <div className="card form">
-            <h2>Demo boundary</h2>
+            <h2>Good to know</h2>
             <p className="muted small">
               These guides are general information, not a guarantee that a specific device,
-              carrier, or plan will work. No live supplier support is available in this build.
+              carrier, or plan will work. For account or order help, contact us at{" "}
+              <a href="mailto:contact@esimprove.com">contact@esimprove.com</a>.
             </p>
             <Link className="button button-secondary" href="/compatibility">
               Check compatibility

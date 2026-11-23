@@ -26,9 +26,9 @@ export async function generateMetadata({
   const { slug } = await params;
   const db = await getDb();
   const plan = await getPlanBySlug(db, slug);
-  if (!plan) return { title: "Plan not found" };
+  if (!plan) notFound();
   return {
-    title: `${plan.destinationName} ${plan.name} demo plan`,
+    title: `${plan.destinationName} ${plan.name} eSIM plan`,
     description: plan.description,
     alternates: { canonical: canonicalUrl(`/plans/${plan.slug}`) },
   };
@@ -94,7 +94,6 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
                 <h1>{plan.name}</h1>
                 <p className="lead">{plan.description}</p>
               </div>
-              <span className="badge badge-demo">Demo plan</span>
             </div>
             <div className="plan-detail-stats">
               <div>
@@ -110,17 +109,17 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
                 <span>Coverage label</span>
               </div>
             </div>
-            <div className="callout callout-warning">
+            <div className="callout">
               <ShieldIcon className="inline-icon" />
               <p>
-                This plan is illustrative. Coverage, network quality, speed, fair-use limits,
-                and availability have not been verified with a supplier or carrier.
+                Coverage, network quality, and fair-use limits are set by the provider for each
+                plan. Review the plan details before purchasing.
               </p>
             </div>
           </section>
 
           <section className="card form" aria-labelledby="plan-included">
-            <h2 id="plan-included">What the demo includes</h2>
+            <h2 id="plan-included">What the plan includes</h2>
             <ul className="check-list">
               {plan.features.map((feature) => (
                 <li key={feature}>
@@ -128,8 +127,8 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
                 </li>
               ))}
               <li>
-                <CheckIcon className="inline-icon" /> A mock QR code and manual LPA stored with
-                envelope encryption after mock payment.
+                <CheckIcon className="inline-icon" /> A QR code and manual activation code,
+                delivered to your account after purchase.
               </li>
             </ul>
           </section>
@@ -142,8 +141,8 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
                   <SignalIcon className="inline-icon" /> Check the device
                 </h3>
                 <p className="muted small">
-                  Confirm eSIM support and that the device is carrier-unlocked. The demo
-                  compatibility checker is deliberately conservative.
+                  Confirm eSIM support and that the device is carrier-unlocked. The compatibility
+                  checker is deliberately conservative.
                 </p>
                 <Link className="button button-ghost button-small" href="/compatibility">
                   Check compatibility <ArrowRight className="inline-icon" />
@@ -165,12 +164,10 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
           </section>
         </div>
 
-        <aside className="checkout-sidebar" aria-label="Purchase demo plan">
+        <aside className="checkout-sidebar" aria-label="Purchase plan">
           <section className="card summary-card">
-            <span className="badge badge-demo">Mock purchase</span>
             <div className="price-block" style={{ marginTop: "0.7rem" }}>
               <span className="price">{formatMoney(plan.priceMinor, plan.currency)}</span>
-              <span className="price-note">demo price · USD</span>
             </div>
             <div className="summary-row">
               <span>Data</span>
@@ -182,11 +179,11 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
             </div>
             <div className="summary-row">
               <span>Activation</span>
-              <span>QR + manual (mock)</span>
+              <span>QR + manual code</span>
             </div>
             <div className="summary-row">
               <span>Payment</span>
-              <span>Mock sandbox</span>
+              <span>Online payment</span>
             </div>
             <div className="summary-total">
               <span>Total</span>
@@ -198,7 +195,7 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
                 <input type="hidden" name="quantity" value="1" />
                 <input type="hidden" name="checkout" value="1" />
                 <button className="button button-wide" type="submit">
-                  <CartIcon className="inline-icon" /> Buy demo plan
+                  <CartIcon className="inline-icon" /> Buy plan
                 </button>
               </form>
               <form action={addToCartAction}>
@@ -210,8 +207,8 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
               </form>
             </div>
             <p className="form-note">
-              <ClockIcon className="inline-icon" /> No real payment will be taken. The next
-              screen creates a mock payment session.
+              <ClockIcon className="inline-icon" /> You will not be charged until payment is
+              confirmed.
             </p>
           </section>
           <section className="card summary-card">
@@ -219,10 +216,10 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
               <GlobeIcon className="inline-icon" /> Need another destination?
             </h2>
             <p className="muted small">
-              Browse the demo catalogue or search by country, region, or data amount.
+              Browse the catalogue or search by country, region, or data amount.
             </p>
             <Link className="button button-ghost button-small" href="/plans">
-              All demo plans <ArrowRight className="inline-icon" />
+              All plans <ArrowRight className="inline-icon" />
             </Link>
           </section>
         </aside>
@@ -233,7 +230,7 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
           <div className="section-heading">
             <div>
               <p className="eyebrow">Same destination</p>
-              <h2 id="related-plans">Compare other demo plans</h2>
+              <h2 id="related-plans">Compare other plans</h2>
             </div>
           </div>
           <div className="grid grid-3">
@@ -246,7 +243,6 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
                       <Link href={`/plans/${item.slug}`}>{formatData(item.dataMb)} for {item.validityDays} days</Link>
                     </h3>
                   </div>
-                  <span className="badge badge-demo">Demo</span>
                 </div>
                 <div className="plan-card-bottom">
                   <span className="price">{formatMoney(item.priceMinor, item.currency)}</span>

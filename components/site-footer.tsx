@@ -1,15 +1,7 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
 import { CookieSettingsButton } from "@/components/analytics-tracker";
-import {
-  configuredBusinessName,
-  configuredPrivacyEmail,
-  configuredSupportEmail,
-  formatBusinessAddress,
-  isBusinessProfileComplete,
-} from "@/lib/legal";
-import type { LegalSettingsRow } from "@/lib/db/schema";
-import { demoMode } from "@/lib/config";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
 
 const footerGroups = [
   {
@@ -36,7 +28,6 @@ const footerGroups = [
       { href: "/guides", label: "Installation guide" },
       { href: "/compatibility", label: "Device compatibility" },
       { href: "/#faq", label: "FAQs" },
-      { href: "/#demo-limits", label: "Demo limits" },
     ],
   },
   {
@@ -62,13 +53,8 @@ const footerGroups = [
   },
 ];
 
-export function SiteFooter({ legalSettings }: { legalSettings: LegalSettingsRow }) {
+export function SiteFooter() {
   const year = new Date().getUTCFullYear();
-  const businessName = configuredBusinessName(legalSettings);
-  const businessComplete = isBusinessProfileComplete(legalSettings);
-  const supportEmail = configuredSupportEmail(legalSettings);
-  const privacyEmail = configuredPrivacyEmail(legalSettings);
-  const address = formatBusinessAddress(legalSettings);
 
   return (
     <footer className="es-footer">
@@ -77,12 +63,9 @@ export function SiteFooter({ legalSettings }: { legalSettings: LegalSettingsRow 
           <div className="es-footer-brand">
             <BrandMark />
             <p>
-              Travel eSIM plans with clear data, validity, and pricing. Browse the demo
+              Travel eSIM plans with clear data, validity, and pricing. Browse the
               catalogue, compare plans, and follow the complete customer journey.
             </p>
-            <span className="es-footer-badge">
-              {demoMode ? "Demo build · no live integrations" : "No live supplier orders"}
-            </span>
             <span className="es-footer-badge">English (EN)</span>
           </div>
 
@@ -105,42 +88,18 @@ export function SiteFooter({ legalSettings }: { legalSettings: LegalSettingsRow 
         <div className="es-footer-bottom">
           <div className="es-footer-legal">
             <p>
-              © {year} {businessName || "Esimprove demonstration storefront"}.
-              {businessComplete ? (
-                <>
-                  {" "}
-                  {legalSettings.legalName ? `Legal name: ${legalSettings.legalName}. ` : ""}
-                  {address ? `${address}. ` : ""}
-                  {legalSettings.businessCountry ? `${legalSettings.businessCountry}. ` : ""}
-                  {legalSettings.registrationNumber
-                    ? `Registration: ${legalSettings.registrationNumber}. `
-                    : ""}
-                  {legalSettings.vatNumber ? `VAT/tax: ${legalSettings.vatNumber}.` : ""}
-                </>
-              ) : (
-                " Verified legal entity, registered address, registration number, and support telephone details are not configured in this build."
-              )}
+              © {year} ESIMPROVE. Online digital services platform · Vietnam. ESIMPROVE is an
+              online platform and brand, not a registered company; no registration number or VAT
+              number is held or claimed.
             </p>
-            {supportEmail || privacyEmail ? (
-              <p className="small">
-                {supportEmail ? (
-                  <>
-                    Support: <a href={`mailto:${supportEmail}`}>{supportEmail}</a>.{" "}
-                  </>
-                ) : null}
-                {privacyEmail ? (
-                  <>
-                    Privacy: <a href={`mailto:${privacyEmail}`}>{privacyEmail}</a>.
-                  </>
-                ) : null}
-              </p>
-            ) : null}
+            <p className="small">
+              Contact: <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>
+            </p>
           </div>
           <div className="es-footer-bottom-links">
             <CookieSettingsButton className="es-footer-link-button" />
             <Link href="/privacy/request">Privacy request</Link>
             <Link href="/legal/accessibility">Accessibility</Link>
-            <Link href="/#demo-limits">Demo limits</Link>
             <Link href="/api/health">System status</Link>
           </div>
         </div>

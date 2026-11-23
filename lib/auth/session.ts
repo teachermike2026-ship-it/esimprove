@@ -14,8 +14,10 @@ export interface SessionUser {
   email: string;
   name: string;
   role: string;
+  emailVerifiedAt: Date | null;
   totpEnabled: boolean;
   totpSecretEncrypted: EncryptedSecret | null;
+  passwordChangeRequired: boolean;
 }
 
 export interface ActiveSession {
@@ -71,8 +73,10 @@ export async function getSessionByToken(
       email: users.email,
       name: users.name,
       role: users.role,
+      emailVerifiedAt: users.emailVerifiedAt,
       totpEnabled: users.totpEnabled,
       totpSecretEncrypted: users.totpSecretEncrypted,
+      passwordChangeRequired: users.passwordChangeRequired,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
@@ -91,8 +95,10 @@ export async function getSessionByToken(
       email: row.email,
       name: row.name,
       role: row.role,
+      emailVerifiedAt: row.emailVerifiedAt ?? null,
       totpEnabled: row.totpEnabled,
       totpSecretEncrypted: row.totpSecretEncrypted ?? null,
+      passwordChangeRequired: row.passwordChangeRequired,
     },
   };
 }
@@ -107,7 +113,7 @@ export async function getCurrentSession(): Promise<ActiveSession | null> {
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const session = await getCurrentSession();
-  if (!session || session.pendingTwoFactor) return null;
+  if (!session || session.pendingTwoFactor || session.user.passwordChangeRequired) return null;
   return session.user;
 }
 

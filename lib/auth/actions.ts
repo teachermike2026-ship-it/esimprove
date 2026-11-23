@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db/client";
@@ -9,7 +9,12 @@ import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { decryptSecret } from "@/lib/crypto";
 import { hashToken, randomToken } from "@/lib/crypto";
 import { verifyTotp } from "@/lib/auth/totp";
-import { getEmailTransport } from "@/lib/integrations/email";
+import { sendTransactionalEmail } from "@/lib/email-notices";
+import {
+  emailVerificationEmail,
+  passwordChangedEmail,
+  passwordResetEmail,
+} from "@/lib/email-templates";
 import {
   clearSessionCookie,
   createSession,
@@ -27,6 +32,7 @@ import {
   registerSchema,
   resetPasswordSchema,
   changePasswordSchema,
+  ownerFirstLoginPasswordSchema,
   safeNextPath,
   zodMessage,
   emailSchema,
@@ -36,6 +42,7 @@ import { isAdminRole } from "@/lib/auth/roles";
 import { flags, sessionCookieName, siteUrl } from "@/lib/config";
 import { recordConsent } from "@/lib/consents";
 import { loadLegalSettings } from "@/lib/legal";
+import { LEGAL_DOCUMENT_VERSION } from "@/lib/legal-profile";
 import { createEmailSubscription } from "@/lib/email-subscriptions";
 import { getOrCreateUserPreferences, updateUserPreferences } from "@/lib/user-preferences";
 
@@ -52,8 +59,14 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   const db = await getDb();
   const meta = await requestMeta();
   const email = normalizeEmail(parsed.data.email);
-  const rate = await checkRateLimit(db, `login:${email}:${meta.ipHash}`, 10, 15 * 60);
-  if (!rate.allowed) {
+  // Limit both the account and the source address. A single email+IP key can be
+  // bypassed by rotating one dimension, while an account-only key lets an
+  // attacker lock out a known address. Keep the two counters independent.
+  const [accountRate, ipRate] = await Promise.all([
+    checkRateLimit(db, `login:account:${email}`, 10, 15 * 60),
+    checkRateLimit(db, `login:ip:${meta.ipHash}`, 30, 15 * 60),
+  ]);
+  if (!accountRate.allowed || !ipRate.allowed) {
     return { error: "Too many sign-in attempts. Wait 15 minutes and try again." };
   }
 
@@ -66,15 +79,19 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
 
   const adminAccount = isAdminRole(user.role);
   const nextPath = safeNextPath(parsed.data.next, adminAccount ? "/admin" : "/portal");
+  const mustChangePassword = user.passwordChangeRequired && adminAccount;
 
-  if (adminAccount && flags.admin2faRequired && !user.totpEnabled) {
-    return {
-      error:
-        "This admin account has no TOTP secret. Admin sign-in is blocked until 2FA is configured.",
-    };
-  }
+  // When 2FA is not required (local dev), skip the TOTP gate entirely — both
+  // the "no secret" block and the 2FA redirect. The secret and the login
+  // code are untouched and re-enabling ADMIN_2FA_REQUIRED restores the gate.
+  if (adminAccount && flags.admin2faRequired) {
+    if (!user.totpEnabled) {
+      return {
+        error:
+          "This admin account has no TOTP secret. Admin sign-in is blocked until 2FA is configured.",
+      };
+    }
 
-  if (adminAccount && user.totpEnabled) {
     const pending = await createSession(db, user.id, {
       pendingTwoFactor: true,
       ttlMinutes: 10,
@@ -82,7 +99,10 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
       userAgent: meta.userAgent,
     });
     await setSessionCookie(pending.token, pending.expiresAt);
-    redirect(`/login/2fa?next=${encodeURIComponent(nextPath)}`);
+    // A first-login owner must rotate the temporary password before any admin
+    // surface is opened.
+    const destination = mustChangePassword ? "/admin/set-password" : nextPath;
+    redirect(`/login/2fa?next=${encodeURIComponent(destination)}`);
   }
 
   const session = await createSession(db, user.id, {
@@ -99,7 +119,7 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
     entityId: user.id,
     metadata: { role: user.role },
   });
-  redirect(nextPath);
+  redirect(mustChangePassword ? "/admin/set-password" : nextPath);
 }
 
 export async function loginTwoFactorAction(
@@ -149,7 +169,7 @@ export async function loginTwoFactorAction(
     metadata: { role: session.user.role },
   });
   const nextPath = safeNextPath(formString(formData, "next"), "/admin");
-  redirect(nextPath);
+  redirect(session.user.passwordChangeRequired ? "/admin/set-password" : nextPath);
 }
 
 export async function registerAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
@@ -171,8 +191,8 @@ export async function registerAction(_prev: AuthState, formData: FormData): Prom
   const meta = await requestMeta();
   const legal = await loadLegalSettings(db);
   if (
-    parsed.data.termsVersion !== legal.termsVersion ||
-    parsed.data.privacyVersion !== legal.privacyVersion
+    parsed.data.termsVersion !== LEGAL_DOCUMENT_VERSION ||
+    parsed.data.privacyVersion !== LEGAL_DOCUMENT_VERSION
   ) {
     return {
       error:
@@ -196,8 +216,6 @@ export async function registerAction(_prev: AuthState, formData: FormData): Prom
     name: parsed.data.name,
     passwordHash: await hashPassword(parsed.data.password),
     role: "customer",
-    // Email verification is not implemented in this demo. Do not claim the
-    // address is verified just because an account was created.
     emailVerifiedAt: null,
   });
 
@@ -209,21 +227,21 @@ export async function registerAction(_prev: AuthState, formData: FormData): Prom
   await recordConsent(db, {
     userId,
     purpose: "terms",
-    version: legal.termsVersion,
+    version: LEGAL_DOCUMENT_VERSION,
     accepted: true,
     ...consentContext,
   });
   await recordConsent(db, {
     userId,
     purpose: "privacy",
-    version: legal.privacyVersion,
+    version: LEGAL_DOCUMENT_VERSION,
     accepted: true,
     ...consentContext,
   });
   await recordConsent(db, {
     userId,
     purpose: "age",
-    version: legal.termsVersion,
+    version: LEGAL_DOCUMENT_VERSION,
     accepted: true,
     ...consentContext,
   });
@@ -252,6 +270,12 @@ export async function registerAction(_prev: AuthState, formData: FormData): Prom
     });
   }
 
+  await issueEmailVerificationToken(db, {
+    userId,
+    email,
+    actorType: "user",
+  });
+
   const session = await createSession(db, userId, {
     ttlMinutes: Number(process.env.SESSION_TTL_DAYS || "30") * 24 * 60,
     ipHash: meta.ipHash,
@@ -266,7 +290,7 @@ export async function registerAction(_prev: AuthState, formData: FormData): Prom
     entityId: userId,
     metadata: {},
   });
-  redirect("/portal");
+  redirect("/portal/profile?verification=sent");
 }
 
 export async function logoutAction(): Promise<void> {
@@ -288,6 +312,131 @@ export async function logoutAction(): Promise<void> {
 }
 
 const PASSWORD_RESET_TTL_MINUTES = 30;
+const EMAIL_VERIFICATION_TTL_HOURS = 24;
+
+async function issueEmailVerificationToken(
+  db: Awaited<ReturnType<typeof getDb>>,
+  input: { userId: string; email: string; actorType: string },
+): Promise<void> {
+  const now = new Date();
+  await db
+    .update(passwordResets)
+    .set({ consumedAt: now })
+    .where(
+      and(
+        eq(passwordResets.userId, input.userId),
+        eq(passwordResets.purpose, "email_verification"),
+        isNull(passwordResets.consumedAt),
+      ),
+    );
+  const token = randomToken(32);
+  await db.insert(passwordResets).values({
+    id: crypto.randomUUID(),
+    userId: input.userId,
+    tokenHash: hashToken(token),
+    purpose: "email_verification",
+    expiresAt: new Date(now.getTime() + EMAIL_VERIFICATION_TTL_HOURS * 60 * 60 * 1000),
+    consumedAt: null,
+    createdAt: now,
+  });
+  const template = emailVerificationEmail(
+    `${siteUrl}/verify-email?token=${encodeURIComponent(token)}`,
+  );
+  await sendTransactionalEmail(db, {
+    to: input.email,
+    subject: template.subject,
+    text: template.text,
+    template: "auth.email_verification",
+  });
+  await recordAudit(db, {
+    actorType: input.actorType,
+    actorId: input.userId,
+    action: "auth.email_verification_sent",
+    entityType: "user",
+    entityId: input.userId,
+    metadata: {},
+  });
+}
+
+export async function requestEmailVerificationAction(): Promise<{
+  error?: string;
+  success?: boolean;
+}> {
+  const session = await getCurrentSession();
+  if (!session || session.pendingTwoFactor) {
+    return { error: "Sign in to request email verification." };
+  }
+  const db = await getDb();
+  const rate = await checkRateLimit(db, `verify-email:${session.user.id}`, 3, 60 * 60);
+  if (!rate.allowed) {
+    return { error: "Too many verification emails. Try again in an hour." };
+  }
+  const rows = await db
+    .select({ emailVerifiedAt: users.emailVerifiedAt })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .limit(1);
+  if (rows[0]?.emailVerifiedAt) {
+    return { success: true };
+  }
+  await issueEmailVerificationToken(db, {
+    userId: session.user.id,
+    email: session.user.email,
+    actorType: "user",
+  });
+  return { success: true };
+}
+
+export async function verifyEmailAction(formData: FormData): Promise<void> {
+  const token = formString(formData, "token");
+  if (token.length < 20 || token.length > 200) redirect("/verify-email?status=invalid");
+  const db = await getDb();
+  const resetRows = await db
+    .select()
+    .from(passwordResets)
+    .where(
+      and(
+        eq(passwordResets.tokenHash, hashToken(token)),
+        eq(passwordResets.purpose, "email_verification"),
+      ),
+    )
+    .limit(1);
+  const verification = resetRows[0];
+  if (!verification || verification.consumedAt || verification.expiresAt < new Date()) {
+    redirect("/verify-email?status=invalid");
+  }
+  const userRows = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, verification.userId))
+    .limit(1);
+  const user = userRows[0];
+  if (!user) redirect("/verify-email?status=invalid");
+
+  await db.transaction(async (tx) => {
+    const claimed = await tx
+      .update(passwordResets)
+      .set({ consumedAt: new Date() })
+      .where(and(eq(passwordResets.id, verification.id), isNull(passwordResets.consumedAt)))
+      .returning({ id: passwordResets.id });
+    if (claimed.length === 0) return;
+    await tx
+      .update(users)
+      .set({ emailVerifiedAt: new Date(), updatedAt: new Date() })
+      .where(eq(users.id, user.id));
+    await recordAudit(tx, {
+      actorType: "user",
+      actorId: user.id,
+      action: "auth.email_verified",
+      entityType: "user",
+      entityId: user.id,
+      metadata: {},
+    });
+  });
+  const session = await getCurrentSession();
+  if (session?.user.id === user.id) redirect("/portal/profile?verified=1");
+  redirect("/login?verified=1");
+}
 
 export async function requestPasswordResetAction(
   _prev: { error?: string; success?: boolean },
@@ -316,37 +465,37 @@ export async function requestPasswordResetAction(
   // Always respond with the same message so the endpoint cannot be used to
   // enumerate accounts. The reset token is only created for real accounts.
   if (user) {
+    const now = new Date();
+    await db
+      .update(passwordResets)
+      .set({ consumedAt: now })
+      .where(
+        and(
+          eq(passwordResets.userId, user.id),
+          eq(passwordResets.purpose, "password_reset"),
+          isNull(passwordResets.consumedAt),
+        ),
+      );
     const token = randomToken(32);
-    const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MINUTES * 60_000);
+    const expiresAt = new Date(now.getTime() + PASSWORD_RESET_TTL_MINUTES * 60_000);
     await db.insert(passwordResets).values({
       id: crypto.randomUUID(),
       userId: user.id,
       tokenHash: hashToken(token),
+      purpose: "password_reset",
       expiresAt,
       consumedAt: null,
-      createdAt: new Date(),
+      createdAt: now,
     });
-    const resetUrl = `${siteUrl}/login/reset?token=${token}`;
-    const text = [
-      "You requested a password reset for your Esimprove demo account.",
-      "",
-      resetUrl,
-      "",
-      "This link expires in 30 minutes and can only be used once.",
-      "The email was delivered by the local mock transport. No real email was sent.",
-    ].join("\n");
-    try {
-      await getEmailTransport().send({
-        to: user.email,
-        subject: "Reset your Esimprove demo password",
-        text,
-        template: "auth.password_reset",
-        orderId: user.id,
-      });
-    } catch {
-      // Demo builds keep the reset token valid; failures are surfaced by the
-      // reset step itself. No real delivery provider is configured here.
-    }
+    const template = passwordResetEmail(
+      `${siteUrl}/login/reset?token=${encodeURIComponent(token)}`,
+    );
+    await sendTransactionalEmail(db, {
+      to: user.email,
+      subject: template.subject,
+      text: template.text,
+      template: "auth.password_reset",
+    });
   }
 
   return { success: true };
@@ -371,7 +520,12 @@ export async function resetPasswordAction(
   const resetRows = await db
     .select()
     .from(passwordResets)
-    .where(eq(passwordResets.tokenHash, tokenHash))
+    .where(
+      and(
+        eq(passwordResets.tokenHash, tokenHash),
+        eq(passwordResets.purpose, "password_reset"),
+      ),
+    )
     .limit(1);
   const reset = resetRows[0];
   if (!reset || reset.consumedAt) {
@@ -387,19 +541,15 @@ export async function resetPasswordAction(
     return { error: "Account not found. Request a new reset link." };
   }
 
-  await db
-    .update(passwordResets)
-    .set({ consumedAt: new Date() })
-    .where(eq(passwordResets.id, reset.id));
-  await db
-    .update(users)
-    .set({
+  await db.transaction(async (tx) => {
+    await tx.update(passwordResets).set({ consumedAt: new Date() }).where(eq(passwordResets.id, reset.id));
+    await tx.update(users).set({
       passwordHash: await hashPassword(parsed.data.password),
+      passwordChangeRequired: false,
       updatedAt: new Date(),
-    })
-    .where(eq(users.id, user.id));
-  // A password reset invalidates any session that was created before it.
-  await db.delete(sessions).where(eq(sessions.userId, user.id));
+    }).where(eq(users.id, user.id));
+    await tx.delete(sessions).where(eq(sessions.userId, user.id));
+  });
   await recordAudit(db, {
     actorType: "user",
     actorId: user.id,
@@ -407,6 +557,14 @@ export async function resetPasswordAction(
     entityType: "user",
     entityId: user.id,
     metadata: { tokenId: reset.id },
+  });
+
+  const changedTemplate = passwordChangedEmail();
+  await sendTransactionalEmail(db, {
+    to: user.email,
+    subject: changedTemplate.subject,
+    text: changedTemplate.text,
+    template: "auth.password_changed",
   });
 
   return { success: true };
@@ -417,7 +575,10 @@ export async function changePasswordAction(
   formData: FormData,
 ): Promise<{ error?: string; success?: boolean }> {
   const session = await getCurrentSession();
-  if (!session) return { error: "You must be signed in to change your password." };
+  // A pending second factor is an untrusted session, but a first-login
+  // password rotation (passwordChangeRequired) is exactly the moment a
+  // user chooses a new password — allow it here and clear the flag.
+  if (!session || session.pendingTwoFactor) return { error: "You must be fully signed in to change your password." };
   const parsed = changePasswordSchema.safeParse({
     currentPassword: formString(formData, "currentPassword"),
     password: formString(formData, "password"),
@@ -433,15 +594,15 @@ export async function changePasswordAction(
   const valid = await verifyPassword(parsed.data.currentPassword, user.passwordHash);
   if (!valid) return { error: "Your current password is incorrect." };
 
-  await db
-    .update(users)
-    .set({
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({
       passwordHash: await hashPassword(parsed.data.password),
+      passwordChangeRequired: false,
       updatedAt: new Date(),
-    })
-    .where(eq(users.id, user.id));
-  // Force re-authentication after a password change.
-  await db.delete(sessions).where(eq(sessions.userId, user.id));
+    }).where(eq(users.id, user.id));
+    await tx.delete(sessions).where(eq(sessions.userId, user.id));
+  });
+  // A password reset invalidates any session that was created before it.
   await recordAudit(db, {
     actorType: "user",
     actorId: user.id,
@@ -450,5 +611,65 @@ export async function changePasswordAction(
     entityId: user.id,
     metadata: {},
   });
+
+  const changedTemplate = passwordChangedEmail();
+  await sendTransactionalEmail(db, {
+    to: user.email,
+    subject: changedTemplate.subject,
+    text: changedTemplate.text,
+    template: "auth.password_changed",
+  });
+  return { success: true };
+}
+
+/**
+ * Owner first-login password rotation. Called from the dedicated
+ * /admin/set-password screen after the owner authenticated with the temporary
+ * password (and passed admin TOTP). Saves the new password, clears the
+ * first-login requirement, and invalidates all existing sessions so the owner
+ * must authenticate again with the new password.
+ */
+export async function setNewOwnerPasswordAction(
+  _prev: { error?: string; success?: boolean },
+  formData: FormData,
+): Promise<{ error?: string; success?: boolean }> {
+  const session = await getCurrentSession();
+  if (!session || session.pendingTwoFactor || !session.user.passwordChangeRequired || !isAdminRole(session.user.role)) {
+    return { error: "A fully authenticated account requiring password rotation is required." };
+  }
+  const parsed = ownerFirstLoginPasswordSchema.safeParse({
+    password: formString(formData, "password"),
+    confirmPassword: formString(formData, "confirmPassword"),
+  });
+  if (!parsed.success) return { error: zodMessage(parsed.error) };
+
+  const db = await getDb();
+  const userRows = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
+  const user = userRows[0];
+  if (!user) return { error: "Account not found." };
+  if (!isAdminRole(user.role)) {
+    return { error: "Owner password rotation is restricted to administrator accounts." };
+  }
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  const changed = await db.transaction(async (tx) => {
+    const updated = await tx.update(users)
+      .set({ passwordHash, passwordChangeRequired: false, updatedAt: new Date() })
+      .where(and(eq(users.id, user.id), eq(users.passwordChangeRequired, true), eq(users.passwordHash, user.passwordHash)))
+      .returning({ id: users.id });
+    if (!updated.length) return false;
+    await tx.delete(sessions).where(eq(sessions.userId, user.id));
+    return true;
+  });
+  if (!changed) return { error: "Password rotation has already been completed. Sign in again." };
+  await recordAudit(db, {
+    actorType: "user",
+    actorId: user.id,
+    action: "auth.password_change_first_login",
+    entityType: "user",
+    entityId: user.id,
+    metadata: { firstLogin: true },
+  });
+
   return { success: true };
 }

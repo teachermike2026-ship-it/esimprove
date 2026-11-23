@@ -12,18 +12,17 @@ export default function ErrorPage({
 }) {
   return (
     <div className="not-found">
-      <span className="badge badge-danger">Demo error</span>
-      <h1>Something went wrong locally</h1>
+      <span className="badge badge-danger">Error</span>
+      <h1>Something went wrong</h1>
       <p className="lead">
-        The demo server could not complete that request. No real payment, supplier order, or
-        email was involved.
+        The server could not complete that request. No payment was taken and no eSIM was
+        activated as part of the failed step.
       </p>
       <div className="callout callout-warning">
         <AlertIcon className="inline-icon" />
         <p>
-          The request failed without exposing internal details. Check the local server log
-          for the diagnostic entry.
-          {error.digest ? ` · reference ${error.digest}` : ""}
+          Please try again. If the problem continues, contact support with the reference
+          below.{error.digest ? ` Reference ${error.digest}` : ""}
         </p>
       </div>
       <div className="hero-actions">

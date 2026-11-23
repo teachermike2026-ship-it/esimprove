@@ -6,7 +6,7 @@ import { ArrowRight, QrIcon } from "@/components/icons";
 export const metadata: Metadata = {
   title: "Compatibility checker",
   description:
-    "An illustrative device compatibility guide for eSIM. Verify support with the manufacturer before buying.",
+    "A device compatibility guide for eSIM. Verify support with the manufacturer before buying.",
   alternates: { canonical: "/compatibility" },
 };
 
@@ -18,8 +18,8 @@ export default function CompatibilityPage() {
           <p className="eyebrow">Device check</p>
           <h1>Is your phone eSIM-ready?</h1>
           <p className="lead">
-            Use this conservative, illustrative checker as a starting point. The reliable
-            answer comes from the device itself and the manufacturer&apos;s documentation.
+            Use this checker as a starting point. The reliable answer comes from the device
+            itself and the manufacturer&apos;s documentation.
           </p>
         </div>
       </div>

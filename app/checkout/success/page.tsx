@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { getCurrentUser } from "@/lib/auth/session";
 import { canViewOrder, getOrderViewByNumber } from "@/lib/orders";
 import { OrderDetail } from "@/components/order-detail";
-import { EmptyState } from "@/components/empty-state";
-import { AlertIcon, ArrowRight } from "@/components/icons";
+import { ArrowRight } from "@/components/icons";
 
 export const metadata: Metadata = {
-  title: "Demo order confirmation",
+  title: "Order confirmation",
   robots: { index: false, follow: false },
 };
 
@@ -19,21 +19,13 @@ export default async function CheckoutSuccessPage({
 }) {
   const { order: orderNumber, token } = await searchParams;
   if (!orderNumber) {
-    return (
-      <EmptyState title="No order reference" action={{ href: "/plans", label: "Browse demo plans" }}>
-        This confirmation page needs an order number and an access token.
-      </EmptyState>
-    );
+    notFound();
   }
 
   const db = await getDb();
   const view = await getOrderViewByNumber(db, orderNumber);
   if (!view) {
-    return (
-      <EmptyState title="Order not found" action={{ href: "/plans", label: "Browse demo plans" }}>
-        The demo order could not be found. Check the link from the mock payment page.
-      </EmptyState>
-    );
+    notFound();
   }
 
   const user = await getCurrentUser();
@@ -43,32 +35,32 @@ export default async function CheckoutSuccessPage({
     token: token ?? null,
   });
   if (!allowed) {
-    return (
-      <EmptyState title="Order access required" action={{ href: "/portal", label: "Open customer portal" }}>
-        Use the access link from the demo email or sign in as the customer who placed the
-        order.
-      </EmptyState>
-    );
+    notFound();
   }
+
+  const paid = view.order.paymentStatus === "paid";
+  const failed = view.order.paymentStatus === "failed";
 
   return (
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Demo checkout complete</p>
-          <h1>Your demo order is recorded</h1>
+          <p className="eyebrow">Order</p>
+          <h1>
+            {paid
+              ? "Your order is confirmed"
+              : failed
+                ? "Payment not completed"
+                : "Your order is pending payment"}
+          </h1>
           <p className="lead">
-            The mock payment webhook was verified, the local fulfillment job ran, and the
-            activation data was stored with envelope encryption.
+            {paid
+              ? "Thank you. Your eSIM will be issued shortly, and activation details will appear in your order and in your account once it is ready."
+              : failed
+                ? "Your order was recorded, but the payment did not complete. This store has not marked the order as paid. Contact support if you need help."
+                : "We have not received a confirmed payment yet. Your order will be processed only after the payment provider confirms the payment. If you just completed payment, wait a moment and refresh this page."}
           </p>
         </div>
-      </div>
-      <div className="callout callout-warning section-tight">
-        <AlertIcon className="inline-icon" />
-        <p>
-          This is not a real purchase. No money moved, no supplier order was placed, and the
-          activation code cannot connect to a real network.
-        </p>
       </div>
       <OrderDetail view={view} accessToken={token} />
       <div className="hero-actions section-tight">

@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getDb } from "@/lib/db/client";
-import { loadLegalSettings } from "@/lib/legal";
 import { RegisterForm } from "@/components/auth-forms";
 import { UserIcon } from "@/components/icons";
 
@@ -15,15 +13,14 @@ export const metadata: Metadata = {
 export default async function RegisterPage() {
   const user = await getCurrentUser();
   if (user) redirect("/portal");
-  const legal = await loadLegalSettings(await getDb());
 
   return (
     <div className="auth-layout">
       <section className="auth-copy">
         <p className="eyebrow">Customer account</p>
-        <h1>Create a demo account</h1>
+        <h1>Create your account</h1>
         <p className="lead">
-          An account keeps your demo orders together and lets you reopen activation details
+          An account keeps your orders together and lets you reopen activation details
           without a guest link. It does not create a real customer record for any live service.
         </p>
         <ul className="check-list">
@@ -31,7 +28,7 @@ export default async function RegisterPage() {
             <UserIcon className="inline-icon" /> Use a fictional email address if you prefer.
           </li>
           <li>
-            <UserIcon className="inline-icon" /> No verification email is sent in this build.
+            <UserIcon className="inline-icon" /> Verify your email from your profile once you sign in.
           </li>
           <li>
             <UserIcon className="inline-icon" /> You can still check out as a guest.
@@ -39,11 +36,7 @@ export default async function RegisterPage() {
         </ul>
       </section>
       <section className="auth-form">
-        <RegisterForm
-          termsVersion={legal.termsVersion}
-          privacyVersion={legal.privacyVersion}
-          minimumAge={legal.minimumAge}
-        />
+        <RegisterForm />
         <p className="form-note" style={{ textAlign: "center" }}>
           Already have an account? <Link href="/login">Sign in</Link>.
         </p>

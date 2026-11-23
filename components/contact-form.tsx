@@ -31,10 +31,10 @@ export function ContactForm({ defaultEmail = "", defaultName = "" }: {
           <CheckIcon className="inline-icon" />
           <div>
             <p>
-              <strong>Message recorded.</strong>{" "}
+              <strong>Message received.</strong>{" "}
               {state.ticketId ? (
                 <>
-                  Local ticket reference: <code>{state.ticketId}</code>.
+                  Reference: <code>{state.ticketId}</code>. Keep it for your records.
                 </>
               ) : null}
             </p>
@@ -68,8 +68,8 @@ export function ContactForm({ defaultEmail = "", defaultName = "" }: {
             defaultValue={defaultEmail}
           />
           <p className="form-note">
-            This build does not send email. The address is stored on the local support ticket so an
-            administrator can identify the requester.
+            If you are contacting us about an order, use the email address on the order so we can
+            find it quickly.
           </p>
         </div>
         <div className="field">
@@ -108,14 +108,13 @@ export function ContactForm({ defaultEmail = "", defaultName = "" }: {
         <label className="checkbox">
           <input type="checkbox" name="privacyNotice" required />
           <span>
-            I understand this message is stored as a local support ticket for administrator review
-            and that no email or live support response is generated in this build. See the{" "}
-            <Link href="/legal/privacy">Privacy Policy</Link>.
+            I understand that ESIMPROVE will use the details I provide to handle my request, as
+            described in the <Link href="/legal/privacy">Privacy Policy</Link>.
           </span>
         </label>
         <button className="button" type="submit" disabled={pending}>
           <MailIcon className="inline-icon" />
-          {pending ? "Recording message…" : "Send message"}
+          {pending ? "Sending…" : "Send message"}
         </button>
       </form>
     </div>

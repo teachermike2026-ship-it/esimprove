@@ -76,7 +76,7 @@ export function verifyTotp(
   return false;
 }
 
-export function otpauthUrl(secret: string, email: string, issuer = "eSIMprove Demo"): string {
+export function otpauthUrl(secret: string, email: string, issuer = "Esimprove"): string {
   const label = encodeURIComponent(`${issuer}:${email}`);
   const params = new URLSearchParams({
     secret,

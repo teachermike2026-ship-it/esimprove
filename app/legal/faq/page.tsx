@@ -1,47 +1,49 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { noIndex } from "@/lib/config";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
 
 export const metadata: Metadata = {
   title: "Legal FAQ",
   description:
-    "Where to find answers about the demonstration storefront, legal drafts, privacy requests, and current limitations.",
+    "Answers about ESIMPROVE legal documents, orders, refunds, privacy requests, and cookies.",
   alternates: { canonical: "/legal/faq" },
-  robots: noIndex
-    ? { index: false, follow: false, nocache: true }
-    : { index: true, follow: true },
 };
 
 const items = [
   {
-    question: "Are the legal documents final?",
+    question: "Are the legal documents current?",
     answer:
-      "No. The privacy, terms, refund, cookie, and accessibility pages are drafts based on what this build actually does. Business identity, jurisdiction, refund rules, and final wording still require owner and legal input.",
+      "Yes. The terms, privacy, refund, cookie, accessibility, and legal FAQ pages are the current published versions of ESIMPROVE's legal documents and describe how the service works today.",
   },
   {
-    question: "Does this site claim GDPR, CCPA, or WCAG compliance?",
+    question: "Does ESIMPROVE claim GDPR, CCPA, or WCAG certification?",
     answer:
-      "No. The site implements consent, privacy-request, retention, and accessibility measures, but it does not claim certification or legal compliance. Compliance depends on the final business, contracts, jurisdiction, and an independent review.",
+      "No. ESIMPROVE implements consent, privacy-request, retention, and accessibility measures as part of the service, but it is not certified and does not claim regulatory approval. Mandatory consumer protection and privacy laws applicable in your country continue to apply.",
   },
   {
-    question: "Can I buy a live eSIM here?",
+    question: "How do I buy an eSIM?",
     answer:
-      "No. The catalogue and checkout are demonstrations. No live payment is taken, no supplier is connected, and no real eSIM is provisioned or activated.",
+      "Browse the catalogue, choose a plan for your destination, and complete checkout. Your installation details become available in your account and by the contact email used for the order once the order is fulfilled.",
+  },
+  {
+    question: "Can I get a refund?",
+    answer:
+      "Unused eSIMs that have not been installed, activated, or connected to a network are refundable. After activation, use, or connection, refunds are available only for the reasons described in the refund policy — for example provisioning failure, duplicate charges, or misdescription — or where mandatory consumer law in your country requires it.",
   },
   {
     question: "How do I ask for my data or request deletion?",
     answer:
-      "Use the privacy request form. Deletion requests that could affect an account require identity verification and administrator review. Financial and audit records may be retained where legally required.",
+      "Use the privacy request form. Deletion requests that could affect an account require identity verification. Financial and audit records may be retained where the law requires them.",
   },
   {
-    question: "Is customer support live?",
+    question: "How do I contact support?",
     answer:
-      "No. The contact form stores a local support ticket for administrator review, but no support inbox, chat, telephone line, or response-time promise is connected in this build.",
+      "Email contact@esimprove.com or use the contact page. Please include your order reference where relevant. There is no telephone support line.",
   },
   {
     question: "Where are the main product FAQs?",
     answer:
-      "The homepage FAQ covers eSIM basics, installation, compatibility, validity, hotspot use, and demo limitations. It does not claim live coverage or supplier relationships.",
+      "The homepage FAQ covers eSIM basics, installation, compatibility, validity, and hotspot use.",
   },
 ];
 
@@ -49,11 +51,10 @@ export default function LegalFaqPage() {
   return (
     <div className="legal-page">
       <header className="legal-header">
-        <p className="eyebrow">Legal &amp; compliance</p>
+        <p className="eyebrow">Legal</p>
         <h1>Legal FAQ</h1>
         <p className="lead">
-          Short answers about the status of the legal drafts and the limits of this demonstration
-          build.
+          Short answers about ESIMPROVE legal documents and how to exercise your rights.
         </p>
       </header>
 
@@ -66,9 +67,10 @@ export default function LegalFaqPage() {
         ))}
         <p>
           See the <Link href="/legal">legal hub</Link>, the{" "}
-          <Link href="/legal/privacy">privacy policy</Link>, the{" "}
-          <Link href="/legal/refunds">refund draft</Link>, or the{" "}
-          <Link href="/#faq">main FAQ</Link>.
+          <Link href="/legal/privacy">Privacy policy</Link>, the{" "}
+          <Link href="/legal/refunds">Refund policy</Link>, or the{" "}
+          <Link href="/#faq">main FAQ</Link>. You can also email us at{" "}
+          <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>.
         </p>
       </article>
     </div>

@@ -109,7 +109,7 @@ export async function addCartItem(
     .where(and(eq(plans.id, planId), eq(plans.status, "published")))
     .limit(1);
   const plan = planRows[0];
-  if (!plan) throw new Error("That demo plan is not available.");
+  if (!plan) throw new Error("That plan is not available right now.");
 
   const existing = await db
     .select()

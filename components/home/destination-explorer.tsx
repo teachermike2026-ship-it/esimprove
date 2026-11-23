@@ -99,8 +99,7 @@ export function DestinationExplorer({
                 </span>
               </span>
               <span className="es-destination-note">
-                {destination.planCount} plan option{destination.planCount === 1 ? "" : "s"} ·
-                demo data
+                {destination.planCount} plan option{destination.planCount === 1 ? "" : "s"}
               </span>
             </Link>
           ))}
@@ -157,7 +156,7 @@ export function DestinationExplorer({
           {view === "popular" ? "See all countries" : "See all regions"}
           <ArrowRight />
         </Link>
-        <p>Demo catalogue · prices and availability are illustrative, not live quotes.</p>
+        <p>Digital delivery · install before you travel</p>
       </div>
     </div>
   );

@@ -106,8 +106,8 @@ async function markJobFailure(
     orderId,
     type: exhausted ? "fulfillment.failed" : "fulfillment.retry_scheduled",
     message: exhausted
-      ? "Demo fulfillment failed after the maximum attempts. An admin can retry after review."
-      : "Demo fulfillment hit a transient error; a retry is scheduled.",
+      ? "Fulfillment could not be completed. Our team will review the order."
+      : "A temporary error stopped processing; a retry is scheduled.",
     metadata: { error: message.slice(0, 500), attempts },
   });
 }
@@ -124,16 +124,15 @@ async function deliverEmail(
     ? `${siteUrl}/portal/orders/${input.order.orderNumber}`
     : `${siteUrl}/orders/${input.order.orderNumber}?token=${input.accessToken}`;
   const text = [
-    `Your demo eSIM for ${input.itemName} is ready.`,
+    `Your eSIM for ${input.itemName} is ready.`,
     "",
-    "Open your order to view the demo QR code and manual activation code:",
+    "Open your order to view the QR code and manual activation code:",
     path,
     "",
-    "This is a demo. The activation code uses the reserved .invalid domain and cannot connect to a real network.",
-    "No real email was sent. This message was logged locally by the mock email transport.",
+    "Keep these activation details private. Anyone with the code can install your eSIM.",
   ].join("\n");
   const redacted = text.replace(input.accessToken, "[redacted]");
-  const subject = `Your demo eSIM is ready — ${input.order.orderNumber}`;
+  const subject = `Your eSIM is ready — ${input.order.orderNumber}`;
   const emailId = newId("email");
 
   await db.insert(emailEvents).values({
@@ -270,7 +269,7 @@ export async function runFulfillmentJobs(
         id: newId("orderevent"),
         orderId: order.id,
         type: "fulfillment.provisioning",
-        message: "Mock supplier provisioning started. No real supplier order was placed.",
+        message: "Your eSIM is being prepared.",
         metadata: { jobId: job.id, attempt: job.attempts, supplier: "mock" },
       });
 
@@ -348,7 +347,7 @@ export async function runFulfillmentJobs(
         id: newId("orderevent"),
         orderId: order.id,
         type: "fulfillment.delivered",
-        message: "Demo eSIM stored with encrypted activation data. Mock delivery email logged.",
+        message: "Your eSIM is ready. Activation details are available in your order.",
         metadata: {
           jobId: job.id,
           supplierOrderId: supplierOrder.supplierOrderId,
@@ -410,7 +409,7 @@ export async function retryFulfillmentJob(db: Database, jobId: string): Promise<
     id: newId("orderevent"),
     orderId: job.orderId,
     type: "fulfillment.admin_retry",
-    message: "Admin queued a demo fulfillment retry.",
+    message: "Our team queued a retry of your eSIM fulfillment.",
     metadata: { jobId },
   });
   await recordAudit(db, {

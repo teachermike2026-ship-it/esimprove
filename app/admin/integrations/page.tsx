@@ -87,7 +87,7 @@ export default async function AdminIntegrationsPage({
           )}
           <p className="small muted">
             <ShieldIcon className="inline-icon" /> Connection settings, tests, and sync are not
-            implemented. No outbound supplier request is available in this demo.
+            implemented. No outbound supplier request is available in this build.
           </p>
         </section>
       ))}

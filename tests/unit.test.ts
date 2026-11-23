@@ -207,7 +207,7 @@ describe("TOTP", () => {
     const url = otpauthUrl("JBSWY3DPEHPK3PXP", "demo@example.com");
     expect(url).toContain("otpauth://totp/");
     expect(url).toContain("secret=JBSWY3DPEHPK3PXP");
-    expect(url).toContain("issuer=eSIMprove");
+    expect(url).toContain("issuer=Esimprove");
   });
 });
 

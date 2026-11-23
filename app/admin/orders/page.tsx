@@ -21,9 +21,9 @@ export default async function AdminOrdersPage() {
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Demo operations</p>
+          <p className="eyebrow">Operations</p>
           <h1>Orders</h1>
-          <p className="muted">All local demo orders, newest first.</p>
+          <p className="muted">All local orders, newest first.</p>
         </div>
       </div>
       {orders.length === 0 ? (

@@ -32,9 +32,7 @@ async function main(): Promise<void> {
     );
   }
 
-  const target = connectionString
-    ? `PostgreSQL host ${new URL(connectionString).hostname}`
-    : `PGlite (${process.env.PGLITE_DATA_DIR || ".pglite"})`;
+  const target = connectionString ? "PostgreSQL (target redacted)" : `PGlite (local directory)`;
   console.log(`Seeding demo catalogue into ${target} (APP_ENV=${appEnv})...`);
 
   const handle = await createDatabase(

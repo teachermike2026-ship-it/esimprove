@@ -25,7 +25,7 @@ const operatorTasks = [
   {
     task: "Review analytics",
     where: "/admin/analytics",
-    note: "Administrator-only, first-party demo analytics. GA4 stays disabled unless consent and a measurement ID are configured.",
+    note: "Administrator-only, first-party analytics. GA4 stays disabled unless consent and a measurement ID are configured.",
   },
   {
     task: "Manage retention and legal records",

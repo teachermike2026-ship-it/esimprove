@@ -17,16 +17,16 @@ async function main(): Promise<void> {
   }
 
   const connectionString =
-    process.env.DATABASE_MIGRATION_URL?.trim() || process.env.DATABASE_URL?.trim();
+    process.env.DATABASE_MIGRATION_URL?.trim() ||
+    (DEPLOYED_CONTEXTS.has(appEnv) ? "" : process.env.DATABASE_URL?.trim());
   if (DEPLOYED_CONTEXTS.has(appEnv) && !connectionString) {
     throw new Error(
-      `Refusing to migrate APP_ENV=${appEnv} without DATABASE_MIGRATION_URL or DATABASE_URL; no local PGlite fallback is allowed for a deployed context.`,
+      `Refusing to migrate APP_ENV=${appEnv} without DATABASE_MIGRATION_URL. ` +
+        "Use the direct/session connection string; the pooled runtime URL is not safe for session advisory locks.",
     );
   }
 
-  const target = connectionString
-    ? `PostgreSQL host ${new URL(connectionString).hostname}`
-    : `PGlite (${process.env.PGLITE_DATA_DIR || ".pglite"})`;
+  const target = connectionString ? "PostgreSQL (target redacted)" : `PGlite (local directory)`;
   console.log(`Applying migrations to ${target} (APP_ENV=${appEnv})...`);
 
   const handle = await createDatabase(

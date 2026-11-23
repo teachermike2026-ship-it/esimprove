@@ -1,33 +1,26 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getDb } from "@/lib/db/client";
-import { loadLegalSettings } from "@/lib/legal";
 import {
   BusinessDetails,
   LegalDocumentFooter,
   LegalDocumentHeader,
   SupportChannelNotice,
 } from "@/components/legal-document";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
 
 export const metadata: Metadata = {
   title: "Terms of service",
   description:
-    "Draft terms covering accounts, eSIM compatibility, data plans, orders, payment, delivery, liability, and disputes.",
+    "Terms of service covering accounts, eSIM compatibility, data plans, orders, payment, digital delivery, refunds, liability, and disputes for the ESIMPROVE platform.",
   alternates: { canonical: "/legal/terms" },
 };
 
-export const dynamic = "force-dynamic";
-
-export default async function TermsPage() {
-  const settings = await loadLegalSettings(await getDb());
-
+export default function TermsPage() {
   return (
     <div className="legal-page">
       <LegalDocumentHeader
-        settings={settings}
-        documentKey="terms"
         title="Terms of service"
-        intro="These terms govern use of the Esimprove website and any account or order created through it. They describe the demo limitations in this build and the conditions that must be finalised with the owner's supplier, payment, and legal advisers before live sales."
+        intro="These terms govern use of the ESIMPROVE website and any account, order, or purchase made through it. They describe your rights and responsibilities, how orders and digital delivery work, and the rules that apply to the platform."
       />
 
       <article className="card form prose legal-body">
@@ -35,36 +28,45 @@ export default async function TermsPage() {
           <h2 id="terms-agreement">1. Agreement and scope</h2>
           <p>
             By using the website, creating an account, or placing an order, you agree to these
-            terms and the documents they link to. If you do not agree, do not use the service.
-            These terms do not limit mandatory rights you have under consumer law.
+            terms and to the documents they link to, including the{" "}
+            <Link href="/legal/privacy">Privacy Policy</Link>,{" "}
+            <Link href="/legal/refunds">Refund policy</Link>, and{" "}
+            <Link href="/legal/cookies">Cookie policy</Link>. If you do not agree, do not use
+            the service.
           </p>
           <p>
-            This build is a demonstration storefront. No live eSIM is provisioned, no real
-            payment is taken, and no real transactional or marketing email is sent.
+            Nothing in these terms excludes or limits any right you have under mandatory consumer
+            protection or data protection law in your country of residence.
           </p>
         </section>
 
         <section aria-labelledby="terms-business">
           <h2 id="terms-business">2. Who we are</h2>
           <p>
-            The service is operated by the business identified in the business details below. If
-            no verified legal entity, address, registration number, or jurisdiction is shown, the
-            operator identity is not configured and these terms are not ready for publication.
+            ESIMPROVE is an online digital services platform operating as an online brand. It is
+            operated by ESIMPROVE from Vietnam, a provisional operating location, and is not a
+            registered company in Vietnam or elsewhere. It does not hold or claim a company
+            registration number, VAT number, telephone support line, or registered office. There is
+            no public physical office; the platform operates online only.
+          </p>
+          <p>
+            Contact is handled online only, at{" "}
+            <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>. See the business
+            and contact details below for the full contact information.
           </p>
         </section>
 
         <section aria-labelledby="terms-eligibility">
           <h2 id="terms-eligibility">3. Eligibility and age</h2>
           <p>
-            You must be able to enter a binding contract where you live. The site is not directed
-            at children, and no date of birth is requested. The owner has not yet set a specific
-            minimum age. If you are below the age of majority, use the service only with a parent
-            or guardian&apos;s agreement. The final age position must be confirmed by the owner
-            and legal adviser.
+            You must be able to enter a binding contract where you live. You must be at least the
+            age of majority in your country of residence, or use the service with the agreement of
+            a parent or guardian who accepts these terms on your behalf. The site is not directed
+            at children.
           </p>
           <p>
             You must not use the service if you are barred by applicable law or sanctions, or if
-            you are using it for prohibited activity described below.
+            you intend to use it for any prohibited activity described in section 14.
           </p>
         </section>
 
@@ -72,32 +74,39 @@ export default async function TermsPage() {
           <h2 id="terms-account">4. Accounts and security</h2>
           <ul>
             <li>Provide accurate account and order information and keep it up to date.</li>
-            <li>Keep your password confidential and do not share your account.</li>
-            <li>Use a strong, unique password. Administrator accounts require TOTP two-factor authentication in this build.</li>
+            <li>Keep your password confidential and do not share your account or credentials.</li>
             <li>
-              Tell the operator promptly if you believe your account or an authentication factor
-              has been compromised. No live support inbox is connected in this demo.
+              Use a strong, unique password. Administrator accounts are protected by two-factor
+              authentication.
             </li>
             <li>
-              The operator may suspend or restrict an account to protect the service, investigate
-              fraud or abuse, comply with law, or enforce these terms. Where appropriate, the
-              reason will be explained.
+              Tell us promptly at{" "}
+              <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> if you believe
+              your account or an authentication factor has been compromised.
+            </li>
+            <li>
+              You are responsible for activity that occurs under your account, including purchases,
+              until you notify us of the compromise and we suspend the account.
+            </li>
+            <li>
+              We may suspend or restrict an account to protect the service, investigate fraud or
+              abuse, comply with law, or enforce these terms. Where appropriate, we will explain
+              the reason and how to restore access.
             </li>
           </ul>
         </section>
 
         <section aria-labelledby="terms-products">
-          <h2 id="terms-products">5. Product descriptions and demo catalogue</h2>
+          <h2 id="terms-products">5. Product descriptions and catalogue</h2>
           <p>
-            Plans are described by destination, data allowance, validity, and price. Catalogue
-            rows in this build are demonstration data, not live supplier offers. A live
-            storefront must display the actual supplier plan, network, validity, activation
-            conditions, restrictions, and price before purchase.
+            Plans are described by destination, data allowance, validity, and price. We aim to
+            present accurate plan descriptions before purchase; the plan page shown at checkout is
+            part of the agreement for that order.
           </p>
           <p>
-            Images, QR graphics, and installation illustrations are illustrative unless a live
-            order supplies an actual activation code. A displayed demo QR code cannot activate a
-            real eSIM.
+            Images, icons, and QR graphics shown in guides are visual aids and may not
+            represent an actual activation code for your plan. The plan page for your order
+            shows the actual product details that apply to your purchase.
           </p>
         </section>
 
@@ -106,13 +115,16 @@ export default async function TermsPage() {
           <p>
             You need an eSIM-capable, carrier-unlocked device. Compatibility depends on the exact
             model, manufacturing region, operating-system version, and carrier configuration. A
-            compatibility checker or general article is guidance only and is not a guarantee.
+            compatibility checker or compatibility article is guidance only and is not a guarantee.
             Confirm support with the device manufacturer and your carrier before buying.
           </p>
           <p>
-            You are responsible for checking that the device can install a second eSIM or mobile
-            plan, that it supports the relevant radio bands, and that it is not subject to a
-            carrier lock or management profile that prevents installation.
+            You are responsible for checking that your device can install an additional eSIM or
+            mobile plan, that it supports the relevant radio bands, and that it is not subject to a
+            carrier lock or management profile that prevents installation. If your device turns out
+            to be incompatible and the eSIM has not been installed or activated, contact us before
+            activating it; the <Link href="/legal/refunds">Refund policy</Link> explains your
+            options.
           </p>
         </section>
 
@@ -121,9 +133,8 @@ export default async function TermsPage() {
           <p>
             Destination lists describe where a plan is intended to be used. Actual coverage,
             network availability, speed, technology, and service quality depend on local mobile
-            operators, your device, terrain, building materials, network congestion, and
-            regulatory restrictions. No specific speed, technology, or uninterrupted coverage is
-            promised.
+            operators, your device, terrain, building materials, network congestion, and regulatory
+            restrictions. No specific speed, technology, or uninterrupted coverage is promised.
           </p>
           <p>
             A regional plan may not work in every country in the region. Check the plan details
@@ -134,10 +145,9 @@ export default async function TermsPage() {
         <section aria-labelledby="terms-plans">
           <h2 id="terms-plans">8. Data plans, validity, and activation</h2>
           <p>
-            Validity and activation rules differ by supplier and product. Some plans begin when
-            the eSIM first connects to a network; others begin at purchase or installation. The
-            final rule must be shown on the live plan page before payment. This demo does not
-            sell live plans and does not activate an eSIM.
+            Validity and activation rules differ by product. Some plans begin when the eSIM first
+            connects to a network; others begin at purchase or installation. The activation rule
+            for each plan is shown on the plan page before payment.
           </p>
           <p>
             Install and test the eSIM before travelling where the plan permits it. Keep the QR
@@ -146,72 +156,70 @@ export default async function TermsPage() {
           </p>
           <p>
             Data allowances, throttling, hotspot availability, and fair-use restrictions depend on
-            the supplier and network. Plans are not unlimited unless the live supplier terms
-            expressly say so and describe the applicable restrictions.
+            the underlying mobile network and supplier terms. Plans are not unlimited unless the
+            plan description expressly says so and describes the applicable restrictions.
           </p>
         </section>
 
         <section aria-labelledby="terms-fair-use">
           <h2 id="terms-fair-use">9. Fair use</h2>
           <p>
-            You must comply with supplier and network fair-use rules. Prohibited uses may include
-            reselling access, automated or fraudulent traffic, using the service to break the law,
-            interfering with a network, or using the SIM in a way the supplier prohibits. A
-            supplier may suspend or restrict service for a violation, subject to applicable law
-            and any mandatory consumer protections.
+            You must comply with the supplier and network fair-use rules that apply to your plan.
+            Prohibited uses may include reselling access, automated or fraudulent traffic, using
+            the service to break the law, interfering with a network, or any other use the
+            supplier prohibits. A supplier may suspend or restrict service for a violation, subject
+            to applicable law and any mandatory consumer protections.
           </p>
         </section>
 
         <section aria-labelledby="terms-orders">
           <h2 id="terms-orders">10. Orders, prices, tax, and payment</h2>
           <p>
-            An order is an offer to buy subject to acceptance and successful payment. The
-            checkout shows the plan, quantity, currency, subtotal, tax calculation, and total
-            before you continue to payment. The amount shown on the payment step is the amount
-            due for that order. No additional fee is added later by this build.
+            An order is an offer to buy, subject to acceptance and successful payment. The checkout
+            shows the plan, quantity, currency, subtotal, tax treatment, and total before you
+            continue to payment. The amount shown at the payment step is the amount due for that
+            order. No additional fee is added later by ESIMPROVE.
           </p>
           <p>
-            The demo uses a mock payment page and signed mock webhook. No card details are
-            requested, no processor is contacted, and no money moves. A live payment provider must
-            be selected, contracted, and configured before live sales; its terms and
-            authentication requirements will also apply.
+            Prices may change before an order is accepted; the price shown at checkout applies to
+            that checkout session. Where tax applies, it is shown at checkout before payment. Where
+            no tax is added at this time, no tax will be added later for that order.
           </p>
           <p>
-            Where tax is not configured, the demo adds none and says so. The owner must confirm
-            tax registration, rates, invoices, and recordkeeping for each jurisdiction before
-            production. Prices may change before an order is accepted; the price shown at
-            checkout applies to that checkout session.
+            We may cancel and refund an order that cannot be fulfilled, that appears fraudulent, or
+            that was placed in error due to a pricing or catalogue mistake. You will be notified and
+            refunded in full in those cases.
           </p>
         </section>
 
         <section aria-labelledby="terms-delivery">
-          <h2 id="terms-delivery">11. Delivery and fulfilment</h2>
+          <h2 id="terms-delivery">11. Digital delivery and fulfilment</h2>
           <p>
-            eSIM products are digital. In a live storefront, delivery usually means making
-            installation details available in your account, by email, or on the order page.
-            Delivery is not a guarantee that installation will succeed on an incompatible or
-            locked device.
+            eSIM products are digital. Delivery means making the installation details and
+            activation information available to you in your account, by the contact email used for
+            the order, or on the order page. Delivery is not a guarantee that installation will
+            succeed on an incompatible or locked device.
           </p>
           <p>
-            In this demo, fulfilment is simulated. No real eSIM, QR activation code, or supplier
-            order is created. You can inspect the demo order and activation record in the portal,
-            but it cannot connect to a network.
+            Where available, order and activation status can be inspected in your customer portal
+            or through the order link included with your order confirmation.
           </p>
           <p>
-            If a live order is paid but delivery fails, contact support with the order reference.
-            Do not send passwords, one-time codes, or full card numbers. The operator will
-            investigate the supplier and payment records and apply the{" "}
-            <Link href="/legal/refunds">Refund policy</Link>.
+            If a paid order is not delivered, contact us at{" "}
+            <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> with the order
+            reference. Do not send passwords, one-time codes, or full card numbers. We will
+            investigate and apply the <Link href="/legal/refunds">Refund policy</Link>.
           </p>
         </section>
 
         <section aria-labelledby="terms-refunds">
           <h2 id="terms-refunds">12. Cancellation and refunds</h2>
           <p>
-            Refund eligibility depends on whether the eSIM was provisioned, installed, activated,
-            used, or misdescribed, and on the supplier and payment provider&apos;s capabilities.
-            The <Link href="/legal/refunds">Refund policy</Link> explains the review process.
-            Nothing in these terms excludes a mandatory refund or cancellation right.
+            Refund eligibility depends on whether the eSIM was delivered, provisioned, installed,
+            activated, or used, and on the nature of the issue. The{" "}
+            <Link href="/legal/refunds">Refund policy</Link> explains what is refundable and how to
+            request a refund. Nothing in these terms excludes a mandatory refund or cancellation
+            right you have under consumer law.
           </p>
         </section>
 
@@ -220,100 +228,106 @@ export default async function TermsPage() {
           <ul>
             <li>Check device compatibility, carrier lock status, and destination coverage before purchase.</li>
             <li>Provide a correct email address and order details.</li>
-            <li>Install and test the eSIM according to the supplier&apos;s instructions.</li>
+            <li>Install and test the eSIM according to the supplied or platform instructions.</li>
             <li>Keep order references and activation details secure and do not share them publicly.</li>
             <li>Use the service lawfully and follow supplier fair-use rules.</li>
-            <li>Tell the operator promptly about a failed delivery, duplicate charge, or technical fault.</li>
+            <li>Tell us promptly about a failed delivery, duplicate charge, or technical fault.</li>
           </ul>
         </section>
 
         <section aria-labelledby="terms-prohibited">
           <h2 id="terms-prohibited">14. Prohibited use</h2>
           <p>
-            You must not attempt to gain unauthorized access, bypass authentication or payment,
+            You must not attempt to gain unauthorised access, bypass authentication or payment,
             interfere with the site or another user, submit false identity or deletion requests,
-            scrape private data, distribute malware, resell services without authorization, or use
-            the service for unlawful, fraudulent, or abusive activity. The operator may investigate
-            and take reasonable protective action.
+            scrape private data, distribute malware, resell services without authorisation, or use
+            the service for unlawful, fraudulent, or abusive activity. We may investigate and take
+            reasonable protective action, including suspending accounts.
           </p>
         </section>
 
         <section aria-labelledby="terms-availability">
           <h2 id="terms-availability">15. Availability, interruptions, and third parties</h2>
           <p>
-            The website is provided on an as-available basis. Maintenance, security incidents,
-            hosting failures, network outages, supplier outages, payment-provider failures, and
-            events outside reasonable control may interrupt service. No uninterrupted availability
-            or specific response time is promised.
+            The website and the eSIM services delivered through it are provided on an as-available
+            basis. Maintenance, security incidents, hosting failures, network outages, supplier
+            outages, payment-provider failures, and events outside reasonable control may interrupt
+            service. No uninterrupted availability or specific response time is promised.
           </p>
           <p>
-            Live eSIM service will depend on third-party mobile networks, suppliers, payment
-            processors, hosting, and email providers. Their terms and limitations may also apply.
-            No partnership, certification, or endorsement is implied unless a verified
-            relationship is expressly documented.
+            eSIM service depends on third-party mobile networks, suppliers, payment processors,
+            hosting, and email providers. Their terms and limitations may also apply to you. No
+            partnership with, certification by, or endorsement from any network, supplier, or
+            provider is implied unless expressly documented.
           </p>
         </section>
 
         <section aria-labelledby="terms-ip">
           <h2 id="terms-ip">16. Intellectual property</h2>
           <p>
-            The site design, text, brand elements, and software are owned by the operator or used
-            with permission. You receive a limited, revocable, non-exclusive right to use the site
-            for personal shopping and account management. You must not copy, modify, distribute,
-            scrape, or create derivative commercial products without written permission. Supplier
-            names, network names, and third-party marks remain the property of their owners.
+            The site design, text, brand elements, and software are owned by ESIMPROVE or used with
+            permission. You receive a limited, revocable, non-exclusive right to use the site for
+            personal shopping and account management. You must not copy, modify, distribute, scrape,
+            or create derivative commercial products without written permission. Supplier names,
+            network names, and third-party marks remain the property of their owners.
           </p>
         </section>
 
         <section aria-labelledby="terms-liability">
           <h2 id="terms-liability">17. Liability</h2>
           <p>
-            To the extent permitted by law, the operator is not liable for indirect or
-            consequential loss, loss of profit, loss of opportunity, or damage caused by
-            third-party networks, suppliers, devices, or events outside reasonable control. The
-            operator is responsible for its own acts and omissions as required by law.
+            To the extent permitted by law, ESIMPROVE is not liable for indirect or consequential
+            loss, loss of profit, loss of opportunity, or damage caused by third-party networks,
+            suppliers, devices, or events outside reasonable control, except to the extent such
+            liability cannot be excluded by law.
           </p>
           <p>
             Nothing in these terms excludes or limits liability that cannot lawfully be excluded,
-            including mandatory consumer rights, fraud, or liability for death or personal injury
-            caused by negligence where the law does not permit exclusion. The final liability
-            position requires legal review for the applicable jurisdiction.
+            including mandatory consumer rights, liability for fraud or fraudulent misrepresentation,
+            or liability for death or personal injury caused by negligence where the law does not
+            permit exclusion.
           </p>
         </section>
 
         <section aria-labelledby="terms-disputes">
           <h2 id="terms-disputes">18. Disputes and governing law</h2>
           <p>
-            Contact the operator first so the issue can be investigated. The governing law and
-            courts are not configured in this build and must be chosen with legal advice. If you
-            are a consumer, you keep the protection of mandatory laws in your country of
-            residence, including any right to use a local court or alternative dispute-resolution
-            route.
+            If a dispute arises, contact us first at{" "}
+            <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> so the issue can be
+            investigated and, we hope, resolved quickly.
+          </p>
+          <p>
+            These terms are governed by the laws of Vietnam, subject to such mandatory consumer
+            protection and privacy laws as apply in your country of residence. If you are a consumer,
+            nothing in this section deprives you of the protection of mandatory provisions of the
+            law of your country of residence, including any right to bring proceedings in a local
+            court or use an alternative dispute-resolution route available to you there.
           </p>
         </section>
 
         <section aria-labelledby="terms-changes">
           <h2 id="terms-changes">19. Changes to these terms</h2>
           <p>
-            The version and effective date are shown above. Material changes will be published
-            with a new version and, where required, a new acknowledgement. The version in force
-            when an order is placed is recorded with the order.
+            Material changes will be published with a new version and effective date. Continued use
+            of the service after the effective date of a new version constitutes acceptance, except
+            where these terms or mandatory law require a fresh acknowledgement. The version in
+            force when an order is placed is recorded with the order.
           </p>
         </section>
 
         <section aria-labelledby="terms-contact">
           <h2 id="terms-contact">20. Contact</h2>
           <p>
-            Use the business contact details below or the{" "}
-            <Link href="/contact">contact page</Link>. No live support inbox or response-time
-            promise is connected in this demo.
+            Questions about these terms can be sent to{" "}
+            <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> or via the{" "}
+            <Link href="/contact">contact page</Link>.
           </p>
         </section>
       </article>
 
-      <BusinessDetails settings={settings} />
-      <SupportChannelNotice settings={settings} />
-      <LegalDocumentFooter settings={settings} documentKey="terms" />
+      <BusinessDetails />
+      <SupportChannelNotice />
+      <LegalDocumentFooter />
     </div>
   );
 }

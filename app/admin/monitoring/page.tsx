@@ -1,168 +1,118 @@
+import type { Metadata } from "next";
 import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
-import { listAdminAuditLogs } from "@/lib/admin";
+import { getOperationalHealth, listRecentAttentionEvents } from "@/lib/monitoring";
 import { formatDate } from "@/lib/money";
+import { AlertIcon, CheckIcon, ShieldIcon } from "@/components/icons";
 
-export const metadata = {
-  title: "Admin monitoring and alerts",
+export const metadata: Metadata = {
+  title: "Operational status",
   robots: { index: false, follow: false },
 };
 
 export default async function AdminMonitoringPage() {
   await requireStaff("/admin/monitoring", "monitoring");
   const db = await getDb();
-  const logs = await listAdminAuditLogs(db, 200);
-
-  const criticalEvents = logs.filter((log) =>
-    [
-      "order.payment_failed",
-      "order.fulfillment_failed",
-      "refund.requested",
-      "refund.approved",
-      "supplier.sync_failed",
-      "pricing.rule_changed",
-    ].includes(log.action),
-  );
-
-  const alertCounts = {
-    high: criticalEvents.filter((e) => e.action.includes("failed")).length,
-    medium: criticalEvents.filter((e) => e.action.includes("requested") || e.action.includes("changed")).length,
-    low: criticalEvents.filter((e) => !e.action.includes("failed") && !e.action.includes("changed") && !e.action.includes("requested")).length,
-  };
-
-  const alertRules = [
-    {
-      name: "Supplier API downtime",
-      condition: "provider.healthCheck.status = 'failed'",
-      threshold: "> 1 hour",
-      recipients: "ops-team@esimprove.com",
-    },
-    {
-      name: "Failed catalog synchronization",
-      condition: "provider.syncJob.status = 'failed'",
-      threshold: "> 3 attempts",
-      recipients: "catalog-team@esimprove.com",
-    },
-    {
-      name: "Low supplier balance",
-      condition: "provider.balance < threshold",
-      threshold: "< $1000",
-      recipients: "finance-team@esimprove.com",
-    },
-    {
-      name: "Increased fulfillment failure rate",
-      condition: "order.fulfillmentStatus = 'failed'",
-      threshold: "> 5% of daily orders",
-      recipients: "ops-team@esimprove.com",
-    },
-    {
-      name: "Payment webhook failures",
-      condition: "webhookEvent.provider = 'stripe' && webhookEvent.status = 'failed'",
-      threshold: "> 10 failures in 1 hour",
-      recipients: "payments-team@esimprove.com",
-    },
-    {
-      name: "Queue backlog",
-      condition: "fulfillmentJob.status = 'queued'",
-      threshold: "> 100 jobs",
-      recipients: "ops-team@esimprove.com",
-    },
-    {
-      name: "Repeated job failures",
-      condition: "fulfillmentJob.attempts >= 5",
-      threshold: "> 10 jobs",
-      recipients: "ops-team@esimprove.com",
-    },
-    {
-      name: "Email delivery problems",
-      condition: "emailEvent.status = 'failed'",
-      threshold: "> 5% of emails",
-      recipients: "communication-team@esimprove.com",
-    },
-    {
-      name: "Suspicious transaction spikes",
-      condition: "order.totalMinor > 10000",
-      threshold: "> 20 orders per hour",
-      recipients: "security-team@esimprove.com",
-    },
-  ];
+  const [health, recentFailures] = await Promise.all([
+    getOperationalHealth(db),
+    listRecentAttentionEvents(db, 15),
+  ]);
 
   return (
     <>
       <div className="section-heading">
         <div>
           <p className="eyebrow">Operations</p>
-          <h1>Monitoring & alerts</h1>
-          <p className="muted">Real-time operational alerts and incident history.</p>
+          <h1>Operational status</h1>
+          <p className="muted">
+            Live signals read from this database. Alerting, paging, and external dashboards are not
+            configured in this build; nothing is emailed or alerted on.
+          </p>
         </div>
+        <span className={health.attentionCount > 0 ? "badge badge-warning" : "badge"}>
+          {health.attentionCount > 0
+            ? `${health.attentionCount} check${health.attentionCount === 1 ? "" : "s"} need attention`
+            : "All checks healthy"}
+        </span>
       </div>
 
-      <div className="stat-grid">
-        <article className="card stat">
-          <span>Critical alerts</span>
-          <strong>{alertCounts.high}</strong>
-          <p className="muted small">Action required</p>
-        </article>
-        <article className="card stat">
-          <span>Medium alerts</span>
-          <strong>{alertCounts.medium}</strong>
-          <p className="muted small">Monitoring</p>
-        </article>
-        <article className="card stat">
-          <span>Low alerts</span>
-          <strong>{alertCounts.low}</strong>
-          <p className="muted small">Informational</p>
-        </article>
-        <article className="card stat">
-          <span>Active rules</span>
-          <strong>{alertRules.length}</strong>
-          <p className="muted small">Configured thresholds</p>
-        </article>
+      <div className="callout callout-warning section-tight">
+        <ShieldIcon className="inline-icon" />
+        <p>
+          Continuous monitoring and on-call paging are <strong>Not configured</strong>. There is no
+          external observability provider, uptime probe, or alert recipient in this build. This page
+          is a read-only snapshot of local database state only.
+        </p>
       </div>
 
-      <section className="card form section-tight">
-        <h2>Alert rules configuration</h2>
+      <section className="stack" aria-labelledby="health-checks-title">
+        <h2 id="health-checks-title">Health checks (computed just now)</h2>
         <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
-                <th scope="col">Rule name</th>
-                <th scope="col">Condition</th>
-                <th scope="col">Threshold</th>
-                <th scope="col">Recipients</th>
+                <th scope="col">Signal</th>
+                <th scope="col">Value</th>
+                <th scope="col">Status</th>
+                <th scope="col">If attention is needed</th>
               </tr>
             </thead>
             <tbody>
-              {alertRules.map((rule, index) => (
-                <tr key={index}>
-                  <td>{rule.name}</td>
-                  <td className="small">{rule.condition}</td>
-                  <td>{rule.threshold}</td>
-                  <td>{rule.recipients}</td>
+              {health.checks.map((check) => (
+                <tr key={check.id}>
+                  <td>
+                    <strong>{check.label}</strong>
+                    <br />
+                    <span className="small muted">{check.detail}</span>
+                  </td>
+                  <td>{check.value}</td>
+                  <td>
+                    {check.state === "ok" ? (
+                      <span className="badge">
+                        <CheckIcon className="inline-icon" /> OK
+                      </span>
+                    ) : (
+                      <span className="badge badge-warning">
+                        <AlertIcon className="inline-icon" /> Attention
+                      </span>
+                    )}
+                  </td>
+                  <td className="small muted">{check.action}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <p className="muted small">Checked at {formatDate(health.checkedAt)}.</p>
       </section>
 
-      <section className="card form section-tight">
-        <h2>Recent incidents</h2>
-        {criticalEvents.length === 0 ? (
-          <p className="muted">No critical incidents recorded.</p>
+      <section className="card form section-tight" aria-labelledby="future-monitoring-title">
+        <h2 id="future-monitoring-title">Future integration (Coming later)</h2>
+        <p className="muted small">
+          The following are planned for a later operations phase and are intentionally
+          not connected: uptime and synthetic probing, log aggregation, traces and metrics,
+          on-call scheduling, and webhook/email/SMS alert delivery. No alerting provider will be
+          selected until an operator confirms the vendor, thresholds, and recipient roster.
+        </p>
+      </section>
+
+      <section className="card form section-tight" aria-labelledby="recent-failures-title">
+        <h2 id="recent-failures-title">Recent failure audit events</h2>
+        {recentFailures.length === 0 ? (
+          <p className="muted">No failure-related audit events recorded.</p>
         ) : (
           <div className="table-wrap">
             <table className="data-table">
               <thead>
                 <tr>
                   <th scope="col">Event</th>
-                  <th scope="col">Action</th>
+                  <th scope="col">Entity</th>
                   <th scope="col">Actor</th>
                   <th scope="col">Time</th>
                 </tr>
               </thead>
               <tbody>
-                {criticalEvents.map((event) => (
+                {recentFailures.map((event) => (
                   <tr key={event.id}>
                     <td>{event.action}</td>
                     <td>

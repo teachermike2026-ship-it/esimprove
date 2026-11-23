@@ -17,7 +17,7 @@ export async function generateMetadata({
   const region = await getRegionBySlug(db, slug);
   if (!region) return { title: "Region not found" };
   return {
-    title: `${region.name} demo eSIM plans`,
+    title: `${region.name} eSIM plans`,
     description: region.description,
     alternates: { canonical: canonicalUrl(`/regions/${region.slug}`) },
   };
@@ -46,12 +46,11 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
       <div className="section-heading">
         <div>
           <p className="eyebrow">Region</p>
-          <h1>{region.name} demo eSIM plans</h1>
+          <h1>{region.name} eSIM plans</h1>
           <p className="lead">{region.description}</p>
           <div className="pill-row">
-            <span className="badge badge-demo">Demo catalogue</span>
             <span className="badge badge-neutral">{destinations.length} destinations</span>
-            <span className="badge badge-neutral">{plans.length} sample plans</span>
+            <span className="badge badge-neutral">{plans.length} plans</span>
           </div>
         </div>
       </div>
@@ -73,7 +72,7 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
       <section className="section" aria-labelledby="region-plans">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Sample plans</p>
+            <p className="eyebrow">Plans</p>
             <h2 id="region-plans">Plans across {region.name}</h2>
           </div>
           <Link className="button button-ghost" href={`/plans?region=${region.slug}`}>

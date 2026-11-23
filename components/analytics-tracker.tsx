@@ -366,8 +366,8 @@ export function ConsentManager({ consentVersion }: { consentVersion: string }) {
             <h2 id="consent-banner-title">Your privacy choices</h2>
             <p id="consent-banner-description">
               We use essential storage to keep sign-in and security working. Optional
-              first-party analytics is off until you allow it. GA4, if the owner configures it,
-              only loads after analytics consent.{" "}
+              first-party analytics is off until you allow it. Google Analytics 4, where
+              enabled, only loads after analytics consent.{" "}
               <a href="/legal/cookies">Cookie policy</a> ·{" "}
               <a href="/legal/privacy">Privacy policy</a>
             </p>
@@ -490,7 +490,7 @@ function ConsentPreferencesDialog({
             <p className="small muted">
               Optional first-party page and event analytics using HMAC identifiers. If GA4 is
               configured, Google Analytics also loads only after this choice. No advertising or
-              marketing trackers are installed in this build.
+              marketing trackers are used.
             </p>
           </div>
           <label className="consent-switch">

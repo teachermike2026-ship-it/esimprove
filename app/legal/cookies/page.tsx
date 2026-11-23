@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getDb } from "@/lib/db/client";
-import { loadLegalSettings } from "@/lib/legal";
 import { loadSeoSettings } from "@/lib/seo";
 import {
   BusinessDetails,
@@ -14,7 +13,7 @@ import { CookieSettingsButton } from "@/components/analytics-tracker";
 export const metadata: Metadata = {
   title: "Cookie policy",
   description:
-    "Cookies and browser storage used by Esimprove, the consent categories, the optional GA4 integration, and how to withdraw consent.",
+    "Cookies and browser storage used by ESIMPROVE, the consent categories, the optional Google Analytics 4 integration, and how to withdraw consent.",
   alternates: { canonical: "/legal/cookies" },
 };
 
@@ -22,7 +21,7 @@ export const dynamic = "force-dynamic";
 
 export default async function CookiesPage() {
   const db = await getDb();
-  const [settings, seo] = await Promise.all([loadLegalSettings(db), loadSeoSettings(db)]);
+  const seo = await loadSeoSettings(db);
   const ga4Configured = Boolean(
     seo.ga4MeasurementId && /^G-[A-Z0-9]{6,}$/i.test(seo.ga4MeasurementId),
   );
@@ -30,10 +29,8 @@ export default async function CookiesPage() {
   return (
     <div className="legal-page">
       <LegalDocumentHeader
-        settings={settings}
-        documentKey="cookies"
         title="Cookie policy"
-        intro="This policy lists the cookies and browser storage used by the application, the categories you can choose, the optional Google Analytics 4 integration, and how to change or withdraw a choice."
+        intro="This policy lists the cookies and browser storage used by ESIMPROVE, the categories you can choose, the optional Google Analytics 4 integration, and how to change or withdraw a choice."
       />
 
       <article className="card form prose legal-body">
@@ -41,16 +38,16 @@ export default async function CookiesPage() {
           <h2 id="cookies-scope">1. Scope</h2>
           <p>
             This policy covers cookies, local storage, and session storage set by this website. It
-            does not cover storage set by a third-party website you visit separately. The
-            application does not install advertising pixels, social plugins, or marketing SDKs.
+            does not cover storage set by a third-party website you visit separately. ESIMPROVE does
+            not install advertising pixels, social plugins, or marketing SDKs.
           </p>
           <div className="callout">
             <p>
               <strong>Current configuration:</strong> optional first-party analytics is available
               but off until you allow it. Google Analytics 4 is{" "}
               {ga4Configured
-                ? "configured by the owner and loads only after analytics consent"
-                : "not configured in this build"}
+                ? "enabled and loads only after analytics consent"
+                : "not currently enabled"}
               . No marketing storage is used.
             </p>
           </div>
@@ -65,7 +62,7 @@ export default async function CookiesPage() {
             <li>
               The first visit shows a consent banner with equally accessible actions to reject
               non-essential storage, accept all, or customise categories. No optional analytics is
-              loaded before a choice.
+              loaded before you make a choice.
             </li>
             <li>
               Your choice is stored in your browser with a policy version and timestamp. A missing,
@@ -74,7 +71,7 @@ export default async function CookiesPage() {
             <li>
               The server records a pseudonymous consent ID (an HMAC hash of a random browser ID),
               the policy version, the categories, the action, a coarse country code if the hosting
-              provider supplies one, and a browser user-agent string. Raw IP addresses are not
+              provider supplies one, and the browser user-agent string. Raw IP addresses are not
               stored in the consent record.
             </li>
             <li>
@@ -159,7 +156,7 @@ export default async function CookiesPage() {
           <h2 id="cookies-optional">4. Optional analytics storage</h2>
           <p>
             The following storage is used only after you grant analytics consent. If you reject or
-            withdraw analytics, the application does not create or use it.
+            withdraw analytics, it is not created or used.
           </p>
           <div className="table-wrap">
             <table className="data-table">
@@ -214,8 +211,8 @@ export default async function CookiesPage() {
           </div>
           {!ga4Configured ? (
             <p>
-              No Google Analytics measurement ID is configured, so no Google Analytics script or
-              Google cookie is loaded in this build.
+              Google Analytics 4 is not currently enabled, so no Google Analytics script or Google
+              cookie is loaded.
             </p>
           ) : null}
         </section>
@@ -224,24 +221,21 @@ export default async function CookiesPage() {
           <h2 id="cookies-marketing">5. Marketing storage</h2>
           <p>
             No marketing cookies, advertising pixels, remarketing tags, or social-media trackers are
-            installed. If the owner later adds one, this policy and the consent manager must be
-            updated first, and the category must be off until consent is recorded.
+            used. If we add one in future, this policy and the consent manager will be updated
+            first, and the category will remain off until consent is recorded.
           </p>
         </section>
 
         <section aria-labelledby="cookies-server">
           <h2 id="cookies-server">6. Server-side consent evidence</h2>
           <p>
-            The application stores consent state in a <code>cookie_consents</code> table and an
-            append-only <code>consent_events</code> table. These records are used to demonstrate
-            which choice applied at a point in time, to enforce the analytics gate, and to
-            investigate a dispute. They are not used to build an advertising profile.
+            We keep server-side records of your consent choice so we can honour it, enforce the
+            analytics gate, and investigate a dispute about what you agreed to. These records are
+            not used to build an advertising profile.
           </p>
           <p>
             A consent record is treated as analytics evidence for at most 180 days. After that, the
-            browser must make a fresh choice before optional analytics can resume. The proposed
-            retention for consent evidence is described in the{" "}
-            <Link href="/legal/privacy">Privacy Policy</Link> and requires owner and legal approval.
+            browser is asked to make a fresh choice before optional analytics can resume.
           </p>
         </section>
 
@@ -251,8 +245,9 @@ export default async function CookiesPage() {
             Use the cookie settings button in the footer or on this page at any time. You can reject
             all non-essential storage, allow analytics only, or withdraw optional consent. A
             withdrawal stops first-party analytics and disables Google Analytics for this browser
-            where it was configured. It does not delete records that were lawfully collected before
-            withdrawal; those records follow the retention policy.
+            where it is enabled. It does not delete records that were lawfully collected before
+            withdrawal; those records follow the retention section of the{" "}
+            <Link href="/legal/privacy">Privacy policy</Link>.
           </p>
           <p>
             You can also clear cookies and site storage through your browser settings. Clearing
@@ -267,36 +262,35 @@ export default async function CookiesPage() {
         <section aria-labelledby="cookies-signals">
           <h2 id="cookies-signals">8. Do Not Track and Global Privacy Control</h2>
           <p>
-            When the browser sends Do Not Track or Global Privacy Control, the first-party
-            analytics client suppresses collection even if a prior analytics consent exists. These
-            signals are not treated as consent to anything.
+            When the browser sends Do Not Track or Global Privacy Control, first-party analytics
+            suppresses collection even if an analytics consent previously exists. These signals are
+            not treated as consent to anything.
           </p>
         </section>
 
         <section aria-labelledby="cookies-third-parties">
           <h2 id="cookies-third-parties">9. Third parties</h2>
           <p>
-            In production, the hosting provider processes standard request metadata to serve the
-            site. A PostgreSQL database provider stores application data. Google Analytics 4 is
-            optional and consent-gated. A payment processor, eSIM supplier, and email provider are
-            not configured in this build. The owner must verify contracts and transfer mechanisms
-            before enabling any of them.
+            ESIMPROVE uses a hosting provider to serve the site and a database provider to store
+            application data. Google Analytics 4 is optional and consent-gated. Payment processing
+            is handled by the payment provider shown at checkout. eSIM service depends on mobile
+            network operators and eSIM suppliers. Their storage and privacy practices are described
+            in their own policies.
           </p>
         </section>
 
         <section aria-labelledby="cookies-changes">
           <h2 id="cookies-changes">10. Changes to this policy</h2>
           <p>
-            The version and effective date are shown above. A material change to storage or
-            tracking requires a new policy version. When the version changes, the application asks
-            for a fresh choice rather than reusing an older consent value.
+            A material change to storage or tracking requires a new policy version. When the version
+            changes, the site asks for a fresh choice rather than reusing an older consent value.
           </p>
         </section>
       </article>
 
-      <BusinessDetails settings={settings} />
-      <SupportChannelNotice settings={settings} />
-      <LegalDocumentFooter settings={settings} documentKey="cookies" />
+      <BusinessDetails />
+      <SupportChannelNotice />
+      <LegalDocumentFooter />
     </div>
   );
 }

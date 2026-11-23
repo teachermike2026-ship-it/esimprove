@@ -1,10 +1,13 @@
 # Netlify Deployment Guide — Esimprove
 
-**Status:** Local deployment configuration and documentation only. No Netlify site, deploy,
-database, domain, DNS record, or provider credential exists. Nothing in this guide has been
-executed against Netlify or a production database.
+**Status (2026-11-23):** Local deployment configuration and documentation only. A Neon PostgreSQL
+project named `esimprove` exists, with pooled/direct connection strings stored outside this
+repository. `esimprove.com` is still parked on Hostinger; no Netlify site, deploy, database
+migration, DNS change, certificate, or Netlify-scoped environment variable exists. The Whop adapter
+remains fail-closed and inactive. Nothing in this guide has been executed against Netlify or Neon.
 
-**Applies to:** Next.js 16.4.2, React 19.3.1, App Router, npm with `package-lock.json`.
+**Applies to:** Next.js 16.4.6 applied to the main working tree and verified but not yet committed
+or pushed, React 19.3.1, App Router, npm with `package-lock.json`.
 
 ---
 
@@ -21,7 +24,7 @@ with the supported zero-config integration.
 | Build command | `npm run netlify:preflight && npm run build` | Set in `netlify.toml` |
 | Publish directory | `.next` | Next.js output; Netlify's adapter handles functions/assets |
 | Node.js version | 22 | `NODE_VERSION = "22"` in `netlify.toml` |
-| Package manager | npm | `package-lock.json` is committed; Netlify runs `npm ci` |
+| Package manager | npm | `package-lock.json` is committed; Netlify installs from it with `npm install` by default |
 | Next.js plugin | None | OpenNext adapter is automatic |
 
 `npm run netlify:preflight` validates deployment configuration before the Next.js build. It does
@@ -29,8 +32,14 @@ with the supported zero-config integration.
 unsafe variable names when the deploy context is incomplete.
 
 The application uses server-side rendering for every page because the root layout declares
-`dynamic = "force-dynamic"`. The build output includes the proxy (middleware), route handlers,
-and Server Actions. There are no static pages that need build-time database access.
+`dynamic = "force-dynamic"`. The build output includes the Next.js 16 `proxy.ts` (Node.js runtime,
+formerly middleware), route handlers, and Server Actions. Netlify's Next.js 16 adapter supports
+this configuration; the proxy uses only Web Crypto and Fetch APIs, not filesystem or C++ addons.
+There are no static pages that need build-time database access.
+
+Netlify installs `devDependencies` by default because it does not set `NODE_ENV` during the build.
+`tsx` (used by the preflight) and the lint/typecheck toolchain therefore remain available. Do not
+set `NODE_ENV=production` in the build scope or the preflight command will not resolve.
 
 ---
 
@@ -49,7 +58,8 @@ Before the first deploy, the owner must provide or approve:
    - a direct or session-mode URL for migrations (`DATABASE_MIGRATION_URL`).
 5. New secrets for each context: `AUTH_SECRET`, `ACTIVATION_KEK_V1`,
    `SUPPLIER_CREDENTIAL_KEK` (production), `INTERNAL_JOB_SECRET`,
-   `RATE_LIMIT_HASH_SECRET`, and `MOCK_PAYMENT_WEBHOOK_SECRET` for preview/staging only.
+   `RATE_LIMIT_HASH_SECRET`, `ANALYTICS_HASH_SECRET`, and `MOCK_PAYMENT_WEBHOOK_SECRET` for
+   preview/staging only.
 6. A verified HTTPS origin (`SITE_URL`) for each context. A custom domain is optional for a
    deploy preview but required for a real production launch.
 
@@ -75,7 +85,9 @@ Rules enforced by the code:
 - Preview and staging are `noindex`, and all live integration flags must remain `false`.
 - Production requires demo mode and demo seeding to be off.
 - Production disables mock payments, mock supplier fulfillment, and mock email. Checkout is
-  unavailable until a real payment provider is approved and implemented.
+  unavailable. A Whop adapter exists but remains inactive until a verified catalogue mapping,
+  webhook secret, public `APP_URL`, explicit sandbox/live setting, and written approval exist.
+  `PAYMENT_PROVIDER` must remain unset for this deployment.
 - Deployed contexts refuse to start on PGlite; `DATABASE_URL` is mandatory.
 - Deployed PostgreSQL is never auto-migrated. Run migrations explicitly.
 
@@ -106,7 +118,16 @@ regardless. Never point preview `SITE_URL` at the production domain.
   `DATABASE_POOL_MAX=3` in deployed contexts; each function instance owns a pool.
 - Prefer a provider region close to the Netlify Functions region.
 
-No provider is selected or assumed by this repository. Do not invent a hostname or credentials.
+**Selected provider: Neon.** The owner's project is `esimprove`. Use the pooled Neon URL for
+`DATABASE_URL` and the direct (non-pooled) URL for `DATABASE_MIGRATION_URL`; keep the direct URL
+out of the Functions runtime. Neon's pooled endpoint is compatible with the app's per-instance
+`pg` pool (`DATABASE_POOL_MAX=3` by default in deployed contexts). If deploy previews are enabled,
+create a separate Neon branch/database and preview secrets; never point previews at the production
+branch. The migration runner now requires `DATABASE_MIGRATION_URL` in a deployed context and
+refuses to fall back to the pooled runtime URL.
+
+Do not invent a hostname or credentials. See `docs/project/POSTGRES_MIGRATION_PLAN.md` for the
+pooled/direct URL rules, data preservation, and the exact migration and admin-bootstrap commands.
 
 ### Fresh database initialization
 
@@ -131,8 +152,8 @@ npm run db:migrate
 ```
 
 For production, use `APP_ENV=production` and `DATABASE_ENV=production` with the production
-direct/session URL. The script prints the database hostname and confirms the dialect; it never
-prints the password.
+direct/session URL. The script confirms the dialect and context only; it never prints the host or
+credentials.
 
 Migrations are applied in filename order in one transaction per file. PostgreSQL uses a
 dedicated connection and a session advisory lock so concurrent deploys cannot interleave.
@@ -192,7 +213,9 @@ npm.cmd run db:seed
 5. Before the first deploy, add the environment variables for the selected context. At minimum,
    a deployed build needs `APP_ENV`, `DATABASE_ENV`, `DATABASE_URL`, `SITE_URL`,
    `DEMO_MODE`, `SEED_DEMO_DATA`, `AUTH_SECRET`, `ACTIVATION_KEK_V1`,
-   `INTERNAL_JOB_SECRET`, `RATE_LIMIT_HASH_SECRET`, and context-appropriate mock/payment values.
+   `INTERNAL_JOB_SECRET`, `RATE_LIMIT_HASH_SECRET`, `ANALYTICS_HASH_SECRET`, and
+   context-appropriate mock/payment values. Production additionally needs
+   `SUPPLIER_CREDENTIAL_KEK`.
 6. Deploy. The preflight runs before the build.
 
 If the build fails in the preflight, read the listed variable names, fix the values for that
@@ -236,11 +259,13 @@ explicitly accepted by the owner.
 2. Set production-scoped variables:
    - `APP_ENV=production`, `DATABASE_ENV=production`
    - `DEMO_MODE=false`, `SEED_DEMO_DATA=false`
-   - `SITE_URL=https://<verified-domain>`
+   - `SITE_URL=https://esimprove.com` (only after the Netlify certificate is active)
    - production `DATABASE_URL` (pooled) and `DATABASE_MIGRATION_URL` (direct/session)
-   - new production secrets and KEKs
+   - new production secrets and KEKs, including `ANALYTICS_HASH_SECRET`
    - all live flags `false` for this build
    - `ADMIN_2FA_REQUIRED=true`
+   - leave `PAYMENT_PROVIDER` unset for this deployment; set
+     `APP_URL=https://esimprove.com` after HTTPS is active (it does not enable checkout by itself)
 3. Create the first production administrator after migrations with the guarded bootstrap
    command. Do not seed demo users in production.
 
@@ -266,26 +291,49 @@ explicitly accepted by the owner.
 4. Run migrations with the production direct/session URL.
 5. Trigger the production deploy.
 6. Verify `/api/health`, HTTPS, headers, login/logout, catalogue availability, account pages,
-   and the expected checkout-disabled state (no live payment provider is implemented).
-7. Confirm `/api/webhooks/payments/mock` returns 404 and that no mock payment page is reachable.
+   and the expected checkout-disabled state. The Whop adapter is present but inactive; no live
+   payment is accepted.
+7. Confirm `/api/webhooks/payments/mock` returns 404, `/api/webhooks/whop` returns 503 until a
+   webhook secret is configured, and no mock payment page is reachable.
 8. Confirm no real email is claimed as delivered. Password reset email remains unavailable until
    a live provider is configured.
 9. Review logs for secrets, stack traces, or unexpected provider calls.
 
 Do not enable `PAYMENTS_LIVE_ENABLED`, `SUPPLIER_LIVE_ENABLED`, `EMAIL_LIVE_ENABLED`,
 `CATALOGUE_SYNC_ENABLED`, `ANALYTICS_ENABLED`, or `STAGING_ACCESS_ENABLED` for this build. The
-configuration check rejects them because the adapters are not implemented.
+configuration check rejects them because the corresponding live operations are not enabled in
+this deployment.
 
 ---
 
 ## 8. Domain and HTTPS
 
-1. Add the custom domain in Netlify and follow the displayed DNS instructions at the owner's DNS
-   provider. This guide does not create or change DNS records.
-2. Wait for Netlify's managed certificate to become active.
-3. Set `SITE_URL` to the final `https://` origin and redeploy.
-4. Confirm HTTP redirects to HTTPS and that session/cart cookies are `Secure`.
-5. Keep `SITE_URL` free of a trailing slash and do not use `localhost` in a deployed context.
+`esimprove.com` is already registered. It currently resolves to a Hostinger parking page
+(`2.57.91.91`), and `www.esimprove.com` CNAMEs to the apex. Do not change those records until the
+Netlify site exists and its exact DNS target is visible in the Netlify UI.
+
+1. Create the Netlify site (requires owner approval and repository access).
+2. In **Domain management**, add `esimprove.com` as the primary domain and
+   `www.esimprove.com` as an alias. Choose the canonical origin `https://esimprove.com`;
+   Netlify will redirect `www` to the apex.
+3. Configure DNS using one of the two methods Netlify displays:
+   - **Netlify DNS (recommended):** replace the Hostinger nameservers with the four Netlify
+     nameservers shown for this site. Netlify then manages the apex, `www`, and certificate
+     validation records.
+   - **External DNS at Hostinger:** create exactly the records Netlify shows. Typically this is an
+     apex `A`/`ALIAS` record to Netlify's load balancer and a `www` `CNAME` to the site's
+     `*.netlify.app` hostname. Remove the Hostinger parking `A` record and the existing `www`
+     CNAME first. Do not guess or reuse the values in this document; they are site-specific.
+4. Wait for the managed certificate to become active, then enable **Force HTTPS**.
+5. Set `SITE_URL=https://esimprove.com` in the production scope and redeploy. Set
+   `APP_URL=https://esimprove.com` after HTTPS is active; it does not enable checkout by itself.
+6. Confirm HTTP redirects to HTTPS, `www` redirects to the apex, and session/cart cookies are
+   `Secure`.
+7. Keep `SITE_URL` free of a trailing slash and never use `localhost` in a deployed context.
+
+The future Whop webhook endpoint is `https://esimprove.com/api/webhooks/whop`. It returns 503
+until `WHOP_WEBHOOK_SECRET` is configured, so the URL can be registered only after the domain and
+HTTPS are live and the webhook secret is set.
 
 The application adds HSTS only for a production build. Do not enable HSTS on a domain that is not
 fully committed to HTTPS.
@@ -376,8 +424,9 @@ do not claim that Netlify runs it automatically. A Netlify scheduled function mu
 configured explicitly (it is not defined here), or an external scheduler must call
 `POST /api/jobs/run` with the secret.
 
-There are no outbound supplier, payment, or email HTTP calls in this build. Live supplier
-transport remains blocked by N-07 (see the blockers document).
+There are no active outbound supplier, payment, or email HTTP calls in this deployment. The Whop
+checkout adapter is present but fails closed until it is fully configured and approved. Live
+supplier transport remains blocked by N-07 (see the blockers document).
 
 ---
 
@@ -411,7 +460,7 @@ transport remains blocked by N-07 (see the blockers document).
 | Canonical base | Admin → SEO & CMS | Stored in DB; takes precedence over `SITE_URL` for sitemap/canonical output |
 | Google Search Console | Admin → SEO & CMS | Paste the verification token, deploy, verify ownership in GSC, then submit `/sitemap.xml`. GSC ownership and indexing are external and are **not** automated. |
 | GA4 (optional) | Admin → SEO & CMS | Only renders when a valid `G-…` ID is saved and the deploy is indexable; third-party data is not used for the first-party dashboard |
-| Analytics hash secret | `ANALYTICS_HASH_SECRET` | Recommended per-context secret. Falls back to `RATE_LIMIT_HASH_SECRET`/`AUTH_SECRET`; set a dedicated value in preview and production |
+| Analytics hash secret | `ANALYTICS_HASH_SECRET` | Required in every deployed context: at least 32 characters and distinct from `AUTH_SECRET` and `RATE_LIMIT_HASH_SECRET`. Deployed contexts do not fall back; local demo/test uses a non-secret fallback |
 | Analytics retention | `data_retention_settings` | No environment variable. Proposed technical defaults (not owner-approved): 395 days for raw events and 730 days for aggregated sessions/visitors. Confirm the periods in Admin → Legal & compliance before enabling cleanup; cleanup runs from `/api/jobs/run` only when a category is both automated and enabled |
 | Tracking kill switch | `NEXT_PUBLIC_ANALYTICS_DISABLED=true` | Optional. Makes `/api/track` return 204 before any storage |
 | Scheduled publishing | External scheduler or a Netlify scheduled function | Must call `POST /api/jobs/run` with `INTERNAL_JOB_SECRET`. No scheduler is defined in this repository |

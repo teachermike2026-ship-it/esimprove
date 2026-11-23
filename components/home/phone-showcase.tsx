@@ -83,7 +83,7 @@ export function PhoneShowcase({
               </span>
             </div>
             <div className="es-app es-app-back">
-              <p className="es-app-label">Installation preview</p>
+              <p className="es-app-label">Installation</p>
               <h3>Three steps to get connected</h3>
               <div className="es-back-ring">
                 <span>1</span>
@@ -113,7 +113,6 @@ export function PhoneShowcase({
                   </div>
                 </li>
               </ol>
-              <span className="es-app-demo-chip">Demo interface · no activation</span>
             </div>
           </div>
         </div>
@@ -137,7 +136,7 @@ export function PhoneShowcase({
                   <h3>
                     {view === "country" ? "Explore supported countries" : "Explore regions"}
                   </h3>
-                  <p>Interactive preview · demo catalogue</p>
+                  <p>Browse plans and manage your eSIMs</p>
                 </div>
                 <span className="es-app-logo" aria-hidden="true">
                   e
@@ -149,7 +148,7 @@ export function PhoneShowcase({
                 <span>Search your destination</span>
               </div>
 
-              <div className="es-app-tabs" role="group" aria-label="Preview catalogue view">
+              <div className="es-app-tabs" role="group" aria-label="Catalogue view">
                 <button
                   type="button"
                   className={view === "country" ? "is-active" : ""}
@@ -178,7 +177,7 @@ export function PhoneShowcase({
                         type="button"
                         className={index === destinationIndex ? "is-selected" : ""}
                         aria-pressed={index === destinationIndex}
-                        aria-label={`Preview ${item.name} plans`}
+                        aria-label={`View ${item.name} plans`}
                         onClick={() => setDestinationIndex(index)}
                       >
                         <span className="es-app-flag">
@@ -218,7 +217,7 @@ export function PhoneShowcase({
 
                   {destination ? (
                     <Link className="es-app-cta" href={`/destinations/${destination.slug}`}>
-                      <span>View {destination.name} demo plans</span>
+                      <span>View {destination.name} plans</span>
                       <ArrowRight />
                     </Link>
                   ) : null}
@@ -256,7 +255,7 @@ export function PhoneShowcase({
                   </div>
                   {region ? (
                     <Link className="es-app-cta" href={`/regions/${region.slug}`}>
-                      <span>View {region.name} demo plans</span>
+                      <span>View {region.name} plans</span>
                       <ArrowRight />
                     </Link>
                   ) : null}
@@ -289,7 +288,7 @@ export function PhoneShowcase({
         <span className="es-float-copy">
           <strong>{destinationCount} destinations</strong>
           <small>
-            Across {regionCount} regions · {planCount} demo plans
+            Across {regionCount} regions · {planCount} plans
           </small>
         </span>
         <ArrowRight className="es-float-arrow" />
@@ -301,7 +300,7 @@ export function PhoneShowcase({
         </span>
         <span className="es-float-copy">
           <strong>Install before you fly</strong>
-          <small>Written guide · no fake video</small>
+          <small>iOS and Android walkthroughs</small>
         </span>
       </Link>
     </div>

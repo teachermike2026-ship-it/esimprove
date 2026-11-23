@@ -7,7 +7,7 @@ import { users } from "@/lib/db/schema";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordConsentEvent } from "@/lib/consent";
 import { hashToken } from "@/lib/crypto";
-import { loadLegalSettings } from "@/lib/legal";
+import { LEGAL_DOCUMENT_VERSION } from "@/lib/legal-profile";
 import { createSupportTicket } from "@/lib/support";
 import {
   contactFormSchema,
@@ -65,7 +65,6 @@ export async function submitContactAction(
     userId = rows[0]?.id ?? null;
   }
 
-  const legal = await loadLegalSettings(db);
   const trimmedName = (parsed.data.name ?? "").trim();
   const messageBody = [
     trimmedName ? `Contact name: ${trimmedName}` : null,
@@ -89,7 +88,7 @@ export async function submitContactAction(
       subjectType: userId ? "user" : "anonymous",
       subjectId: userId ?? `contact:${hashToken(email)}`,
       purpose: "contact_privacy_notice",
-      version: legal.privacyVersion,
+      version: LEGAL_DOCUMENT_VERSION,
       granted: true,
       surface: "contact_form",
       ipHash: meta.ipHash,
@@ -100,7 +99,7 @@ export async function submitContactAction(
       ok: true,
       ticketId: ticket.id,
       message:
-        "Your message is stored as a local support ticket for administrator review. No email has been sent, and no response time is promised in this build.",
+        "Your message has been received and will be reviewed. No specific response time is promised.",
     };
   } catch (error) {
     console.error("Contact submission failed", error instanceof Error ? error.name : "unknown");

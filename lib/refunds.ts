@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
-import type { Database } from "@/lib/db/client";
-import { orderEvents, orders, payments, refunds } from "@/lib/db/schema";
+import type { Database, DatabaseExecutor } from "@/lib/db/client";
+import { notifications, orderEvents, orders, payments, refunds } from "@/lib/db/schema";
 import { newId } from "@/lib/ids";
 import { recordAudit } from "@/lib/audit";
 import { getPaymentForOrder } from "@/lib/payments";
@@ -24,18 +24,48 @@ export interface RequestRefundInput {
 }
 
 export interface RefundActor {
-  actorType: "admin" | "system";
+  actorType: "admin" | "system" | "customer";
   actorId?: string | null;
+}
+
+export interface RefundableBalance {
+  orderTotalMinor: number;
+  reservedMinor: number;
+  remainingMinor: number;
 }
 
 function refundKey(orderId: string, amountMinor: number): string {
   return `refund:${orderId}:${amountMinor}`;
 }
 
-function sumApprovedRefunds(
-  rows: Array<{ amountMinor: number }>,
-): number {
+function sumRefundAmounts(rows: Array<{ amountMinor: number }>): number {
   return rows.reduce((total, row) => total + row.amountMinor, 0);
+}
+
+/**
+ * Pending and approved requests both reserve part of the order total so the
+ * approved total can never exceed what was captured. Rejected requests release
+ * their reservation.
+ */
+export async function getRefundableBalance(
+  db: Database,
+  orderId: string,
+): Promise<RefundableBalance | null> {
+  const orderRows = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+  const order = orderRows[0];
+  if (!order) return null;
+  const outstanding = await db
+    .select({ amountMinor: refunds.amountMinor })
+    .from(refunds)
+    .where(
+      and(eq(refunds.orderId, order.id), inArray(refunds.status, ["requested", "approved"])),
+    );
+  const reservedMinor = sumRefundAmounts(outstanding);
+  return {
+    orderTotalMinor: order.totalMinor,
+    reservedMinor,
+    remainingMinor: Math.max(0, order.totalMinor - reservedMinor),
+  };
 }
 
 export async function requestRefund(
@@ -44,6 +74,10 @@ export async function requestRefund(
 ): Promise<RefundRow> {
   if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) {
     throw new Error("Refund amount must be a positive integer in minor units");
+  }
+  const reason = input.reason.trim();
+  if (reason.length < 10) {
+    throw new Error("Describe the refund reason in at least 10 characters");
   }
   const orderRows = await db.select().from(orders).where(eq(orders.id, input.orderId)).limit(1);
   const order = orderRows[0];
@@ -61,21 +95,78 @@ export async function requestRefund(
     throw new Error("Refund amount exceeds the order total");
   }
 
+  const key = refundKey(input.orderId, input.amountMinor);
   const existing = await db
     .select()
     .from(refunds)
-    .where(eq(refunds.idempotencyKey, refundKey(input.orderId, input.amountMinor)))
+    .where(eq(refunds.idempotencyKey, key))
     .limit(1);
-  if (existing[0]) return existing[0];
 
-  // Pending and approved requests both reserve part of the order total so the
-  // approved total can never exceed what was captured.
   const outstanding = await db
     .select({ amountMinor: refunds.amountMinor })
     .from(refunds)
-    .where(and(eq(refunds.orderId, order.id), inArray(refunds.status, ["requested", "approved"])));
-  if (sumApprovedRefunds(outstanding) + input.amountMinor > order.totalMinor) {
+    .where(
+      and(eq(refunds.orderId, order.id), inArray(refunds.status, ["requested", "approved"])),
+    );
+  const alreadyReserved = sumRefundAmounts(outstanding);
+  const previous = existing[0];
+  if (previous && previous.status !== "rejected") {
+    // The same order + amount request is idempotent while it is pending or
+    // approved. Never create a second refund row for the same amount.
+    return previous;
+  }
+  // A rejected request is not part of `outstanding`, so its reservation has
+  // already been released before this check.
+  if (alreadyReserved + input.amountMinor > order.totalMinor) {
     throw new Error("Refund amount exceeds the remaining refundable order total");
+  }
+
+  const now = new Date();
+  if (previous) {
+    const claimed = await db.transaction(async (tx) => {
+      const updated = await tx
+        .update(refunds)
+        .set({
+          status: "requested",
+          reason,
+          paymentId: refundablePayment.id,
+          resolutionNote: "",
+          resolvedBy: null,
+          resolvedAt: null,
+          updatedAt: now,
+        })
+        .where(and(eq(refunds.id, previous.id), eq(refunds.status, "rejected")))
+        .returning();
+      const row = updated[0];
+      if (!row) return null;
+      await tx.insert(orderEvents).values({
+        id: newId("orderevent"),
+        orderId: order.id,
+        type: "refund.requested",
+        message: `Refund requested again. Awaiting review.`,
+        metadata: {
+          refundId: row.id,
+          amountMinor: input.amountMinor,
+          reason,
+          demo: true,
+        },
+      });
+      await recordAudit(tx, {
+        actorType: input.actorType ?? "customer",
+        actorId: input.actorId ?? null,
+        action: "refund.requested",
+        entityType: "refund",
+        entityId: row.id,
+        metadata: {
+          orderId: order.id,
+          amountMinor: input.amountMinor,
+          reopened: true,
+        },
+      });
+      return row;
+    });
+    if (claimed) return claimed;
+    throw new Error("Refund request changed while it was being reopened");
   }
 
   const refund: RefundRow = {
@@ -84,12 +175,15 @@ export async function requestRefund(
     paymentId: refundablePayment.id,
     amountMinor: input.amountMinor,
     currency: order.currency,
-    reason: input.reason,
+    reason,
     status: "requested",
     providerRefundId: null,
-    idempotencyKey: refundKey(input.orderId, input.amountMinor),
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    resolutionNote: "",
+    resolvedBy: null,
+    resolvedAt: null,
+    idempotencyKey: key,
+    createdAt: now,
+    updatedAt: now,
   };
   await db.transaction(async (tx) => {
     await tx.insert(refunds).values(refund);
@@ -97,11 +191,11 @@ export async function requestRefund(
       id: newId("orderevent"),
       orderId: order.id,
       type: "refund.requested",
-      message: `Refund requested (${input.amountMinor} minor units). Awaiting approval.`,
-      metadata: { refundId: refund.id, amountMinor: input.amountMinor, reason: input.reason },
+      message: `Refund requested. Awaiting review.`,
+      metadata: { refundId: refund.id, amountMinor: input.amountMinor, reason },
     });
-    await recordAudit(tx as unknown as Database, {
-      actorType: input.actorType ?? "admin",
+    await recordAudit(tx, {
+      actorType: input.actorType ?? "customer",
       actorId: input.actorId ?? null,
       action: "refund.requested",
       entityType: "refund",
@@ -110,6 +204,31 @@ export async function requestRefund(
     });
   });
   return refund;
+}
+
+async function notifyOrderOwner(
+  tx: DatabaseExecutor,
+  input: {
+    orderId: string;
+    type: string;
+    title: string;
+    body: string;
+    payload: Record<string, unknown>;
+  },
+): Promise<void> {
+  const orderRows = await tx.select().from(orders).where(eq(orders.id, input.orderId)).limit(1);
+  const userId = orderRows[0]?.userId;
+  if (!userId) return;
+  await tx.insert(notifications).values({
+    id: newId("notification"),
+    userId,
+    type: input.type,
+    title: input.title,
+    body: input.body,
+    payload: input.payload,
+    read: false,
+    createdAt: new Date(),
+  });
 }
 
 /**
@@ -140,7 +259,7 @@ export async function applyRefund(
       throw new Error("Refund currency does not match the order");
     }
 
-    const payment = await getPaymentForOrder(tx as unknown as Database, order.id);
+    const payment = await getPaymentForOrder(tx, order.id);
     if (!payment) throw new Error("Refund payment record is missing");
     if (!["paid", "partially_refunded", "disputed"].includes(payment.status)) {
       throw new Error("Refund requires a paid payment");
@@ -150,7 +269,7 @@ export async function applyRefund(
       .select({ amountMinor: refunds.amountMinor })
       .from(refunds)
       .where(and(eq(refunds.orderId, order.id), eq(refunds.status, "approved")));
-    const approvedTotal = sumApprovedRefunds(approved) + refund.amountMinor;
+    const approvedTotal = sumRefundAmounts(approved) + refund.amountMinor;
     if (approvedTotal > order.totalMinor) {
       throw new Error("Refund amount exceeds the order total");
     }
@@ -166,7 +285,13 @@ export async function applyRefund(
     const now = new Date();
     const claimed = await tx
       .update(refunds)
-      .set({ status: "approved", updatedAt: now })
+      .set({
+        status: "approved",
+        resolutionNote: "Approved by an administrator.",
+        resolvedBy: actor.actorId ?? null,
+        resolvedAt: now,
+        updatedAt: now,
+      })
       .where(and(eq(refunds.id, refund.id), eq(refunds.status, "requested")))
       .returning();
     if (claimed.length === 0) {
@@ -200,15 +325,16 @@ export async function applyRefund(
       type: "refund.approved",
       message:
         nextPaymentStatus === "refunded"
-          ? "Refund approved and applied in full."
-          : "Partial refund approved and applied.",
+          ? "Refund approved and applied in full to your payment."
+          : "Partial refund approved and applied to your payment.",
       metadata: {
         refundId: refund.id,
         amountMinor: refund.amountMinor,
         paymentStatus: nextPaymentStatus,
+        demo: true,
       },
     });
-    await recordAudit(tx as unknown as Database, {
+    await recordAudit(tx, {
       actorType: actor.actorType,
       actorId: actor.actorId ?? null,
       action: "admin.refund.approve",
@@ -220,8 +346,78 @@ export async function applyRefund(
         nextPaymentStatus,
       },
     });
+    await notifyOrderOwner(tx, {
+      orderId: order.id,
+      type: "refund.approved",
+      title: "Refund request approved",
+      body: `A refund of ${refund.amountMinor} minor units was approved for order ${order.orderNumber}.`,
+      payload: { refundId: refund.id, orderNumber: order.orderNumber, demo: true },
+    });
 
-    return { ...refund, status: "approved", updatedAt: now };
+    return { ...refund, status: "approved", resolvedAt: now, updatedAt: now };
+  });
+}
+
+/**
+ * Rejects a pending refund. No payment fields change; the reservation is
+ * released so the customer can submit a corrected request later.
+ */
+export async function rejectRefund(
+  db: Database,
+  refundId: string,
+  input: { note: string; actorType?: string; actorId?: string | null },
+): Promise<RefundRow> {
+  const note = input.note.trim();
+  if (note.length < 5) throw new Error("Explain why the refund is being rejected");
+  return db.transaction(async (tx) => {
+    const refundRows = await tx.select().from(refunds).where(eq(refunds.id, refundId)).limit(1);
+    const refund = refundRows[0];
+    if (!refund) throw new Error("Refund not found");
+    if (refund.status !== "requested") {
+      throw new Error("Refund was already processed");
+    }
+    const now = new Date();
+    const updated = await tx
+      .update(refunds)
+      .set({
+        status: "rejected",
+        resolutionNote: note,
+        resolvedBy: input.actorId ?? null,
+        resolvedAt: now,
+        updatedAt: now,
+      })
+      .where(and(eq(refunds.id, refund.id), eq(refunds.status, "requested")))
+      .returning();
+    const row = updated[0];
+    if (!row) throw new Error("Refund was already processed");
+
+    const orderRows = await tx.select().from(orders).where(eq(orders.id, refund.orderId)).limit(1);
+    const order = orderRows[0];
+    await tx.insert(orderEvents).values({
+      id: newId("orderevent"),
+      orderId: refund.orderId,
+      type: "refund.rejected",
+      message: "Refund request rejected. Your payment was not changed.",
+      metadata: { refundId: refund.id, amountMinor: refund.amountMinor, note },
+    });
+    await recordAudit(tx, {
+      actorType: input.actorType ?? "admin",
+      actorId: input.actorId ?? null,
+      action: "admin.refund.reject",
+      entityType: "refund",
+      entityId: refund.id,
+      metadata: { orderId: refund.orderId, amountMinor: refund.amountMinor },
+    });
+    if (order) {
+      await notifyOrderOwner(tx, {
+        orderId: order.id,
+        type: "refund.rejected",
+        title: "Refund request rejected",
+        body: `The refund request for order ${order.orderNumber} was rejected. Reason: ${note}`,
+        payload: { refundId: refund.id, orderNumber: order.orderNumber, demo: true },
+      });
+    }
+    return row;
   });
 }
 

@@ -16,7 +16,6 @@ export function PlanCard({ plan, compact = false }: { plan: PlanSummary; compact
             <Link href={`/plans/${plan.slug}`}>{plan.name}</Link>
           </h3>
         </div>
-        <span className="badge badge-demo">Demo</span>
       </div>
       <div className="plan-card-meta">
         <span>
@@ -33,7 +32,6 @@ export function PlanCard({ plan, compact = false }: { plan: PlanSummary; compact
       <div className="plan-card-bottom">
         <div className="price-block">
           <span className="price">{formatMoney(plan.priceMinor, plan.currency)}</span>
-          <span className="price-note">demo price</span>
         </div>
         <div className="plan-card-actions">
           <Link className="button button-ghost button-small" href={`/plans/${plan.slug}`}>

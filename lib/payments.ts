@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import type { Database } from "@/lib/db/client";
+import type { Database, DatabaseExecutor } from "@/lib/db/client";
 import {
   orderEvents,
   orders,
@@ -8,6 +8,7 @@ import {
   webhookEvents,
 } from "@/lib/db/schema";
 import { getPaymentProvider } from "@/lib/integrations/payments";
+import type { PaymentProvider } from "@/lib/integrations/payments/types";
 import {
   createMockPaymentEvent,
   signedMockWebhook,
@@ -30,12 +31,17 @@ export interface WebhookResult {
   fulfillmentError?: string;
 }
 
+export interface HandlePaymentWebhookOptions {
+  headers?: Record<string, string>;
+  provider?: PaymentProvider;
+}
+
 export async function getPaymentById(db: Database, paymentId: string) {
   const rows = await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1);
   return rows[0] ?? null;
 }
 
-export async function getPaymentForOrder(db: Database, orderId: string) {
+export async function getPaymentForOrder(db: DatabaseExecutor, orderId: string) {
   const rows = await db
     .select()
     .from(payments)
@@ -49,9 +55,10 @@ export async function handlePaymentWebhook(
   db: Database,
   rawBody: string,
   signature: string | null,
+  options: HandlePaymentWebhookOptions = {},
 ): Promise<WebhookResult> {
-  const provider = getPaymentProvider();
-  const event = provider.verifyWebhook(rawBody, signature);
+  const provider = options.provider ?? getPaymentProvider();
+  const event = provider.verifyWebhook(rawBody, signature, options.headers);
   const payloadHash = sha256Hex(rawBody);
 
   const existing = await db
@@ -68,7 +75,20 @@ export async function handlePaymentWebhook(
     return { ok: true, duplicate: true, eventType: event.type, orderId: event.orderId };
   }
 
-  const paymentRows = await db
+  const internalPaymentRows = event.internalPaymentId
+    ? await db
+        .select()
+        .from(payments)
+        .where(
+          and(
+            eq(payments.id, event.internalPaymentId),
+            eq(payments.orderId, event.orderId),
+            eq(payments.provider, provider.key),
+          ),
+        )
+        .limit(1)
+    : [];
+  const providerPaymentRows = await db
     .select()
     .from(payments)
     .where(
@@ -79,8 +99,11 @@ export async function handlePaymentWebhook(
       ),
     )
     .limit(1);
-  const payment = paymentRows[0];
+  const payment = internalPaymentRows[0] ?? providerPaymentRows[0];
   if (!payment) throw new Error("Webhook references an unknown payment");
+  if (payment.providerPaymentId !== event.paymentId && event.internalPaymentId !== payment.id) {
+    throw new Error("Webhook payment reference does not match the stored payment");
+  }
   if (payment.amountMinor !== event.amountMinor || payment.currency !== event.currency) {
     throw new Error("Webhook amount or currency does not match the stored payment");
   }
@@ -104,6 +127,15 @@ export async function handlePaymentWebhook(
     );
   }
 
+  // Hosted providers may create the local payment row before the provider
+  // payment exists (for example, a Whop checkout configuration `ch_...`).
+  // The verified webhook carries the real provider payment ID (`pay_...`);
+  // retaining the original reference in the audit event preserves both.
+  const providerPaymentId =
+    payment.providerPaymentId === event.paymentId ? undefined : event.paymentId;
+  const checkoutReference =
+    payment.providerPaymentId === event.paymentId ? undefined : payment.providerPaymentId;
+
   await db.transaction(async (tx) => {
     await tx.insert(webhookEvents).values({
       id: newId("webhook"),
@@ -117,7 +149,11 @@ export async function handlePaymentWebhook(
     if (event.type === "payment.succeeded") {
       await tx
         .update(payments)
-        .set({ status: "paid", updatedAt: new Date() })
+        .set({
+          status: "paid",
+          ...(providerPaymentId ? { providerPaymentId } : {}),
+          updatedAt: new Date(),
+        })
         .where(eq(payments.id, payment.id));
       await tx
         .update(orders)
@@ -132,10 +168,12 @@ export async function handlePaymentWebhook(
         id: newId("orderevent"),
         orderId: order.id,
         type: "payment.succeeded",
-        message: "Mock payment succeeded. No real money moved.",
+        message: "Payment confirmed.",
         metadata: {
           provider: provider.key,
           eventId: event.eventId,
+          providerPaymentId: event.paymentId,
+          checkoutReference,
           amountMinor: event.amountMinor,
           currency: event.currency,
         },
@@ -150,7 +188,11 @@ export async function handlePaymentWebhook(
     } else {
       await tx
         .update(payments)
-        .set({ status: "failed", updatedAt: new Date() })
+        .set({
+          status: "failed",
+          ...(providerPaymentId ? { providerPaymentId } : {}),
+          updatedAt: new Date(),
+        })
         .where(eq(payments.id, payment.id));
       await tx
         .update(orders)
@@ -164,10 +206,12 @@ export async function handlePaymentWebhook(
         id: newId("orderevent"),
         orderId: order.id,
         type: "payment.failed",
-        message: "Mock payment failed. No real money moved.",
+        message: "Payment could not be confirmed.",
         metadata: {
           provider: provider.key,
           eventId: event.eventId,
+          providerPaymentId: event.paymentId,
+          checkoutReference,
           amountMinor: event.amountMinor,
           currency: event.currency,
         },

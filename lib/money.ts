@@ -36,6 +36,27 @@ export function formatMoney(
   }).format(amountMinor / 10 ** decimals);
 }
 
+/**
+ * Converts a user-entered decimal amount (for example "12.50") into integer
+ * minor units for the given currency. Rejects extra precision instead of
+ * silently rounding a refund or catalogue cost.
+ */
+export function parseMoneyToMinor(value: string, currency = "USD"): number {
+  const trimmed = value.trim();
+  const match = /^(\d{1,12})(?:\.(\d{1,3}))?$/.exec(trimmed);
+  if (!match) throw new Error("Enter a valid amount");
+  const decimals = currencyDecimals(currency);
+  const fraction = match[2] ?? "";
+  if (fraction.length > decimals) {
+    throw new Error(`Use at most ${decimals} decimal place${decimals === 1 ? "" : "s"}`);
+  }
+  const whole = Number(match[1]);
+  const minor = Number((fraction + "0".repeat(decimals)).slice(0, decimals) || "0");
+  const amount = whole * 10 ** decimals + minor;
+  if (!Number.isSafeInteger(amount)) throw new Error("Amount is too large");
+  return amount;
+}
+
 export function formatData(dataMb: number): string {
   if (!Number.isFinite(dataMb) || dataMb <= 0) return "—";
   if (dataMb >= 1000) {

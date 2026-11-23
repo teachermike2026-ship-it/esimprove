@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
@@ -18,7 +18,21 @@ import {
   percentChange,
   resolveAnalyticsRange,
 } from "@/lib/analytics-web";
+import {
+  getCatalogueAnalytics,
+  getDemoOrderValue,
+  getOrdersByFulfillmentStatus,
+  getOrdersByPaymentStatus,
+  getOrdersSeries,
+  getRegistrationsSeries,
+  getTopDestinationsByOrders,
+  getTopPlansByOrders,
+  resolveCommerceRange,
+  type CommerceRange,
+} from "@/lib/analytics-commerce";
+import { formatDate, formatMoney } from "@/lib/money";
 import { BarList, LineChart } from "@/components/analytics-charts";
+import { ArrowRight } from "@/components/icons";
 
 export const metadata: Metadata = {
   title: "Analytics",
@@ -26,6 +40,7 @@ export const metadata: Metadata = {
 };
 
 const TABS = [
+  { key: "commerce", label: "Commerce" },
   { key: "overview", label: "Overview" },
   { key: "geo", label: "Geography" },
   { key: "pages", label: "Pages" },
@@ -41,6 +56,14 @@ const RANGE_OPTIONS = [
   { key: "30d", label: "Last 30 days" },
   { key: "90d", label: "Last 90 days" },
   { key: "custom", label: "Custom" },
+];
+
+const COMMERCE_RANGE_OPTIONS = [
+  { key: "today", label: "Today" },
+  { key: "7d", label: "Last 7 days" },
+  { key: "30d", label: "Last 30 days" },
+  { key: "90d", label: "Last 90 days" },
+  { key: "all", label: "All time" },
 ];
 
 type Params = Record<string, string | string[] | undefined>;
@@ -75,12 +98,19 @@ export default async function AdminAnalyticsPage({
   const params = await searchParams;
   const tab = TABS.some((entry) => entry.key === stringParam(params, "tab"))
     ? stringParam(params, "tab")
-    : "overview";
-  const range = resolveAnalyticsRange({
-    range: stringParam(params, "range") || "7d",
-    from: stringParam(params, "from"),
-    to: stringParam(params, "to"),
-  });
+    : "commerce";
+  const isCommerce = tab === "commerce";
+  const commerceRange = resolveCommerceRange(stringParam(params, "range") || "7d");
+  // Web-analytics tabs keep the shared resolver; the Commerce tab never uses it.
+  const webRange = isCommerce
+    ? resolveAnalyticsRange({ range: "7d" })
+    : resolveAnalyticsRange({
+        range: stringParam(params, "range") || "7d",
+        from: stringParam(params, "from"),
+        to: stringParam(params, "to"),
+      });
+  const rangeForChips = isCommerce ? commerceRange.key : webRange.key;
+  const rangeLabel = isCommerce ? commerceRange.label : webRange.label;
   const country = stringParam(params, "country");
   const pageTypeFilter = stringParam(params, "pageType") || "all";
   const selectedGame = stringParam(params, "game");
@@ -107,21 +137,25 @@ export default async function AdminAnalyticsPage({
           {country ? <input type="hidden" name="country" value={country} /> : null}
           {pageTypeFilter !== "all" ? <input type="hidden" name="pageType" value={pageTypeFilter} /> : null}
           {selectedGame ? <input type="hidden" name="game" value={selectedGame} /> : null}
-          <select name="range" defaultValue={range.key} aria-label="Date range">
-            {RANGE_OPTIONS.map((option) => (
+          <select name="range" defaultValue={rangeForChips} aria-label="Date range">
+            {(isCommerce ? COMMERCE_RANGE_OPTIONS : RANGE_OPTIONS).map((option) => (
               <option key={option.key} value={option.key}>{option.label}</option>
             ))}
           </select>
-          <input type="date" name="from" defaultValue={range.key === "custom" ? stringParam(params, "from") : ""} aria-label="From date" />
-          <input type="date" name="to" defaultValue={range.key === "custom" ? stringParam(params, "to") : ""} aria-label="To date" />
+          {isCommerce ? null : (
+            <>
+              <input type="date" name="from" defaultValue={webRange.key === "custom" ? stringParam(params, "from") : ""} aria-label="From date" />
+              <input type="date" name="to" defaultValue={webRange.key === "custom" ? stringParam(params, "to") : ""} aria-label="To date" />
+            </>
+          )}
           <button type="submit" className="btn btn-secondary">Apply</button>
-          <span className="small muted">{range.label}</span>
+          <span className="small muted">{rangeLabel}</span>
         </form>
         <nav className="analytics-tabs" aria-label="Analytics sections">
           {TABS.map((entry) => (
             <Link
               key={entry.key}
-              href={`/admin/analytics?tab=${entry.key}&range=${range.key}${country ? `&country=${country}` : ""}`}
+              href={`/admin/analytics?tab=${entry.key}&range=${rangeForChips}${country ? `&country=${country}` : ""}`}
               className={`chip ${tab === entry.key ? "chip-active" : ""}`}
             >
               {entry.label}
@@ -130,20 +164,22 @@ export default async function AdminAnalyticsPage({
         </nav>
       </section>
 
-      {!hasData ? (
+      {tab === "commerce" ? (
+        <CommerceTab db={db} range={commerceRange} />
+      ) : !hasData ? (
         <EmptyState />
       ) : tab === "overview" ? (
-        <OverviewTab db={db} range={range} />
+        <OverviewTab db={db} range={webRange} />
       ) : tab === "geo" ? (
-        <GeoBrowser db={db} range={range} country={country} />
+        <GeoBrowser db={db} range={webRange} country={country} />
       ) : tab === "pages" ? (
-        <PagesTab db={db} range={range} pageTypeFilter={pageTypeFilter} country={country} />
+        <PagesTab db={db} range={webRange} pageTypeFilter={pageTypeFilter} country={country} />
       ) : tab === "games" ? (
-        <GamesTab db={db} range={range} selectedGame={selectedGame} />
+        <GamesTab db={db} range={webRange} selectedGame={selectedGame} />
       ) : tab === "activities" ? (
-        <ActivitiesTab db={db} range={range} />
+        <ActivitiesTab db={db} range={webRange} />
       ) : (
-        <SourcesTab db={db} range={range} />
+        <SourcesTab db={db} range={webRange} />
       )}
 
       <p className="muted small">
@@ -683,6 +719,172 @@ async function SourcesTab({ db, range }: { db: Db; range: Range }) {
           />
         </section>
       </div>
+    </>
+  );
+}
+
+
+async function CommerceTab({ db, range }: { db: Db; range: CommerceRange }) {
+  const [orderSeries, registrationSeries, demoValue, ordersByPayment, ordersByFulfillment, topPlans, topDestinations, catalogue] =
+    await Promise.all([
+      getOrdersSeries(db, range),
+      getRegistrationsSeries(db, range),
+      getDemoOrderValue(db, range),
+      getOrdersByPaymentStatus(db, range),
+      getOrdersByFulfillmentStatus(db, range),
+      getTopPlansByOrders(db, range, 10),
+      getTopDestinationsByOrders(db, range, 10),
+      getCatalogueAnalytics(db),
+    ]);
+
+  return (
+    <>
+      <div className="inline-grid two">
+        <section className="card section-tight">
+          <h2>Orders over time</h2>
+          <LineChart
+            ariaLabel={`Orders per ${range.bucket} for ${range.label}`}
+            data={orderSeries.map((point) => ({ label: point.bucket, value: point.value }))}
+          />
+          <p className="muted small">Orders created per {range.bucket}. Includes every mock order regardless of payment status.</p>
+        </section>
+        <section className="card section-tight">
+          <h2>Customer registrations over time</h2>
+          <LineChart
+            ariaLabel={`Customer registrations per ${range.bucket} for ${range.label}`}
+            data={registrationSeries.map((point) => ({ label: point.bucket, value: point.value }))}
+          />
+          <p className="muted small">New customer accounts per {range.bucket} (UTC).</p>
+        </section>
+      </div>
+
+      <section className="card section-tight">
+        <h2>DEMO order value over time</h2>
+        {demoValue.primaryCurrency ? (
+          <>
+            <div className="stat-grid">
+              {demoValue.byCurrency.map((entry) => (
+                <article className="card stat" key={entry.currency}>
+                  <span>Paid mock orders ({entry.currency})</span>
+                  <strong>{formatMoney(entry.totalMinor, entry.currency)}</strong>
+                  <p className="muted small">DEMO — mock payment totals, never real revenue.</p>
+                </article>
+              ))}
+            </div>
+            <LineChart
+              ariaLabel={`Demo order value per ${range.bucket} for ${range.label} (${demoValue.primaryCurrency})`}
+              data={demoValue.series.map((point) => ({ label: point.bucket, value: Math.round(point.value / 100) }))}
+            />
+            <p className="muted small">
+              DEMO: sums of paid mock orders in the most common currency in this period
+              ({demoValue.primaryCurrency}), shown in major units. This is not revenue, not accounting,
+              and not a financial report.
+            </p>
+          </>
+        ) : (
+          <p className="muted">No paid mock orders in this period yet. Demo totals will appear here once orders are paid.</p>
+        )}
+      </section>
+
+      <div className="inline-grid two">
+        <section className="card section-tight">
+          <h2>Orders by payment status</h2>
+          <BarList
+            ariaLabel="Orders by payment status"
+            rows={ordersByPayment.map((row) => ({ label: row.status, value: row.count }))}
+            emptyLabel="No orders in this period."
+          />
+        </section>
+        <section className="card section-tight">
+          <h2>Orders by fulfillment status</h2>
+          <BarList
+            ariaLabel="Orders by fulfillment status"
+            rows={ordersByFulfillment.map((row) => ({ label: row.status, value: row.count }))}
+            emptyLabel="No orders in this period."
+          />
+        </section>
+      </div>
+
+      <div className="inline-grid two">
+        <section className="card section-tight">
+          <h2>Top plans by orders</h2>
+          <BarList
+            ariaLabel="Top plans by ordered quantity"
+            rows={topPlans.map((row) => ({ label: row.label, value: row.quantity, hint: "units ordered" }))}
+            emptyLabel="No ordered plans in this period."
+          />
+        </section>
+        <section className="card section-tight">
+          <h2>Top destinations by orders</h2>
+          <BarList
+            ariaLabel="Top destinations by ordered quantity"
+            rows={topDestinations.map((row) => ({ label: row.label, value: row.quantity, hint: row.hint }))}
+            emptyLabel="No destination data in this period."
+          />
+        </section>
+      </div>
+
+      <section className="card section-tight">
+        <div className="admin-toolbar">
+          <h2>Catalogue</h2>
+          <Link className="button button-ghost button-small" href="/admin/plans">Manage catalogue <ArrowRight className="inline-icon" /></Link>
+        </div>
+        <div className="stat-grid">
+          <article className="card stat">
+            <span>Published plans</span>
+            <strong>{catalogue.plansByStatus.published}</strong>
+            <p className="muted small">Live in the catalogue.</p>
+          </article>
+          <article className="card stat">
+            <span>Draft plans</span>
+            <strong>{catalogue.plansByStatus.draft}</strong>
+            <p className="muted small">Not visible to customers.</p>
+          </article>
+          <article className="card stat">
+            <span>Archived plans</span>
+            <strong>{catalogue.plansByStatus.archived}</strong>
+            <p className="muted small">Hidden but kept for order history.</p>
+          </article>
+          <article className="card stat">
+            <span>Published plans with zero orders</span>
+            <strong>{catalogue.zeroOrderPlans}</strong>
+            <p className="muted small">Live plans never ordered.</p>
+          </article>
+        </div>
+
+        <div className="inline-grid two">
+          <div>
+            <h3 className="small muted">Published plans with zero orders</h3>
+            {catalogue.zeroOrderPlanList.length === 0 ? (
+              <p className="muted small">Every published plan has at least one order.</p>
+            ) : (
+              <ul className="simple-list">
+                {catalogue.zeroOrderPlanList.map((plan) => (
+                  <li key={plan.id}>
+                    <Link className="link" href="/admin/plans">{plan.name}</Link>{" "}
+                    <span className="muted small">· {plan.destinationName}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <h3 className="small muted">Recent catalogue changes</h3>
+            {catalogue.recentChanges.length === 0 ? (
+              <p className="muted small">No catalogue changes recorded yet.</p>
+            ) : (
+              <ul className="simple-list">
+                {catalogue.recentChanges.map((change) => (
+                  <li key={change.id}>
+                    <span className="small">{change.action.replace(/^admin\./, "")}</span>{" "}
+                    <span className="muted small">{formatDate(change.createdAt)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </section>
     </>
   );
 }

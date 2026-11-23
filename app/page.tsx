@@ -13,7 +13,7 @@ import { CountryFlag } from "@/components/country-flag";
 import { DestinationExplorer, type ExplorerDestination } from "@/components/home/destination-explorer";
 import { DestinationSearch } from "@/components/home/destination-search";
 import { PhoneShowcase, type PhoneDestination, type PhoneRegion } from "@/components/home/phone-showcase";
-import { DemoQr } from "@/components/home/qr-demo";
+import { ExampleQr } from "@/components/home/example-qr";
 import { TutorialSection } from "@/components/home/tutorial-section";
 import { WorldMap } from "@/components/home/world-map";
 import {
@@ -29,7 +29,7 @@ import {
 export const metadata: Metadata = {
   title: { absolute: "Travel eSIMs for your next trip · Esimprove" },
   description:
-    "Compare travel eSIM plans by destination. Explore data, validity, and pricing in the Esimprove demo storefront. No live payments or eSIM activation.",
+    "Compare travel eSIM plans by destination. Explore data, validity, and pricing in the Esimprove storefront.",
   alternates: { canonical: "/" },
 };
 
@@ -162,9 +162,6 @@ export default async function HomePage() {
                 {planCount} plan options
               </li>
             </ul>
-            <p className="es-hero-caption">
-              Interactive preview uses the local demo catalogue. No live activation or payment.
-            </p>
           </div>
 
           <div className="es-hero-visual">
@@ -197,17 +194,13 @@ export default async function HomePage() {
             </li>
             <li>
               <ShieldIcon />
-              <span>Demo-safe checkout</span>
+              <span>Digital delivery</span>
             </li>
             <li>
               <CheckIcon />
-              <span>Clear demo labels</span>
+              <span>Clear status labels</span>
             </li>
           </ul>
-          <p className="es-trust-note">
-            Counts come from the local demo catalogue. No partner relationship or live network
-            coverage is implied.
-          </p>
         </div>
       </section>
 
@@ -219,8 +212,7 @@ export default async function HomePage() {
           </h2>
           <p>
             Browse plans by destination, compare data and validity, and check your device
-            before you travel. Everything is clearly labelled while live integrations remain
-            disabled.
+            before you travel.
           </p>
         </div>
       </section>
@@ -234,7 +226,7 @@ export default async function HomePage() {
             <article className="es-feature-card">
               <h3>Global Coverage</h3>
               <p>
-                Explore {destinationCount} destinations across {regionCount} demo regions,
+                Explore {destinationCount} destinations across {regionCount} regions,
                 with data, validity, and starting prices shown up front.
               </p>
               <div className="es-flag-cloud" aria-hidden="true">
@@ -253,7 +245,7 @@ export default async function HomePage() {
             <article className="es-feature-card">
               <h3>Flexible Plans</h3>
               <p>
-                Choose from demo data plans sized for a short break or a longer stay. The
+                Choose from data plans sized for a short break or a longer stay. The
                 selected row is the clear, green choice.
               </p>
               <div className="es-plan-choice">
@@ -290,11 +282,11 @@ export default async function HomePage() {
               <h3>Instant Activation</h3>
               <p>
                 QR or manual installation instructions, with a written guide for iOS and
-                Android — no fake activation states.
+                Android.
               </p>
               <div className="es-qr-panel">
-                <DemoQr />
-                <span>Illustrative QR — not an activation code.</span>
+                <ExampleQr />
+                <span>Install with a QR code or manual activation code.</span>
               </div>
               <Link className="es-text-link" href="/guides">
                 Open install guide <ArrowRight />
@@ -312,7 +304,7 @@ export default async function HomePage() {
               Pick a Vacation <span className="es-green">Destination</span>
             </h2>
             <p>
-              Choose a destination to explore available packages, data allowances, and demo
+              Choose a destination to explore available packages, data allowances, and
               pricing before you compare plans.
             </p>
           </header>
@@ -343,8 +335,8 @@ export default async function HomePage() {
               Traveler <span className="es-green">stories</span>
             </h2>
             <p>
-              We only publish verified customer reviews. None are approved for this build, so
-              no review names, quotes, ratings, or platform scores are shown.
+              We only publish verified customer reviews. None are published yet, so no review
+              names, quotes, ratings, or platform scores are shown.
             </p>
           </div>
 
@@ -392,8 +384,7 @@ export default async function HomePage() {
               Frequently asked <span className="es-green">questions</span>
             </h2>
             <p>
-              Straight answers about eSIMs, compatibility, installation, and the limits of
-              this demo build.
+              Straight answers about eSIMs, compatibility, and installation.
             </p>
             <Link className="es-text-link" href="/guides">
               Read the installation guides <ArrowRight />
@@ -423,7 +414,7 @@ export default async function HomePage() {
                 Where are you <span className="es-green">heading next?</span>
               </h2>
               <p>
-                Search the demo catalogue, then compare data, validity, and price before you
+                Search the catalogue, then compare data, validity, and price before you
                 choose a plan.
               </p>
               <DestinationSearch id="cta-search" suggestions={searchSuggestions} size="cta" />
@@ -457,25 +448,6 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="es-demo-limits" id="demo-limits">
-            <div className="es-demo-limits-head">
-              <span className="es-demo-badge">Demo build</span>
-              <h3>What works — and what stays off</h3>
-            </div>
-            <div className="es-demo-limits-copy">
-              <p>
-                <strong>Working locally:</strong> catalogue, search, cart, demo checkout,
-                customer portal, admin views, and fulfilment simulation.
-              </p>
-              <p>
-                <strong>Not live:</strong> payments, supplier orders, eSIM activation, email,
-                reviews, and partner claims.
-              </p>
-            </div>
-            <Link className="es-text-link" href="/about">
-              Read the approach <ArrowRight />
-            </Link>
-          </div>
         </div>
       </section>
     </div>

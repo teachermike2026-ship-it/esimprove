@@ -4,7 +4,6 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { DemoBanner } from "@/components/demo-banner";
 import {
   AnalyticsTracker,
   ConsentManager,
@@ -32,7 +31,7 @@ const manrope = localFont({
 });
 
 const fallbackDescription =
-  "Compare travel eSIM plans by destination. Explore data, validity, and pricing in the Esimprove demo storefront. No live payments or eSIM activation.";
+  "Compare travel eSIM plans by destination. Explore data, validity, and pricing in the Esimprove storefront.";
 
 async function safeSettings(): Promise<SeoSettings | null> {
   try {
@@ -116,12 +115,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             dangerouslySetInnerHTML={{ __html: siteJsonLd }}
           />
         ) : null}
-        <DemoBanner />
         <SiteHeader />
         <main id="main" className="container page-main">
           {children}
         </main>
-        <SiteFooter legalSettings={legalSettings} />
+        <SiteFooter />
         <Ga4Loader
           measurementId={ga4Enabled && ga4 ? ga4 : ""}
           consentVersion={consentVersion}

@@ -1,7 +1,9 @@
 # Netlify Deployment Blockers — Esimprove
 
-**Status:** Evidence-based blocker register as of 2026-11-05. No Netlify deploy, production
-database, domain, DNS change, or live provider operation has occurred.
+**Status (2026-11-23):** Evidence-based blocker register. A Neon PostgreSQL project named
+`esimprove` exists, but no database connection, migration, or data transfer has run. `esimprove.com`
+is registered but parked on Hostinger; no Netlify site, deploy, DNS cutover, or live provider
+operation has occurred. The Whop catalogue is empty and the adapter remains inactive.
 
 Severity meanings:
 
@@ -14,9 +16,9 @@ Severity meanings:
 | ID | Severity | Blocker | Owner/action required |
 | --- | --- | --- | --- |
 | B-01 | Deploy preview / production | No Netlify site, deploy access, or environment configuration exists | Owner creates the site and sets context-scoped variables |
-| B-02 | Deploy preview / production | No PostgreSQL provider or database credentials exist | Owner selects a provider, provisions preview and production databases, provides URLs |
-| B-03 | Production | Domain/DNS/HTTPS origin not owned or configured | Owner acquires the domain, configures DNS in Netlify, sets `SITE_URL` |
-| B-04 | Live operation / production commerce | No live payment provider exists; production checkout is intentionally disabled | Owner/provider approval, implementation, sandbox tests, and explicit launch authorization |
+| B-02 | Deploy preview / production | Neon project `esimprove` exists, but no Netlify environment configuration, isolated preview database, backup/PITR confirmation, or production migration has been completed | Owner approves the migration, confirms backups, and configures Netlify variables |
+| B-03 | Production | Domain registered but parked on Hostinger; DNS/HTTPS not pointed at Netlify | Owner creates the site, applies Netlify's exact DNS records, waits for the certificate, sets `SITE_URL` |
+| B-04 | Live operation / production commerce | Production checkout is intentionally disabled; the Whop adapter is prepared but its catalogue is empty and unapproved | Owner supplies real catalogue, verified mappings, webhook secret, and explicit launch authorization |
 | B-05 | Live operation / production | No live email provider or verified sending domain; password-reset email is unavailable | Owner selects a provider, verifies domain/DNS, implements and tests the adapter |
 | B-06 | Live operation | No live supplier integration; N-07 transport controls are not implemented | Owner/provider approval plus a reviewed outbound transport satisfying N-07 |
 | B-07 | Live operation / production | Legal entity, terms, privacy, refunds, cookies, tax, and support contacts are not finalized | Owner/legal/tax review |
@@ -28,6 +30,8 @@ Severity meanings:
 | B-13 | Production / verification | Google Search Console ownership, sitemap submission, and indexing are external actions and have not occurred | Owner verifies the property in GSC, submits `/sitemap.xml`, and records evidence |
 | B-14 | Verification | First-party analytics has no production evidence; consent, DNT/GPC, internal exclusion, and report accuracy are proven only by local tests | Deploy with a production database, collect consented traffic, and reconcile reports against stored rows |
 | B-15 | Production content operations | Blog media must be hosted on an external HTTPS origin; Netlify does not persist local filesystem uploads | Owner provides a media host/CDN and a documented upload process |
+| B-16 | Deploy preview / production | Git `origin` points at `teachermike2026-ship-it/esimprove`; the intended `mohamedouaarab-dotcom/esimprove` returns 404 and no GitHub CLI authentication is available | Owner confirms/creates the intended repository and authorizes the remote change and push |
+| B-17 | Deploy preview / production | Resolved in the working tree: `next@16.4.6` is applied and passes typecheck, lint, focused tests, build, and the production dependency audit. The change is not yet committed/pushed | Commit/push with approval |
 
 ---
 
@@ -49,54 +53,59 @@ the owner's account.
 
 ## B-02 — No PostgreSQL provider or credentials
 
-**Exact issue:** No preview or production PostgreSQL database is provisioned. `DATABASE_URL`,
-`DATABASE_MIGRATION_URL`, and `DATABASE_ENV` have no real values in any deployed context. No
-migration has run against a remote database.
+**Exact issue:** A Neon PostgreSQL project named `esimprove` exists, and the owner has saved pooled
+and direct connection strings outside this repository. No Netlify environment variables, isolated
+preview database, backup/PITR confirmation, migration, or data transfer has been completed.
 
-**Why it blocks:** Deployed contexts refuse PGlite. Without a database URL the app fails the
-preflight and cannot serve data. Preview and production must be separate databases.
+**Why it blocks:** Deployed contexts refuse PGlite. Without Netlify-scoped `DATABASE_URL` and
+`DATABASE_ENV`, the preflight fails. Preview and production must not share one database.
 
-**What is needed:** Select a provider; create isolated preview/staging and production databases;
-enable TLS, backups/PITR, and a connection limit suitable for serverless; provide pooled runtime
-URLs and direct/session migration URLs. Do not share one database across contexts.
+**What is needed:** Confirm backups/PITR; create an isolated preview Neon branch/database if previews
+are enabled; add production-scoped variables; run the nine migrations with the direct URL; verify
+schema and health. Do not copy local demo data.
 
-**Owner provides:** Provider account, database URLs, and backup policy.
+**Owner provides:** Approval for the migration window, backup policy, and Netlify variable setup.
 
 ---
 
-## B-03 — Domain, DNS, and HTTPS are not configured
+## B-03 — Domain registered but not connected to Netlify
 
-**Exact issue:** No custom domain is owned or connected. No DNS record or certificate exists.
-`SITE_URL` remains the local default until the owner sets it.
+**Exact issue:** `esimprove.com` is registered and currently resolves to a Hostinger parking page
+(`2.57.91.91`); `www.esimprove.com` CNAMEs to the apex. No Netlify site, DNS cutover, or managed
+certificate exists. `SITE_URL` remains the local default until the owner sets it.
 
 **Why it blocks:** A production deploy without a verified HTTPS origin fails configuration
-validation. A deploy preview can use a Netlify-provided HTTPS URL, but production cannot claim a
-custom domain.
+validation. The current HTTPS endpoint serves a parked page, not the application.
 
-**What is needed:** Add the domain in Netlify, configure the shown DNS records at the owner's DNS
-provider, wait for the managed certificate, set `SITE_URL` to the final `https://` origin, and
-redeploy.
+**What is needed:** Create the Netlify site, add `esimprove.com` as the primary domain and
+`www.esimprove.com` as an alias, apply the exact DNS records or nameservers Netlify displays,
+wait for the managed certificate, enable Force HTTPS, set `SITE_URL=https://esimprove.com`, and
+redeploy. Do not reuse the current parking record.
 
-**Owner provides:** Domain ownership, DNS access, and approval. This task does not change DNS.
+**Owner provides:** Netlify site, DNS access at Hostinger, and approval. This task does not change
+DNS.
 
 ---
 
-## B-04 — No live payment provider; production checkout disabled
+## B-04 — Production checkout disabled; Whop prepared but not activated
 
-**Exact issue:** The only payment adapter in the current build is the mock sandbox. Production
-uses a fail-closed disabled provider, the mock webhook returns 404, and `/checkout` shows an
-unavailable state. No processor approval, live credentials, or sandbox test account exists.
+**Exact issue:** The Whop hosted-checkout adapter is implemented and the required Account API
+permissions are verified, but the account has **0 products and 0 variants**. No
+`WHOP_PLAN_VARIANT_MAP` entry, `WHOP_WEBHOOK_SECRET`, or production `APP_URL` exists.
+`PAYMENTS_LIVE_ENABLED` remains `false` and `PAYMENT_PROVIDER` remains unset. Production uses a
+fail-closed checkout state, and the mock webhook returns 404.
 
-**Why it blocks:** A production site cannot take real orders. This is intentional: the code must
-not present a fake successful payment as real.
+**Why it blocks:** A production site cannot take real orders. This is intentional: no demo price
+may be presented as real inventory, and no payment may be accepted without a verified catalogue
+mapping and webhook handling.
 
-**What is needed:** Select a processor, obtain approval and credentials, implement the live
-adapter with signature verification and idempotency, test in the provider sandbox, complete
-finance/refund/chargeback procedures, then authorize live payments. Do not enable
-`PAYMENTS_LIVE_ENABLED` for this build; the adapter is not implemented.
+**What is needed:** Create real Whop products/variants with approved pricing, rerun
+`npx tsx scripts/whop-discover.ts`, map only exact one-time USD matches, configure the webhook
+secret and public HTTPS `APP_URL`, test in the provider sandbox, complete finance/refund/chargeback
+procedures, then authorize live payments. Do not enable `PAYMENTS_LIVE_ENABLED` for this build.
 
-**Owner provides:** Provider account, approval, credentials, sandbox evidence, and written launch
-authorization.
+**Owner provides:** Real catalogue and prices, provider approval, webhook secret, sandbox evidence,
+and written launch authorization.
 
 ---
 
@@ -311,12 +320,52 @@ add local filesystem uploads that appear to work only on a developer machine.
 
 ---
 
+## B-16 — Git remote does not match the intended GitHub account
+
+**Exact issue:** The repository-local identity is `mohamedouaarab-dotcom`
+`<mohamed.ouaarab17@gmail.com>`, but `origin` points at
+`https://github.com/teachermike2026-ship-it/esimprove.git`. The intended repository
+`https://github.com/mohamedouaarab-dotcom/esimprove` returns HTTP 404. The local `main`/feature
+branch is also 9 commits ahead of `origin/main`, and the working tree has substantial uncommitted
+work. No GitHub CLI authentication or token is available to verify the intended repository.
+
+**Why it blocks:** A push would either fail or publish to the wrong account. Creating the intended
+repository, changing the remote, and pushing all require explicit owner approval.
+
+**What is needed:** Confirm the intended repository owner/name. If it does not exist, create it
+under the intended account (or authorize an existing repository). Then change `origin`, review the
+full working tree, commit intentionally, and push. Never force-push or rewrite remote history.
+
+**Owner provides:** Repository confirmation, GitHub authentication, and approval to change the
+remote and push.
+
+---
+
+## B-17 — Next.js security advisories block the production build
+
+**Exact issue (updated 2026-11-23):** `next@16.4.2` was in the affected range
+(`16.0.0 - 16.4.4`) for the Next.js security advisory. The verified `next@16.4.6` and
+`eslint-config-next@16.4.6` package/lockfile change is now applied to the main working tree after
+owner approval. Typecheck, lint, focused tests, the production build, and `npm audit --omit=dev`
+(0 vulnerabilities) all pass there. The change is not yet committed or pushed.
+
+**Why it mattered:** Netlify builds from the committed tree. Before the upgrade, its `npm run build`
+hit the security gate and no deploy could be produced.
+
+**What is still needed:** Review the diff, then commit and push with approval. React 19.3.1 already
+satisfies the peer dependency. Do not downgrade Next.js.
+
+**Owner provides:** Approval to commit/push the applied upgrade.
+
+---
+
 ## Blocker status summary
 
 - **Code/config blockers for a safe deploy preview:** none known after the Phase 4 changes.
-  The preview cannot run until the owner provides B-01, B-02, B-12, and a preview `SITE_URL`.
-- **Production deployment blockers:** B-01, B-02, B-03, B-07, B-10, B-11, B-12, B-13, B-15, plus
-  the live-operation blockers B-04, B-05, B-06, and B-09.
+  The preview cannot run until the owner provides B-01, B-02, B-12, B-16, B-17, and a preview
+  `SITE_URL`.
+- **Production deployment blockers:** B-01, B-02, B-03, B-07, B-10, B-11, B-12, B-13, B-15, B-16,
+  B-17, plus the live-operation blockers B-04, B-05, B-06, and B-09.
 - **Verification blockers:** B-08 (browser/accessibility), B-11 (actual Netlify deploy), and B-14
   (production analytics evidence).
 - **N-07:** remains open for live supplier traffic. It is not closed by the disabled adapter.

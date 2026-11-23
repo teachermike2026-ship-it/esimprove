@@ -77,10 +77,10 @@ describe("role and permission policy", () => {
     );
     expect(supportLinks.map((item) => item.section)).toEqual([
       "overview",
-      "customers",
-      "help",
-      "support",
       "orders",
+      "customers",
+      "support",
+      "help",
     ]);
     expect(supportLinks.map((item) => item.href)).not.toContain("/admin/payments");
   });

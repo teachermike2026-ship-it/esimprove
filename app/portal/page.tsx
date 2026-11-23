@@ -25,11 +25,10 @@ export default async function PortalPage() {
           <p className="eyebrow">Customer portal</p>
           <h1>Welcome, {user.name}</h1>
           <p className="muted">
-            Signed in as {user.email}. Demo orders and activation records linked to this
+            Signed in as {user.email}. Orders and activation records linked to this
             account appear here.
           </p>
         </div>
-        <span className="badge badge-demo">Demo account</span>
       </div>
 
       <div className="split">
@@ -37,13 +36,12 @@ export default async function PortalPage() {
           <div className="section-heading">
             <div>
               <p className="eyebrow">History</p>
-              <h2 id="portal-orders">Your demo orders</h2>
+              <h2 id="portal-orders">Your orders</h2>
             </div>
           </div>
           {orders.length === 0 ? (
-            <EmptyState title="No demo orders yet" action={{ href: "/plans", label: "Browse demo plans" }}>
-              Complete a mock checkout to see an order, fulfillment job, and activation record
-              here.
+            <EmptyState title="No orders yet" action={{ href: "/plans", label: "Browse plans" }}>
+              Your orders and activation records will appear here once you place an order.
             </EmptyState>
           ) : (
             <div className="table-wrap">
@@ -99,10 +97,24 @@ export default async function PortalPage() {
                 <dt>Role</dt>
                 <dd>{user.role}</dd>
               </div>
+              <div>
+                <dt>Verification</dt>
+                <dd>{user.emailVerifiedAt ? "Verified" : "Not verified"}</dd>
+              </div>
             </dl>
+            <div className="stack-sm">
+              <Link className="button button-secondary button-small" href="/portal/profile">
+                Profile and security
+              </Link>
+              <Link className="button button-ghost button-small" href="/portal/support">
+                Support conversations
+              </Link>
+              <Link className="button button-ghost button-small" href="/legal/privacy">
+                Privacy and data
+              </Link>
+            </div>
             <p className="form-note">
-              Account email verification is not implemented in this demo. Do not use real
-              personal data.
+              Important account and order status is always shown here in your portal.
             </p>
           </section>
           <section className="card form">
@@ -110,8 +122,7 @@ export default async function PortalPage() {
               <QrIcon className="inline-icon" /> Need a plan?
             </h2>
             <p className="muted small">
-              Browse the demo catalogue, then complete a mock checkout to test fulfillment and
-              activation.
+              Browse plans by destination and validity.
             </p>
             <Link className="button button-secondary" href="/plans">
               Browse plans

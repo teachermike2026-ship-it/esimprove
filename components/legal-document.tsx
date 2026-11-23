@@ -1,224 +1,111 @@
 import Link from "next/link";
 import {
-  LEGAL_DISCLAIMER,
-  businessProfileMissing,
-  configuredBusinessName,
-  configuredPrivacyEmail,
-  configuredSupportEmail,
-  documentIsPublishable,
-  documentMeta,
-  formatBusinessAddress,
-  formatLegalDate,
-  isBusinessProfileComplete,
-  type LegalDocumentKey,
-} from "@/lib/legal";
-import type { LegalSettingsRow } from "@/lib/db/schema";
-import { AlertIcon, CheckIcon, MailIcon } from "@/components/icons";
-
-function StatusBadge({ status }: { status: string }) {
-  const label = status.replaceAll("_", " ");
-  const tone =
-    status === "complete" ? "badge-success" : status === "not_verified" ? "badge-danger" : "badge-warning";
-  return <span className={`badge ${tone}`}>{label}</span>;
-}
+  LEGAL_DOCUMENT_VERSION,
+  LEGAL_EFFECTIVE_DATE_LABEL,
+  LEGAL_BRAND,
+  LEGAL_BUSINESS_COUNTRY,
+  LEGAL_BUSINESS_TYPE,
+  LEGAL_CONTACT_EMAIL,
+  LEGAL_JURISDICTION,
+  LEGAL_NOT_A_REGISTERED_ENTITY,
+  LEGAL_PLATFORM_LINE,
+  LEGAL_PHYSICAL_OFFICE,
+} from "@/lib/legal-profile";
+import { CheckIcon, MailIcon } from "@/components/icons";
 
 export function LegalDocumentHeader({
-  settings,
-  documentKey,
   title,
   intro,
 }: {
-  settings: LegalSettingsRow;
-  documentKey: LegalDocumentKey;
   title: string;
   intro: string;
 }) {
-  const meta = documentMeta(settings, documentKey);
-  const publishable = documentIsPublishable(settings, documentKey);
-  const missing = businessProfileMissing(settings);
-
   return (
     <header className="legal-header">
-      <p className="eyebrow">Legal &amp; compliance</p>
-      <div className="legal-title-row">
-        <h1>{title}</h1>
-        <StatusBadge status={meta.status} />
-      </div>
+      <p className="eyebrow">Legal</p>
+      <h1>{title}</h1>
       <p className="lead">{intro}</p>
       <dl className="legal-meta">
         <div>
           <dt>Document version</dt>
-          <dd>{meta.version}</dd>
+          <dd>{LEGAL_DOCUMENT_VERSION}</dd>
         </div>
         <div>
           <dt>Effective date</dt>
-          <dd>{formatLegalDate(meta.effectiveDate)}</dd>
+          <dd>{LEGAL_EFFECTIVE_DATE_LABEL}</dd>
         </div>
         <div>
           <dt>Business</dt>
-          <dd>{configuredBusinessName(settings) || "Not configured"}</dd>
+          <dd>{LEGAL_PLATFORM_LINE}</dd>
         </div>
       </dl>
-
-      {!publishable ? (
-        <div className="callout callout-warning" role="note">
-          <AlertIcon className="inline-icon" />
-          <div>
-            <p>
-              <strong>This document is a draft and is not presented as an effective legal
-              policy.</strong>{" "}
-              {missing.length > 0
-                ? "The owner must add verified business details before publication."
-                : "The document still requires professional legal review and an effective date."}
-            </p>
-            {missing.length > 0 ? (
-              <p className="small">
-                Missing owner information: {missing.map((entry) => entry.label).join(", ")}.
-              </p>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      <p className="legal-disclaimer">{LEGAL_DISCLAIMER}</p>
     </header>
   );
 }
 
-export function BusinessDetails({ settings }: { settings: LegalSettingsRow }) {
-  if (!isBusinessProfileComplete(settings)) {
-    const missing = businessProfileMissing(settings);
-    return (
-      <section className="card form legal-business" aria-labelledby="business-details-title">
-        <h2 id="business-details-title">Business details</h2>
-        <div className="callout callout-warning">
-          <AlertIcon className="inline-icon" />
-          <p>
-            Verified business details are not configured in this build. No legal name,
-            registration number, address, telephone number, or VAT number has been invented.
-          </p>
-        </div>
-        <p className="small muted">
-          Required before publication: {missing.map((entry) => entry.label).join(", ")}.
-        </p>
-        <p className="small">
-          The owner can add these details in the admin Legal &amp; Compliance section.
-        </p>
-      </section>
-    );
-  }
-
+export function BusinessDetails() {
   return (
     <section className="card form legal-business" aria-labelledby="business-details-title">
-      <h2 id="business-details-title">Business details</h2>
+      <h2 id="business-details-title">Business and contact details</h2>
       <dl className="meta-list">
         <div>
-          <dt>Legal name</dt>
-          <dd>{settings.legalName}</dd>
+          <dt>Brand</dt>
+          <dd>{LEGAL_BRAND}</dd>
         </div>
-        {settings.tradingName ? (
-          <div>
-            <dt>Trading name</dt>
-            <dd>{settings.tradingName}</dd>
-          </div>
-        ) : null}
         <div>
-          <dt>Registered address</dt>
-          <dd>{formatBusinessAddress(settings)}</dd>
+          <dt>Business type</dt>
+          <dd>{LEGAL_BUSINESS_TYPE}</dd>
         </div>
         <div>
           <dt>Business country</dt>
-          <dd>{settings.businessCountry}</dd>
+          <dd>{LEGAL_BUSINESS_COUNTRY} (provisional operating location)</dd>
         </div>
-        {settings.registrationNumber ? (
-          <div>
-            <dt>Registration number</dt>
-            <dd>{settings.registrationNumber}</dd>
-          </div>
-        ) : null}
-        {settings.vatNumber ? (
-          <div>
-            <dt>VAT / tax number</dt>
-            <dd>{settings.vatNumber}</dd>
-          </div>
-        ) : null}
-        {settings.taxDetails ? (
-          <div>
-            <dt>Tax details</dt>
-            <dd>{settings.taxDetails}</dd>
-          </div>
-        ) : null}
         <div>
-          <dt>Contact email</dt>
+          <dt>Physical office</dt>
+          <dd>{LEGAL_PHYSICAL_OFFICE}</dd>
+        </div>
+        <div>
+          <dt>Contact</dt>
           <dd>
-            <a href={`mailto:${settings.contactEmail}`}>{settings.contactEmail}</a>
+            <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>
           </dd>
         </div>
-        {settings.supportEmail ? (
-          <div>
-            <dt>Customer support</dt>
-            <dd>
-              <a href={`mailto:${settings.supportEmail}`}>{settings.supportEmail}</a>
-            </dd>
-          </div>
-        ) : null}
-        {settings.phone ? (
-          <div>
-            <dt>Telephone</dt>
-            <dd>{settings.phone}</dd>
-          </div>
-        ) : null}
+        <div>
+          <dt>Customer support</dt>
+          <dd>
+            <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>
+          </dd>
+        </div>
         <div>
           <dt>Privacy contact</dt>
           <dd>
-            <a href={`mailto:${configuredPrivacyEmail(settings)}`}>
-              {configuredPrivacyEmail(settings)}
-            </a>
+            <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>
           </dd>
         </div>
-        {settings.legalContact ? (
-          <div>
-            <dt>Legal contact</dt>
-            <dd>{settings.legalContact}</dd>
-          </div>
-        ) : null}
         <div>
-          <dt>Applicable jurisdiction</dt>
-          <dd>{settings.jurisdiction}</dd>
+          <dt>Governing jurisdiction</dt>
+          <dd>{LEGAL_JURISDICTION}</dd>
         </div>
       </dl>
+      <p className="small muted">{LEGAL_NOT_A_REGISTERED_ENTITY}</p>
     </section>
   );
 }
 
-export function PrivacyContact({ settings }: { settings: LegalSettingsRow }) {
-  const email = configuredPrivacyEmail(settings);
+export function PrivacyContact() {
   return (
     <section className="card form" aria-labelledby="privacy-contact-title">
       <h2 id="privacy-contact-title">How to contact us about privacy</h2>
-      {email ? (
-        <>
-          <p>
-            Privacy questions and rights requests can be sent to{" "}
-            <a href={`mailto:${email}`}>{email}</a>.
-          </p>
-          <p>
-            You can also use the{" "}
-            <Link href="/privacy/request">privacy request form</Link> without signing in.
-            Requests that could delete an account require identity verification.
-          </p>
-        </>
-      ) : (
-        <div className="callout callout-warning">
-          <AlertIcon className="inline-icon" />
-          <p>
-            No privacy contact email is configured yet. The owner must add a monitored privacy
-            contact before this policy can be published. The{" "}
-            <Link href="/privacy/request">privacy request form</Link> records requests locally
-            but cannot send email in this build.
-          </p>
-        </div>
-      )}
+      <p>
+        Privacy questions and rights requests can be sent to{" "}
+        <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>.
+      </p>
+      <p>
+        You can also use the{" "}
+        <Link href="/privacy/request">privacy request form</Link> with or without signing in.
+        Requests that could affect or delete an account require identity verification before any
+        account data is accessed, changed, or disclosed.
+      </p>
       <p className="small muted">
         <MailIcon className="inline-icon" /> Do not send passwords, full card numbers, or
         authentication codes in a privacy request.
@@ -227,46 +114,27 @@ export function PrivacyContact({ settings }: { settings: LegalSettingsRow }) {
   );
 }
 
-export function LegalDocumentFooter({
-  settings,
-  documentKey,
-}: {
-  settings: LegalSettingsRow;
-  documentKey: LegalDocumentKey;
-}) {
-  const meta = documentMeta(settings, documentKey);
+export function LegalDocumentFooter() {
   return (
     <footer className="legal-footer">
       <p>
-        <CheckIcon className="inline-icon" /> Version {meta.version} · Effective{" "}
-        {formatLegalDate(meta.effectiveDate)}.
+        <CheckIcon className="inline-icon" /> Version {LEGAL_DOCUMENT_VERSION} · Effective{" "}
+        {LEGAL_EFFECTIVE_DATE_LABEL}.
       </p>
       <p className="small muted">
-        This page is part of a demonstration storefront. It is not legal advice and does not
-        create a lawyer-client relationship.
+        This page is not legal advice and does not create a lawyer-client relationship.
       </p>
     </footer>
   );
 }
 
-export function SupportChannelNotice({ settings }: { settings: LegalSettingsRow }) {
-  const email = configuredSupportEmail(settings);
+export function SupportChannelNotice() {
   return (
     <div className="callout">
       <p>
-        <strong>Support routing:</strong>{" "}
-        {email ? (
-          <>
-            Customer support email is configured as{" "}
-            <a href={`mailto:${email}`}>{email}</a>. Response times are not promised unless the
-            owner publishes a verified service window.
-          </>
-        ) : (
-          <>
-            No customer support email is configured. The contact form stores a local request,
-            but no live support inbox is connected in this build.
-          </>
-        )}
+        <strong>Support:</strong> Customer support enquiries can be sent to{" "}
+        <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>. Include your order
+        reference where relevant. There is no telephone support line.
       </p>
     </div>
   );

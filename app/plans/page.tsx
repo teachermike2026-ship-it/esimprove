@@ -6,9 +6,9 @@ import { PlanCard } from "@/components/plan-card";
 import { EmptyState } from "@/components/empty-state";
 
 export const metadata: Metadata = {
-  title: "Demo plans",
+  title: "Travel eSIM plans",
   description:
-    "Search and filter illustrative demo eSIM plans by destination, region, data, validity, and price.",
+    "Search and filter eSIM plans by destination, region, data, validity, and price.",
   alternates: { canonical: "/plans" },
 };
 
@@ -52,10 +52,10 @@ export default async function PlansPage({
       <div className="section-heading">
         <div>
           <p className="eyebrow">Plan catalogue</p>
-          <h1>Compare demo plans</h1>
+          <h1>Compare eSIM plans</h1>
           <p className="lead">
-            Filter the local demo catalogue by destination, data, validity, and price. The
-            pricing engine calculates every displayed price; no supplier quote is implied.
+            Filter the catalogue by destination, data, validity, and price to find the plan
+            that fits your trip.
           </p>
         </div>
       </div>
@@ -76,7 +76,7 @@ export default async function PlansPage({
 
       <div className="section-tight">
         <p className="muted small" role="status">
-          {plans.length} demo plan{plans.length === 1 ? "" : "s"} shown.
+          {plans.length} plan{plans.length === 1 ? "" : "s"} shown.
         </p>
       </div>
 
@@ -87,7 +87,7 @@ export default async function PlansPage({
           ))}
         </div>
       ) : (
-        <EmptyState title="No demo plans match those filters" action={{ href: "/plans", label: "Clear filters" }}>
+        <EmptyState title="No plans match those filters" action={{ href: "/plans", label: "Clear filters" }}>
           Try a broader region, a lower minimum data amount, or a higher maximum price.
         </EmptyState>
       )}

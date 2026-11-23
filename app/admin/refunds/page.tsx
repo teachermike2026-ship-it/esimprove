@@ -6,7 +6,7 @@ import { getDb } from "@/lib/db/client";
 import { listAdminRefunds } from "@/lib/admin";
 import { formatDate, formatMoney } from "@/lib/money";
 import { StatusBadge } from "@/components/status-badge";
-import { approveRefundAction } from "../actions";
+import { approveRefundAction, rejectRefundAction } from "../actions";
 
 export const metadata: Metadata = {
   title: "Admin refunds",
@@ -16,26 +16,36 @@ export const metadata: Metadata = {
 export default async function AdminRefundsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; processed?: string }>;
+  searchParams: Promise<{ error?: string; processed?: string; rejected?: string }>;
 }) {
   const staff = await requireStaff("/admin/refunds", "refunds");
   const canApprove = hasPermission(staff.role, "refunds.write");
-  const { error, processed } = await searchParams;
+  const { error, processed, rejected } = await searchParams;
   const db = await getDb();
   const refunds = await listAdminRefunds(db, 200);
+  const pending = refunds.filter(({ refund }) => refund.status === "requested").length;
 
   return (
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Demo operations</p>
+          <p className="eyebrow">Operations</p>
           <h1>Refunds</h1>
-          <p className="muted">Refund requests awaiting approval and processed refund history.</p>
+          <p className="muted">
+            Refund requests awaiting a review decision, plus approved and rejected history. All
+            refunds are mock operations; no real money moves.
+          </p>
         </div>
+        <span className="badge badge-demo">{pending} awaiting review</span>
       </div>
       {processed === "1" ? (
         <div className="callout callout-success section-tight" role="status">
-          <p>Refund approved and applied to the mock payment.</p>
+          <p>Refund approved and applied to the mock payment. The customer notice was logged locally.</p>
+        </div>
+      ) : null}
+      {rejected === "1" ? (
+        <div className="callout section-tight" role="status">
+          <p>Refund rejected. The reservation was released and the decision was recorded.</p>
         </div>
       ) : null}
       {error ? (
@@ -43,6 +53,12 @@ export default async function AdminRefundsPage({
           <p>{error}</p>
         </div>
       ) : null}
+      <div className="callout callout-warning section-tight">
+        <p>
+          Refund decisions update only the local payment record. No payment gateway call is made,
+          because live payments are not configured.
+        </p>
+      </div>
       {refunds.length === 0 ? (
         <div className="card form">
           <p className="muted">No refund requests have been recorded.</p>
@@ -58,7 +74,7 @@ export default async function AdminRefundsPage({
                 <th scope="col">Amount</th>
                 <th scope="col">Status</th>
                 <th scope="col">Requested</th>
-                <th scope="col">Action</th>
+                <th scope="col">Decision</th>
               </tr>
             </thead>
             <tbody>
@@ -85,17 +101,48 @@ export default async function AdminRefundsPage({
                   <td>
                     {refund.status === "requested" ? (
                       canApprove ? (
-                        <form action={approveRefundAction}>
-                          <input type="hidden" name="refundId" value={refund.id} />
-                          <button className="button button-small" type="submit">
-                            Approve
-                          </button>
-                        </form>
+                        <div className="stack-sm">
+                          <form action={approveRefundAction}>
+                            <input type="hidden" name="refundId" value={refund.id} />
+                            <button className="button button-small" type="submit">
+                              Approve
+                            </button>
+                          </form>
+                          <details>
+                            <summary className="button button-ghost button-small">Reject…</summary>
+                            <form action={rejectRefundAction} className="form section-tight">
+                              <input type="hidden" name="refundId" value={refund.id} />
+                              <div className="field">
+                                <label htmlFor={`reject-note-${refund.id}`}>
+                                  Reason shown to the customer
+                                </label>
+                                <textarea
+                                  id={`reject-note-${refund.id}`}
+                                  name="note"
+                                  required
+                                  minLength={5}
+                                  maxLength={1000}
+                                  rows={3}
+                                />
+                              </div>
+                              <button className="button button-secondary button-small" type="submit">
+                                Confirm rejection
+                              </button>
+                            </form>
+                          </details>
+                        </div>
                       ) : (
                         <span className="small muted">Administrator approval required</span>
                       )
                     ) : (
-                      <span className="small muted">—</span>
+                      <div>
+                        <span className="small muted">
+                          {refund.resolvedAt ? formatDate(refund.resolvedAt) : "—"}
+                        </span>
+                        {refund.resolutionNote ? (
+                          <p className="small muted">{refund.resolutionNote}</p>
+                        ) : null}
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -105,9 +152,8 @@ export default async function AdminRefundsPage({
         </div>
       )}
       <p className="muted small">
-        Demo refund approvals move mock payments through the payment state machine. Refund
-        execution is administrator-only; finance and support roles have read-only access. Real
-        gateway confirmation is still required before any live refund could be issued.
+        Payment execution remains administrator-only. Finance and support roles have read-only
+        access. Real gateway confirmation is still required before any live refund could be issued.
       </p>
     </>
   );

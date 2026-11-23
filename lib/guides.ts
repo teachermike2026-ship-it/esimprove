@@ -47,16 +47,16 @@ export const guides: Guide[] = [
         ],
       },
       {
-        heading: "Keep the demo boundary in mind",
+        heading: "Keep your activation details safe",
         paragraphs: [
-          "This page is part of a demo storefront. The activation codes generated locally use the reserved .invalid domain and cannot connect to a real network. For a real trip, use an approved supplier and verify the plan terms.",
+          "Your QR code and activation code are personal to your order. Keep them private and do not share them — anyone with the code can install your eSIM.",
         ],
       },
     ],
   },
   {
     slug: "install-ios",
-    title: "Install a demo eSIM on iPhone",
+    title: "Install an eSIM on iPhone",
     summary:
       "General iOS steps for adding an eSIM with a QR code or manual details. Exact labels vary by iOS version and region.",
     readingTime: "3 min read",
@@ -95,7 +95,7 @@ export const guides: Guide[] = [
   },
   {
     slug: "install-android",
-    title: "Install a demo eSIM on Android",
+    title: "Install an eSIM on Android",
     summary:
       "General Android steps for adding an eSIM. Menu names differ across Samsung, Google, Motorola, and other manufacturers.",
     readingTime: "3 min read",
@@ -158,18 +158,18 @@ export const guides: Guide[] = [
         ],
       },
       {
-        heading: "Demo codes",
+        heading: "Keep activation details private",
         paragraphs: [
-          "The demo storefront stores mock LPA strings with envelope encryption. They use the reserved .invalid domain and cannot connect to a network. The QR code is for demonstrating the interface, not for real travel.",
+          "Your activation details are unique to your order. Store them securely and only scan or enter them on the device you intend to use. If you lose them or suspect they have been shared, contact support with your order number.",
         ],
       },
     ],
   },
   {
     slug: "troubleshooting",
-    title: "Troubleshooting a demo eSIM installation",
+    title: "Troubleshooting an eSIM installation",
     summary:
-      "A safe checklist for common installation problems, with clear limits on what this demo can diagnose.",
+      "A safe checklist for common installation problems.",
     readingTime: "4 min read",
     sections: [
       {
@@ -193,7 +193,7 @@ export const guides: Guide[] = [
       {
         heading: "When to contact support",
         paragraphs: [
-          "If the activation is rejected, the QR code is unreadable, or the plan never appears, contact the provider that issued it. For this demo, no live support channel or supplier account exists.",
+          "If the activation is rejected, the QR code is unreadable, or the plan never appears, contact support with your order number.",
         ],
       },
     ],

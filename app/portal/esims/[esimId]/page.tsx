@@ -12,11 +12,10 @@ import { isAdminRole } from "@/lib/auth/roles";
 import { requestMeta } from "@/lib/auth/session";
 import { logActivationAccess } from "@/lib/orders";
 import { ActivationCard } from "@/components/activation-card";
-import { EmptyState } from "@/components/empty-state";
-import { AlertIcon, ArrowRight } from "@/components/icons";
+import { ArrowRight } from "@/components/icons";
 
 export const metadata: Metadata = {
-  title: "Demo eSIM activation",
+  title: "eSIM activation",
   robots: { index: false, follow: false },
 };
 
@@ -52,11 +51,9 @@ export default async function PortalEsimPage({
   try {
     lpa = decryptSecret(encrypted);
   } catch {
-    return (
-      <EmptyState title="Activation data could not be decrypted" action={{ href: "/portal", label: "Back to portal" }}>
-        Check the server encryption key configuration.
-      </EmptyState>
-    );
+    // Decryption failure is a server-side configuration problem, not a client
+    // error. Surface it as a 500 so it is visible in logs and monitoring.
+    throw new Error("Activation data could not be decrypted");
   }
 
   const qrDataUrl = await QRCode.toDataURL(lpa, {
@@ -90,10 +87,9 @@ export default async function PortalEsimPage({
       <div className="section-heading">
         <div>
           <p className="eyebrow">Customer portal</p>
-          <h1>Your mock eSIM</h1>
+          <h1>Your eSIM</h1>
           <p className="muted">
-            Activation data is decrypted only for this authorized view and the access is
-            audited.
+            Activation data is shown only for this authorized view.
           </p>
         </div>
       </div>
@@ -104,13 +100,6 @@ export default async function PortalEsimPage({
         lpa={lpa}
         qrDataUrl={qrDataUrl}
       />
-      <div className="callout callout-warning section-tight">
-        <AlertIcon className="inline-icon" />
-        <p>
-          This is a demo activation. The LPA uses the reserved <code>.invalid</code> domain and
-          cannot connect to a real network.
-        </p>
-      </div>
       <div className="hero-actions section-tight">
         <Link className="button button-secondary" href={`/portal/orders/${row.order.orderNumber}`}>
           Back to order <ArrowRight className="inline-icon" />

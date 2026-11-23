@@ -26,6 +26,9 @@ export async function requireAdmin(nextPath = "/admin", permission?: Permission)
   if (session.pendingTwoFactor) {
     redirect("/login/2fa");
   }
+  if (session.user.passwordChangeRequired) {
+    redirect("/admin/set-password");
+  }
   const allowed = permission
     ? requirePermissionFor(session.user.role, permission)
     : isAdminRole(session.user.role);
@@ -42,6 +45,9 @@ export async function requirePermission(nextPath: string, permission: Permission
   }
   if (session.pendingTwoFactor) {
     redirect("/login/2fa");
+  }
+  if (session.user.passwordChangeRequired) {
+    redirect("/admin/set-password");
   }
   if (!requirePermissionFor(session.user.role, permission)) {
     redirect("/portal");
@@ -62,6 +68,9 @@ export async function requireStaff(nextPath = "/admin", section?: AdminSection) 
   }
   if (session.pendingTwoFactor) {
     redirect("/login/2fa");
+  }
+  if (session.user.passwordChangeRequired) {
+    redirect("/admin/set-password");
   }
   const allowed = section
     ? canAccessAdminSection(session.user.role, section)

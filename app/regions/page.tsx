@@ -8,7 +8,7 @@ import { ArrowRight, GlobeIcon } from "@/components/icons";
 export const metadata: Metadata = {
   title: "Regional plans",
   description:
-    "Browse the demo eSIM regions, destination counts, and starting prices. Regional coverage is illustrative and not a live supplier quote.",
+    "Browse eSIM regions, destination counts, and starting prices.",
   alternates: { canonical: "/regions" },
 };
 
@@ -29,9 +29,8 @@ export default async function RegionsPage() {
           One region. <span className="es-green">More possibilities.</span>
         </h1>
         <p className="es-page-lead">
-          Explore {regions.length} demo regions covering {destinationCount} destinations and{" "}
-          {planCount} plan options. Regional availability, coverage, and pricing remain
-          illustrative.
+          Explore {regions.length} regions covering {destinationCount} destinations and{" "}
+          {planCount} plan options. Find the region that matches your trip and compare plans.
         </p>
         <div className="es-page-actions">
           <Link className="es-button es-button-primary" href="/destinations">
@@ -46,10 +45,9 @@ export default async function RegionsPage() {
       <section className="es-page-section" aria-labelledby="region-list-title">
         <div className="es-page-section-head">
           <p className="es-eyebrow">Choose a region</p>
-          <h2 id="region-list-title">Regional demo catalogue</h2>
+          <h2 id="region-list-title">Regional catalogue</h2>
           <p>
-            Each region links to its destination list and sample plans. No live carrier or
-            supplier coverage is implied.
+            Each region links to its destination list and available plans.
           </p>
         </div>
         <div className="es-page-grid es-page-grid-3">

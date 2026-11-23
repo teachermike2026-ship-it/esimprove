@@ -17,7 +17,7 @@ export function DestinationCard({ destination }: { destination: DestinationSumma
           <p>{destination.summary}</p>
           <div className="destination-card-footer">
             <span>
-              {destination.planCount} demo plan{destination.planCount === 1 ? "" : "s"}
+              {destination.planCount} plan{destination.planCount === 1 ? "" : "s"}
             </span>
             {destination.fromPriceMinor !== null ? (
               <span>

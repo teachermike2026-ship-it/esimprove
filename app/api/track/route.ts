@@ -6,6 +6,7 @@ import {
   validateTrackingPayload,
 } from "@/lib/analytics-web";
 import { siteUrl } from "@/lib/config";
+import { readBoundedText } from "@/lib/http/bounded-body";
 import { hasAnalyticsConsent, isConsentId } from "@/lib/consent";
 import { loadLegalSettings } from "@/lib/legal";
 import {
@@ -96,8 +97,8 @@ export async function POST(request: NextRequest) {
 
   let body: unknown;
   try {
-    const text = await request.text();
-    if (text.length > MAX_BODY_BYTES) {
+    const text = await readBoundedText(request, MAX_BODY_BYTES);
+    if (text === null) {
       return NextResponse.json({ ok: false, error: "payload_too_large" }, { status: 413, headers: noStoreHeaders });
     }
     body = JSON.parse(text);

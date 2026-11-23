@@ -21,9 +21,9 @@ export async function generateMetadata({
   const { slug } = await params;
   const db = await getDb();
   const row = await getDestinationBySlug(db, slug);
-  if (!row) return { title: "Destination not found" };
+  if (!row) notFound();
   return {
-    title: `${row.destination.name} demo eSIM plans`,
+    title: `${row.destination.name} eSIM plans`,
     description: row.destination.summary,
     alternates: { canonical: canonicalUrl(`/destinations/${row.destination.slug}`) },
   };
@@ -90,10 +90,9 @@ export default async function DestinationPage({
         </div>
         <div className="destination-hero-copy">
           <p className="eyebrow">{row.region.name}</p>
-          <h1>{row.destination.name} demo eSIM plans</h1>
+          <h1>{row.destination.name} eSIM plans</h1>
           <p className="lead">{row.destination.description}</p>
           <div className="pill-row">
-            <span className="badge badge-demo">Demo coverage</span>
             <span className="badge badge-neutral">{plans.length} plans</span>
             {fromPrice !== null ? (
               <span className="badge badge-neutral">From {formatMoney(fromPrice, "USD")}</span>
@@ -108,8 +107,7 @@ export default async function DestinationPage({
             <p className="eyebrow">Compare</p>
             <h2 id="destination-plans">Plans for {row.destination.name}</h2>
             <p className="muted">
-              Prices are computed locally from demo cost and markup fields. They are not
-              supplier quotes or live availability.
+              Compare plans by data, validity, and price to find the best fit for your trip.
             </p>
           </div>
           <Link className="button button-ghost" href={`/plans?destination=${row.destination.slug}`}>

@@ -25,8 +25,8 @@ export default async function AdminSettingsPage() {
   const databaseMode = process.env.DATABASE_URL ? "PostgreSQL (DATABASE_URL)" : "PGlite local";
   const checks = [
     { label: "Database reachable", ok: true },
-    { label: "Demo mode enabled", ok: demoMode },
-    { label: "Demo seed enabled", ok: seedDemoData },
+    { label: "Local mode enabled", ok: demoMode },
+    { label: "Local seed enabled", ok: seedDemoData },
     { label: "Payments live flag", ok: !flags.paymentsLive },
     { label: "Supplier live flag", ok: !flags.supplierLive },
     { label: "Email live flag", ok: !flags.emailLive },
@@ -101,7 +101,7 @@ export default async function AdminSettingsPage() {
                   <LockIcon className="inline-icon" />
                 )}
                 <span>
-                  {check.label}: <strong>{check.ok ? "safe for demo" : "needs review"}</strong>
+                  {check.label}: <strong>{check.ok ? "safe for preview" : "needs review"}</strong>
                 </span>
               </li>
             ))}
@@ -143,7 +143,7 @@ export default async function AdminSettingsPage() {
               </tr>
               <tr>
                 <td>Catalogue sync</td>
-                <td>Local demo seed</td>
+                <td>Local seed</td>
                 <td>Disabled — no supplier feed</td>
               </tr>
             </tbody>

@@ -56,9 +56,8 @@ export default async function UnsubscribePage({
               this address.
             </p>
             <p className="small">
-              This build does not send email, so no further marketing message will be generated
-              here. If a live provider is connected later, suppression must be synced before any
-              send.
+              No further marketing email will be sent to this address. You may still receive
+              transactional messages about your orders and account.
             </p>
           </div>
         </div>
@@ -68,13 +67,12 @@ export default async function UnsubscribePage({
           <div>
             <p>
               <strong>This unsubscribe link is not valid.</strong> The token may be incomplete,
-              already removed, or not from this build.
+              already used, or expired.
             </p>
             <p className="small">
-              You can use the <Link href="/contact">contact page</Link> to record a request, but
-              because email delivery is disabled no live inbox will receive it. You can also use
-              the <Link href="/privacy/request">privacy request form</Link> if your concern is about
-              personal data rather than marketing.
+              You can use the <Link href="/contact">contact page</Link> to ask us to stop marketing
+              email, or the <Link href="/privacy/request">privacy request form</Link> if your
+              concern is about personal data.
             </p>
           </div>
         </div>
@@ -143,8 +141,8 @@ export default async function UnsubscribePage({
           </li>
         </ul>
         <p className="small muted">
-          The unsubscribe token is stored only as a hash on the server and is not written to logs by
-          this page. No marketing email is sent by this build.
+          The unsubscribe token is stored only as a hash on the server. To change other email
+          preferences, see your account profile.
         </p>
       </section>
     </div>

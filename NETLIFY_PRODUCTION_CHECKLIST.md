@@ -6,6 +6,10 @@ domain, or provider operation has occurred. Check a box only after recording dat
 Use this list before a **deploy preview** and again before **production**. A deploy preview is
 allowed to use labelled mock commerce; production is not.
 
+> **Neon update (2026-11-23):** The owner has created a Neon project named `esimprove` and stored
+> the pooled/direct connection strings outside this repository. No migration or data transfer has
+> run. Unchecked boxes below remain gates; do not mark them complete without evidence.
+
 ---
 
 ## A. Repository and build gate
@@ -13,7 +17,9 @@ allowed to use labelled mock commerce; production is not.
 - [ ] Working tree reviewed; no unintended files, secrets, or local databases are staged.
 - [ ] `.env.local`, `.pglite/`, build output, and credentials are untracked (`.gitignore` verified).
 - [ ] The reviewed changes are committed and pushed only with owner authorization.
-- [ ] `package-lock.json` matches `package.json`; Netlify can run `npm ci` reproducibly.
+- [ ] `package-lock.json` matches `package.json`; Netlify can install reproducibly from the lockfile.
+- [ ] `next` is on a patched release (`16.4.6` or later); `npm audit` has no open Next.js security
+      advisory, and the framework's build security gate passes.
 - [ ] `npm.cmd run typecheck` passes.
 - [ ] `npm.cmd run lint` passes with zero errors; any remaining warnings are reviewed and
       documented (Phase 4 has six intentional `<img>` warnings for remote CMS images).
@@ -165,8 +171,8 @@ allowed to use labelled mock commerce; production is not.
 - [ ] `SITE_URL` updated to the final HTTPS domain and redeployed.
 - [ ] Production environment variables are scoped to production only.
 - [ ] Production migration completed and health is green.
-- [ ] Production checkout is disabled (no live payment provider in this build), or a reviewed
-      live provider has been implemented and separately approved.
+- [ ] Production checkout is disabled (Whop adapter prepared but not activated), or a reviewed
+      live provider has been implemented, mapped, tested, and separately approved.
 - [ ] Password reset email is disclosed as unavailable until a live email provider exists.
 - [ ] Live supplier, payment, refund, email, and catalogue operations remain disabled.
 - [ ] Legal entity, terms, privacy, refunds, cookies, support, and tax review completed.

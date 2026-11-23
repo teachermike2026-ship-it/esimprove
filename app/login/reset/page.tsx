@@ -22,7 +22,7 @@ export default async function ResetPasswordPage({
         <p className="eyebrow">Account security</p>
         <h1>Choose a new password</h1>
         <p className="lead">
-          Set a new password for your demo account. After a reset, all existing sessions are
+          Set a new password for your account. After a reset, all existing sessions are
           invalidated.
         </p>
         <div className="callout">

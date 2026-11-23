@@ -27,7 +27,7 @@ export default async function TwoFactorPage({
   return (
     <div className="auth-layout auth-layout-narrow">
       <section className="auth-copy">
-        <p className="eyebrow">Operator verification</p>
+        <p className="eyebrow">Two-factor verification</p>
         <h1>Enter your authenticator code</h1>
         <p className="lead">
           The password step succeeded. Admin access requires a current 6-digit TOTP code.

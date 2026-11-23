@@ -1,7 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { getDb } from "@/lib/db/client";
-import { loadLegalSettings } from "@/lib/legal";
 import { getCurrentUser } from "@/lib/auth/session";
 import {
   PrivacyRequestForm,
@@ -12,7 +9,8 @@ import {
   PrivacyContact,
   SupportChannelNotice,
 } from "@/components/legal-document";
-import { AlertIcon, ClockIcon, LockIcon } from "@/components/icons";
+import { ClockIcon, LockIcon } from "@/components/icons";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
 
 export const metadata: Metadata = {
   title: "Privacy request",
@@ -24,8 +22,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function PrivacyRequestPage() {
-  const db = await getDb();
-  const [settings, user] = await Promise.all([loadLegalSettings(db), getCurrentUser()]);
+  const user = await getCurrentUser();
 
   return (
     <div className="legal-page">
@@ -33,26 +30,10 @@ export default async function PrivacyRequestPage() {
         <p className="eyebrow">Privacy rights</p>
         <h1>Make a privacy request</h1>
         <p className="lead">
-          Ask for access, correction, deletion, restriction, portability, or another applicable
-          privacy right. Requests are recorded locally and reviewed by an administrator.
+          Ask for access, correction, deletion, restriction, portability, or objection. Your
+          request is recorded with a reference so it can be reviewed and verified.
         </p>
       </header>
-
-      <div className="callout callout-warning">
-        <AlertIcon className="inline-icon" />
-        <div>
-          <p>
-            <strong>This build does not send email.</strong> Submitting the form creates a local
-            request reference. An administrator must verify identity out of band before disclosing
-            or deleting account data. No live privacy inbox is connected.
-          </p>
-          <p className="small">
-            Read the <Link href="/legal/privacy">Privacy Policy</Link> first. Do not include
-            passwords, one-time authentication codes, full card numbers, or identity-document
-            images.
-          </p>
-        </div>
-      </div>
 
       <div className="privacy-request-grid">
         <section aria-labelledby="privacy-request-form-title">
@@ -66,21 +47,24 @@ export default async function PrivacyRequestPage() {
               <ClockIcon className="inline-icon" /> What happens next
             </h2>
             <ol className="simple-list">
-              <li>The request is stored with a reference and an unverified identity status.</li>
+              <li>The request is recorded with a reference and an unverified identity status.</li>
               <li>
-                If you are signed in with the same email, the request is marked verified
-                automatically. Otherwise an administrator must verify identity out of band.
+                If you are signed in with the same email address, the request is marked verified
+                automatically. Otherwise an administrator verifies your identity before disclosing
+                or changing any account data.
               </li>
               <li>
-                The administrator records a decision, resolution, or a reason for refusal. A
-                deletion request anonymises the account profile but retains financial and audit
-                records where required.
+                The administrator records a decision, a resolution, or a reason for refusal. A
+                deletion request anonymises the account profile while financial and audit records
+                are retained where the law requires them.
               </li>
-              <li>You can check the status with the reference and email below.</li>
+              <li>You can check the status at any time with the reference and email below.</li>
             </ol>
             <p className="small muted">
-              No specific response deadline is promised in this draft. A live service must publish
-              a deadline that matches the law in each market.
+              No notification email is sent automatically. Keep your request reference and check
+              the status here, or email{" "}
+              <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> if you need an
+              update. Response times follow the requirements of the privacy laws that apply to you.
             </p>
           </section>
 
@@ -90,14 +74,14 @@ export default async function PrivacyRequestPage() {
             </h2>
             <p>
               Depending on where you live, you may have rights to access, correct, delete, restrict,
-              object, or receive a portable copy of your data, and to withdraw consent. These
+              object to, or receive a portable copy of your data, and to withdraw consent. These
               rights are not absolute. Legal recordkeeping, fraud prevention, dispute handling, or
               another lawful basis may limit a request.
             </p>
             <p>
-              The controller identity and privacy contact must be configured before this page can
-              be presented as a live rights channel. If they are blank, the request is still
-              recorded locally, but the owner must add verified contact details.
+              Read the <a href="/legal/privacy">Privacy policy</a> first, then submit your request
+              here or email{" "}
+              <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>.
             </p>
           </section>
 
@@ -106,11 +90,20 @@ export default async function PrivacyRequestPage() {
             <p>
               A signed-in session with a matching email verifies identity for the request. An
               anonymous submission is never enough to delete an account merely by typing an email
-              address. This protects accounts from impersonation.
+              address; this protects accounts from impersonation.
             </p>
             <p>
-              If you cannot access the account email, explain that in the details. The owner must
-              define a safe alternative verification process before production.
+              If you cannot access the account email, explain that in the details of your request
+              and we will agree on a safe way to verify your identity.
+            </p>
+          </section>
+
+          <section className="card form" aria-labelledby="privacy-request-format-title">
+            <h2 id="privacy-request-format-title">What not to include</h2>
+            <p>
+              Do not include passwords, one-time authentication codes, full card numbers, or
+              identity-document images in your request. If verification documents are ever needed,
+              we will tell you what is acceptable and why.
             </p>
           </section>
         </aside>
@@ -121,9 +114,9 @@ export default async function PrivacyRequestPage() {
         <PrivacyRequestLookupForm />
       </section>
 
-      <BusinessDetails settings={settings} />
-      <PrivacyContact settings={settings} />
-      <SupportChannelNotice settings={settings} />
+      <BusinessDetails />
+      <PrivacyContact />
+      <SupportChannelNotice />
     </div>
   );
 }

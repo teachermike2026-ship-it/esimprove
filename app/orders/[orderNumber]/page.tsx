@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { getCurrentUser } from "@/lib/auth/session";
 import { canViewOrder, getOrderViewByNumber } from "@/lib/orders";
 import { OrderDetail } from "@/components/order-detail";
-import { EmptyState } from "@/components/empty-state";
 
 export const metadata: Metadata = {
-  title: "Demo order",
+  title: "Order details",
   robots: { index: false, follow: false },
 };
 
@@ -23,11 +23,7 @@ export default async function GuestOrderPage({
   const db = await getDb();
   const view = await getOrderViewByNumber(db, orderNumber);
   if (!view) {
-    return (
-      <EmptyState title="Order not found" action={{ href: "/plans", label: "Browse demo plans" }}>
-        Check the order number or use the access link from the demo email.
-      </EmptyState>
-    );
+    notFound();
   }
 
   const user = await getCurrentUser();
@@ -37,12 +33,7 @@ export default async function GuestOrderPage({
     token: token ?? null,
   });
   if (!allowed) {
-    return (
-      <EmptyState title="Order access required" action={{ href: "/login", label: "Sign in" }}>
-        Use the secure link from the demo email or sign in as the customer who placed the
-        order.
-      </EmptyState>
-    );
+    notFound();
   }
 
   return (

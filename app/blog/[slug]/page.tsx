@@ -21,9 +21,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const db = await getDb();
   const article = await getPublishedArticleBySlug(db, slug);
-  if (!article) {
-    return { title: "Article not found", robots: { index: false, follow: false } };
-  }
+  if (!article) notFound();
 
   const title = article.seoTitle || article.title;
   const description = article.seoDescription || article.excerpt;
