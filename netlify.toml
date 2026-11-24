@@ -24,8 +24,9 @@
   NODE_VERSION = "22"
   NPM_FLAGS = "--no-audit --no-fund"
   NEXT_TELEMETRY_DISABLED = "1"
-  # APP_ENV ("production") and DATABASE_SSL ("require") are ordinary
-  # configuration values, not credentials. They are marked secret on Netlify,
-  # so scanning would otherwise flag every occurrence of those common words in
-  # the repository. Omit only these two keys; all real secrets remain scanned.
-  SECRETS_SCAN_OMIT_KEYS = "APP_ENV,DATABASE_SSL"
+  # APP_ENV and DATABASE_ENV ("production") plus DATABASE_SSL ("require") are
+  # ordinary configuration values, not credentials. They are marked secret on
+  # Netlify, so scanning would otherwise flag every occurrence of those common
+  # words in the repository. Omit only these three keys; all real secrets
+  # remain scanned.
+  SECRETS_SCAN_OMIT_KEYS = "APP_ENV,DATABASE_ENV,DATABASE_SSL"
