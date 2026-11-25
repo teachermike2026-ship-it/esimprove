@@ -7,6 +7,8 @@ import { recordAudit } from "@/lib/audit";
 import { publishDueScheduledArticles } from "@/lib/blog-schedule";
 import { cleanupAnalytics } from "@/lib/retention";
 import { cleanupExpiredRateLimitCounters } from "@/lib/rate-limit";
+import { monitorCryptoPayments } from "@/lib/payments/crypto/payment-service";
+import { loadCryptoPaymentConfig } from "@/lib/payments/crypto/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +29,27 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = await getDb();
+
+    // Crypto verification is an independent server-side sweep. It must not be
+    // skipped when no browser is open, and a missing configuration must not
+    // break card fulfillment or the other scheduled jobs.
+    let cryptoMonitor: Record<string, unknown> = { configured: false };
+    const cryptoConfig = loadCryptoPaymentConfig();
+    if (cryptoConfig) {
+      try {
+        cryptoMonitor = {
+          ...(await monitorCryptoPayments(db, { config: cryptoConfig })),
+          configured: true,
+        };
+      } catch (error) {
+        console.error(
+          "Crypto payment monitor failed",
+          error instanceof Error ? error.name : "unknown error",
+        );
+        cryptoMonitor = { configured: true, error: "monitor_failed" };
+      }
+    }
+
     const result = await runOutboxAndJobs(db);
     const scheduled = await publishDueScheduledArticles(db);
     // Retention is owned by data_retention_settings (see lib/retention.ts), not
@@ -49,6 +72,7 @@ export async function POST(request: NextRequest) {
       entityType: "fulfillment_job",
       entityId: "batch",
       metadata: {
+        cryptoMonitor,
         outboxProcessed: result.outbox.processed,
         outboxFailed: result.outbox.failed,
         jobsProcessed: result.jobs.processed,
@@ -71,6 +95,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       ...result,
+      cryptoMonitor,
       scheduledArticlesPublished: scheduled.published,
       analyticsCleanup,
       rateLimitCountersDeleted,

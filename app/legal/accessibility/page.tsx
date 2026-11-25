@@ -7,19 +7,24 @@ import {
   SupportChannelNotice,
 } from "@/components/legal-document";
 import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Accessibility statement",
-  description:
-    "Accessibility measures, known limitations, and feedback route for the ESIMPROVE online digital services platform.",
-  alternates: { canonical: "/legal/accessibility" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/legal/accessibility",
+    title: t("legal.accessibility"),
+    description: t("legal.accessibilityDescription"),
+  });
+}
 
-export default function AccessibilityPage() {
+export default async function AccessibilityPage() {
+  const { t } = await getI18n();
   return (
     <div className="legal-page">
       <LegalDocumentHeader
-        title="Accessibility statement"
+        title={t("legal.accessibility")}
         intro="This statement describes the accessibility measures ESIMPROVE implements, the limitations that remain, and how to report a barrier you encounter."
       />
 

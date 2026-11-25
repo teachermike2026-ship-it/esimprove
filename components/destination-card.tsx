@@ -2,13 +2,17 @@ import Link from "next/link";
 import { formatMoney } from "@/lib/money";
 import type { DestinationSummary } from "@/lib/catalog";
 import { ArrowRight } from "@/components/icons";
+import { getI18n } from "@/lib/i18n/server";
 
-export function DestinationCard({ destination }: { destination: DestinationSummary }) {
+export async function DestinationCard({ destination }: { destination: DestinationSummary }) {
+  const { t, href } = await getI18n();
   return (
     <article className={`card destination-card accent-${destination.accent}`}>
-      <Link href={`/destinations/${destination.slug}`} className="destination-card-link">
+      <Link href={href(`/destinations/${destination.slug}`)} className="destination-card-link">
         <div className="destination-art" aria-hidden="true">
-          <span className="destination-code">{destination.countryCode}</span>
+          <span className="destination-code" dir="ltr">
+            {destination.countryCode}
+          </span>
           <span className="destination-orbit" />
         </div>
         <div className="destination-card-body">
@@ -16,12 +20,12 @@ export function DestinationCard({ destination }: { destination: DestinationSumma
           <h3>{destination.name}</h3>
           <p>{destination.summary}</p>
           <div className="destination-card-footer">
-            <span>
-              {destination.planCount} plan{destination.planCount === 1 ? "" : "s"}
-            </span>
+            <span>{t("catalog.destinationPlanCount", { count: destination.planCount })}</span>
             {destination.fromPriceMinor !== null ? (
-              <span>
-                from {formatMoney(destination.fromPriceMinor, "USD")}
+              <span dir="ltr">
+                {t("catalog.fromPrice", {
+                  price: formatMoney(destination.fromPriceMinor, "USD"),
+                })}
               </span>
             ) : null}
             <ArrowRight className="inline-icon" />

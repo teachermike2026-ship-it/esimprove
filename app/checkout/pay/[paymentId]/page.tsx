@@ -7,12 +7,18 @@ import { mockCommerceAllowed, onlineCheckoutAvailable } from "@/lib/config";
 import { isWhopCheckoutUrl } from "@/lib/integrations/payment/whop";
 import { formatMoney } from "@/lib/money";
 import { AlertIcon, ArrowRight, CreditCardIcon } from "@/components/icons";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Payment",
-  description: "Complete your eSIM order.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/checkout/pay",
+    title: t("payment.metaTitle"),
+    description: t("payment.lead"),
+    robots: { index: false, follow: false },
+  });
+}
 
 export default async function PaymentPage({
   params,
@@ -21,6 +27,7 @@ export default async function PaymentPage({
   params: Promise<{ paymentId: string }>;
   searchParams: Promise<{ token?: string }>;
 }) {
+  const { t, href } = await getI18n();
   const { paymentId } = await params;
   const flags = await searchParams;
   const token = flags.token ?? null;
@@ -54,20 +61,20 @@ export default async function PaymentPage({
     <div className="centered">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Payment</p>
+          <p className="eyebrow">{t("payment.metaTitle")}</p>
           <h1>
             {failed
-              ? "Payment not completed"
+              ? t("payment.failedTitle")
               : isWhop
-                ? "Payment is awaiting confirmation"
-                : "Online payment is not available yet"}
+                ? t("payment.awaitingTitle")
+                : t("payment.unavailableTitle")}
           </h1>
           <p className="lead">
             {failed
-              ? "Your order was recorded, but the payment did not complete. This store has not marked the order as paid."
+              ? t("payment.failedLead")
               : isWhop
-                ? "Your order has been recorded. It is not paid until the payment provider confirms the payment."
-                : "Your order has been recorded, but we cannot take payment online right now. Nothing has been charged."}
+                ? t("payment.awaitingLead")
+                : t("payment.unavailableLead")}
           </p>
         </div>
       </div>
@@ -75,15 +82,15 @@ export default async function PaymentPage({
       <section className="card payment-card">
         <dl className="meta-list">
           <div>
-            <dt>Order</dt>
+            <dt>{t("payment.order")}</dt>
             <dd>{order.orderNumber}</dd>
           </div>
           <div>
-            <dt>Email</dt>
+            <dt>{t("payment.email")}</dt>
             <dd>{order.email}</dd>
           </div>
           <div>
-            <dt>Amount</dt>
+            <dt>{t("payment.amount")}</dt>
             <dd>{formatMoney(payment.amountMinor, payment.currency)}</dd>
           </div>
         </dl>
@@ -91,44 +98,32 @@ export default async function PaymentPage({
         {failed ? (
           <div className="callout callout-warning">
             <AlertIcon className="inline-icon" />
-            <p>
-              This payment could not be completed. No money was charged, and your cart has not
-              been billed.
-            </p>
+            <p>{t("payment.failedNotice")}</p>
           </div>
         ) : null}
 
         <p>
-          {isWhop && !failed ? (
-            <>
-              Complete the payment on the secure payment page. Your eSIM will be issued only
-              after the payment provider confirms the payment.
-            </>
-          ) : (
-            <>
-              To complete this order, contact our support team and quote your order number{" "}
-              <strong>{order.orderNumber}</strong>. Your eSIM will be issued once payment is
-              confirmed.
-            </>
-          )}
+          {isWhop && !failed
+            ? t("payment.whopBody")
+            : t("payment.contactBody", { orderNumber: order.orderNumber })}
         </p>
 
         <div className="payment-actions">
           {canResume ? (
             <a className="button" href={payment.checkoutUrl} rel="noreferrer">
-              <CreditCardIcon className="inline-icon" /> Continue to secure payment{" "}
+              <CreditCardIcon className="inline-icon" /> {t("payment.securePay")}{" "}
               <ArrowRight className="inline-icon" />
             </a>
           ) : null}
-          <Link className="button" href={orderHref}>
-            <CreditCardIcon className="inline-icon" /> View your order{" "}
+          <Link className="button" href={href(orderHref)}>
+            <CreditCardIcon className="inline-icon" /> {t("payment.viewOrder")}{" "}
             <ArrowRight className="inline-icon" />
           </Link>
-          <Link className="button button-secondary" href="/contact">
-            Contact support
+          <Link className="button button-secondary" href={href("/contact")}>
+            {t("common.contactSupport")}
           </Link>
-          <Link className="button button-ghost" href="/plans">
-            Continue shopping
+          <Link className="button button-ghost" href={href("/plans")}>
+            {t("payment.continueShopping")}
           </Link>
         </div>
       </section>

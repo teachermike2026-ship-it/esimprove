@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { OrderView } from "@/lib/orders";
 import type { RefundRow } from "@/lib/db/schema";
-import { fulfillmentStatusLabel, orderStatusLabel } from "@/lib/orders";
 import { StatusBadge } from "@/components/status-badge";
 import { formatData, formatDate, formatMoney } from "@/lib/money";
 import { AlertIcon, ArrowRight, ClockIcon, QrIcon } from "@/components/icons";
+import { getI18n } from "@/lib/i18n/server";
+import { statusLabel } from "@/lib/i18n/status";
 
-export function OrderDetail({
+export async function OrderDetail({
   view,
   accessToken,
   refunds = [],
@@ -15,13 +16,17 @@ export function OrderDetail({
   accessToken?: string | null;
   refunds?: RefundRow[];
 }) {
+  const { t, href } = await getI18n();
   const { order, items, events } = view;
+  const orderStatus =
+    order.status === "failed" ? t("order.needsAttention") : statusLabel(t, order.status);
+
   return (
     <div className="stack">
       <section className="card form" aria-labelledby="order-summary-title">
         <div className="order-head">
           <div>
-            <p className="eyebrow">Order</p>
+            <p className="eyebrow">{t("order.eyebrow")}</p>
             <h2 id="order-summary-title">{order.orderNumber}</h2>
             <div className="order-meta">
               <span>
@@ -32,32 +37,29 @@ export function OrderDetail({
             </div>
           </div>
           <div className="pill-row">
-            <StatusBadge status={order.status} label={orderStatusLabel(order.status)} />
+            <StatusBadge status={order.status} label={orderStatus} />
             <StatusBadge
               status={order.fulfillmentStatus}
-              label={fulfillmentStatusLabel(order.fulfillmentStatus)}
+              label={statusLabel(t, order.fulfillmentStatus)}
             />
           </div>
         </div>
         <div className="callout">
           <QrIcon className="inline-icon" />
-          <p>
-            Your eSIM will be issued once payment is confirmed. Activation details will appear
-            in this order as soon as your eSIM is ready.
-          </p>
+          <p>{t("order.issuedNote")}</p>
         </div>
       </section>
 
       <section className="card form" aria-labelledby="order-items-title">
-        <h2 id="order-items-title">Items</h2>
+        <h2 id="order-items-title">{t("order.items")}</h2>
         <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
-                <th scope="col">Plan</th>
-                <th scope="col">Qty</th>
-                <th scope="col">Line total</th>
-                <th scope="col">eSIM</th>
+                <th scope="col">{t("checkout.plan")}</th>
+                <th scope="col">{t("order.qty")}</th>
+                <th scope="col">{t("order.lineTotal")}</th>
+                <th scope="col">{t("order.esim")}</th>
               </tr>
             </thead>
             <tbody>
@@ -73,15 +75,19 @@ export function OrderDetail({
                       <strong>{item.planName}</strong>
                       <br />
                       <span className="muted small">
-                        {formatData(item.dataMb)} · {item.validityDays} days
+                        {formatData(item.dataMb)} ·{" "}
+                        {t("cart.daysValidity", { count: item.validityDays })}
                       </span>
                     </td>
                     <td>{item.quantity}</td>
                     <td>{formatMoney(item.totalMinor, item.currency)}</td>
                     <td>
                       {item.esimId && activationHref ? (
-                        <Link className="button button-ghost button-small" href={activationHref}>
-                          <QrIcon className="inline-icon" /> View activation
+                        <Link
+                          className="button button-ghost button-small"
+                          href={href(activationHref)}
+                        >
+                          <QrIcon className="inline-icon" /> {t("order.viewActivation")}
                         </Link>
                       ) : (
                         <StatusBadge status={order.fulfillmentStatus} />
@@ -95,22 +101,22 @@ export function OrderDetail({
         </div>
         <div className="summary-card" style={{ padding: 0 }}>
           <div className="summary-row">
-            <span>Subtotal</span>
+            <span>{t("checkout.subtotal")}</span>
             <span>{formatMoney(order.subtotalMinor, order.currency)}</span>
           </div>
           <div className="summary-row">
-            <span>Tax (estimate)</span>
+            <span>{t("checkout.taxEstimate")}</span>
             <span>{formatMoney(order.taxMinor, order.currency)}</span>
           </div>
           <div className="summary-total">
-            <span>Total</span>
+            <span>{t("checkout.totalDue")}</span>
             <span>{formatMoney(order.totalMinor, order.currency)}</span>
           </div>
         </div>
       </section>
 
       <section className="card form" aria-labelledby="order-events-title">
-        <h2 id="order-events-title">Order timeline</h2>
+        <h2 id="order-events-title">{t("order.timeline")}</h2>
         <ol className="timeline">
           {events.map((event) => (
             <li key={event.id} className="timeline-item">
@@ -127,28 +133,24 @@ export function OrderDetail({
         {order.fulfillmentStatus === "failed" ? (
           <div className="callout callout-warning">
             <AlertIcon className="inline-icon" />
-            <p>
-              Fulfillment needs attention. Please contact support with your order number.
-            </p>
+            <p>{t("order.fulfillmentAttention")}</p>
           </div>
         ) : null}
       </section>
 
       <section className="card form" aria-labelledby="order-refunds-title">
-        <h2 id="order-refunds-title">Refund requests</h2>
+        <h2 id="order-refunds-title">{t("order.refundRequests")}</h2>
         {refunds.length === 0 ? (
-          <p className="muted small">
-            No refund requests have been recorded for this order.
-          </p>
+          <p className="muted small">{t("order.noRefunds")}</p>
         ) : (
           <div className="table-wrap">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th scope="col">Requested</th>
-                  <th scope="col">Amount</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Decision</th>
+                  <th scope="col">{t("order.requested")}</th>
+                  <th scope="col">{t("order.amount")}</th>
+                  <th scope="col">{t("order.status")}</th>
+                  <th scope="col">{t("order.decision")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -160,7 +162,7 @@ export function OrderDetail({
                       <StatusBadge status={refund.status} />
                     </td>
                     <td>
-                      {refund.resolvedAt ? formatDate(refund.resolvedAt) : "Awaiting review"}
+                      {refund.resolvedAt ? formatDate(refund.resolvedAt) : t("order.awaitingReview")}
                       {refund.resolutionNote ? (
                         <p className="small muted">{refund.resolutionNote}</p>
                       ) : null}
@@ -174,11 +176,11 @@ export function OrderDetail({
       </section>
 
       <div className="hero-actions">
-        <Link className="button button-secondary" href="/plans">
-          Browse more plans <ArrowRight className="inline-icon" />
+        <Link className="button button-secondary" href={href("/plans")}>
+          {t("order.browseMore")} <ArrowRight className="inline-icon" />
         </Link>
-        <Link className="button button-ghost" href="/portal">
-          Customer portal
+        <Link className="button button-ghost" href={href("/portal")}>
+          {t("order.customerPortal")}
         </Link>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { submitContactAction, type ContactFormState } from "@/app/contact/actions";
 import { AlertIcon, CheckIcon, MailIcon } from "@/components/icons";
+import { useI18n } from "@/components/i18n-provider";
 
 function ErrorMessage({ error }: { error?: string }) {
   if (!error) return null;
@@ -19,6 +20,7 @@ export function ContactForm({ defaultEmail = "", defaultName = "" }: {
   defaultEmail?: string;
   defaultName?: string;
 }) {
+  const { t, href } = useI18n();
   const [state, formAction, pending] = useActionState<ContactFormState, FormData>(
     submitContactAction,
     {},
@@ -31,11 +33,9 @@ export function ContactForm({ defaultEmail = "", defaultName = "" }: {
           <CheckIcon className="inline-icon" />
           <div>
             <p>
-              <strong>Message received.</strong>{" "}
+              <strong>{t("contact.received")}</strong>{" "}
               {state.ticketId ? (
-                <>
-                  Reference: <code>{state.ticketId}</code>. Keep it for your records.
-                </>
+                <>{t("contact.reference", { reference: state.ticketId })}</>
               ) : null}
             </p>
             {state.message ? <p className="small">{state.message}</p> : null}
@@ -46,7 +46,7 @@ export function ContactForm({ defaultEmail = "", defaultName = "" }: {
       <form className="form card" action={formAction}>
         <ErrorMessage error={state.error} />
         <div className="field">
-          <label htmlFor="contact-name">Name (optional)</label>
+          <label htmlFor="contact-name">{t("contact.nameOptional")}</label>
           <input
             id="contact-name"
             name="name"
@@ -57,7 +57,7 @@ export function ContactForm({ defaultEmail = "", defaultName = "" }: {
           />
         </div>
         <div className="field">
-          <label htmlFor="contact-email">Email for a reply</label>
+          <label htmlFor="contact-email">{t("contact.emailReply")}</label>
           <input
             id="contact-email"
             name="email"
@@ -67,13 +67,10 @@ export function ContactForm({ defaultEmail = "", defaultName = "" }: {
             maxLength={254}
             defaultValue={defaultEmail}
           />
-          <p className="form-note">
-            If you are contacting us about an order, use the email address on the order so we can
-            find it quickly.
-          </p>
+          <p className="form-note">{t("contact.emailNote")}</p>
         </div>
         <div className="field">
-          <label htmlFor="contact-subject">Subject</label>
+          <label htmlFor="contact-subject">{t("contact.subject")}</label>
           <input
             id="contact-subject"
             name="subject"
@@ -84,7 +81,7 @@ export function ContactForm({ defaultEmail = "", defaultName = "" }: {
           />
         </div>
         <div className="field">
-          <label htmlFor="contact-message">Message</label>
+          <label htmlFor="contact-message">{t("contact.message")}</label>
           <textarea
             id="contact-message"
             name="message"
@@ -92,11 +89,11 @@ export function ContactForm({ defaultEmail = "", defaultName = "" }: {
             minLength={10}
             maxLength={4000}
             rows={6}
-            placeholder="Describe the issue, the page or order involved, and what you have already tried. Do not include passwords, one-time codes, or full card numbers."
+            placeholder={t("contact.messagePlaceholder")}
           />
         </div>
         <div className="honeypot" aria-hidden="true">
-          <label htmlFor="contact-website">Leave this field empty</label>
+          <label htmlFor="contact-website">{t("contact.honeypot")}</label>
           <input
             id="contact-website"
             name="website"
@@ -108,13 +105,14 @@ export function ContactForm({ defaultEmail = "", defaultName = "" }: {
         <label className="checkbox">
           <input type="checkbox" name="privacyNotice" required />
           <span>
-            I understand that ESIMPROVE will use the details I provide to handle my request, as
-            described in the <Link href="/legal/privacy">Privacy Policy</Link>.
+            {t("contact.privacyPrefix")}{" "}
+            <Link href={href("/legal/privacy")}>{t("contact.privacyLink")}</Link>
+            {t("contact.privacySuffix")}
           </span>
         </label>
         <button className="button" type="submit" disabled={pending}>
           <MailIcon className="inline-icon" />
-          {pending ? "Sending…" : "Send message"}
+          {pending ? t("contact.sending") : t("contact.send")}
         </button>
       </form>
     </div>

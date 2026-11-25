@@ -6,17 +6,24 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { canViewOrder, getOrderViewByNumber } from "@/lib/orders";
 import { OrderDetail } from "@/components/order-detail";
 import { ArrowRight } from "@/components/icons";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Order confirmation",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/checkout/success",
+    title: t("success.metaTitle"),
+    robots: { index: false, follow: false },
+  });
+}
 
 export default async function CheckoutSuccessPage({
   searchParams,
 }: {
   searchParams: Promise<{ order?: string; token?: string }>;
 }) {
+  const { t, href } = await getI18n();
   const { order: orderNumber, token } = await searchParams;
   if (!orderNumber) {
     notFound();
@@ -45,20 +52,20 @@ export default async function CheckoutSuccessPage({
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Order</p>
+          <p className="eyebrow">{t("order.eyebrow")}</p>
           <h1>
             {paid
-              ? "Your order is confirmed"
+              ? t("success.paidTitle")
               : failed
-                ? "Payment not completed"
-                : "Your order is pending payment"}
+                ? t("success.failedTitle")
+                : t("success.pendingTitle")}
           </h1>
           <p className="lead">
             {paid
-              ? "Thank you. Your eSIM will be issued shortly, and activation details will appear in your order and in your account once it is ready."
+              ? t("success.paidLead")
               : failed
-                ? "Your order was recorded, but the payment did not complete. This store has not marked the order as paid. Contact support if you need help."
-                : "We have not received a confirmed payment yet. Your order will be processed only after the payment provider confirms the payment. If you just completed payment, wait a moment and refresh this page."}
+                ? t("success.failedLead")
+                : t("success.pendingLead")}
           </p>
         </div>
       </div>
@@ -66,12 +73,14 @@ export default async function CheckoutSuccessPage({
       <div className="hero-actions section-tight">
         <Link
           className="button"
-          href={`/orders/${view.order.orderNumber}${token ? `?token=${encodeURIComponent(token)}` : ""}`}
+          href={href(
+            `/orders/${view.order.orderNumber}${token ? `?token=${encodeURIComponent(token)}` : ""}`,
+          )}
         >
-          Open order details <ArrowRight className="inline-icon" />
+          {t("success.openOrder")} <ArrowRight className="inline-icon" />
         </Link>
-        <Link className="button button-secondary" href="/portal">
-          Customer portal
+        <Link className="button button-secondary" href={href("/portal")}>
+          {t("success.customerPortal")}
         </Link>
       </div>
     </>

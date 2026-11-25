@@ -206,6 +206,7 @@ only after Netlify DNS and HTTPS are active.
 | [`docs/adr/`](docs/adr/README.md) | Architecture decision records and current statuses |
 | [`docs/RISK-REGISTER.md`](docs/RISK-REGISTER.md) | Material risks and mitigations |
 | [`docs/INTEGRATION-RESEARCH.md`](docs/INTEGRATION-RESEARCH.md) | Supplier/payment/email research notes |
+| [`docs/CRYPTO-PAYMENTS.md`](docs/CRYPTO-PAYMENTS.md) | Binance-Peg USDT (BEP-20) setup, verification model, worker scheduling, statuses, and launch limits |
 
 ## Working rules
 

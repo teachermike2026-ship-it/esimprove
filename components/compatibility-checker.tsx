@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import {
-  compatibilityLabel,
   deviceBrands,
   type CompatibilityLevel,
 } from "@/lib/compatibility";
 import { AlertIcon, CheckIcon, QrIcon } from "@/components/icons";
+import { useI18n } from "@/components/i18n-provider";
 
 export function CompatibilityChecker() {
+  const { t } = useI18n();
   const [brandId, setBrandId] = useState("apple");
   const [modelId, setModelId] = useState("iphone-xr-xs-later");
   const [result, setResult] = useState<{
@@ -22,6 +23,13 @@ export function CompatibilityChecker() {
     [brandId],
   );
   const model = brand.models.find((item) => item.id === modelId) ?? brand.models[0];
+
+  const levelLabel = (level: CompatibilityLevel) =>
+    level === "likely"
+      ? t("compatibility.levelLikely")
+      : level === "unsupported"
+        ? t("compatibility.levelUnsupported")
+        : t("compatibility.levelCheck");
 
   function check() {
     setResult({ level: model.level, name: `${brand.name} — ${model.name}`, note: model.note });
@@ -37,7 +45,7 @@ export function CompatibilityChecker() {
         }}
       >
         <div className="field">
-          <label htmlFor="compat-brand">Device brand</label>
+          <label htmlFor="compat-brand">{t("compatibility.brandLabel")}</label>
           <select
             id="compat-brand"
             value={brandId}
@@ -56,7 +64,7 @@ export function CompatibilityChecker() {
           </select>
         </div>
         <div className="field">
-          <label htmlFor="compat-model">Device family or model</label>
+          <label htmlFor="compat-model">{t("compatibility.modelLabel")}</label>
           <select
             id="compat-model"
             value={modelId}
@@ -73,49 +81,38 @@ export function CompatibilityChecker() {
           </select>
         </div>
         <button className="button" type="submit">
-          <QrIcon className="inline-icon" /> Check compatibility
+          <QrIcon className="inline-icon" /> {t("compatibility.check")}
         </button>
-        <p className="form-note">
-          This checker is a guide, not an official compatibility database, and does not
-          guarantee that a device or carrier will accept an eSIM.
-        </p>
+        <p className="form-note">{t("compatibility.formNote")}</p>
       </form>
 
       <div className="card compat-result" aria-live="polite">
         {result ? (
           <>
             <span className={`badge ${result.level === "likely" ? "badge-success" : "badge-warning"}`}>
-              {compatibilityLabel(result.level)}
+              {levelLabel(result.level)}
             </span>
             <h2>{result.name}</h2>
             <p>{result.note}</p>
             <div className="callout callout-warning">
               <AlertIcon className="inline-icon" />
-              <p>
-                Before buying, confirm eSIM support with the manufacturer and check that the
-                device is carrier-unlocked.
-              </p>
+              <p>{t("compatibility.verifyTitle")}</p>
             </div>
           </>
         ) : (
           <>
-            <span className="badge badge-neutral">Guidance</span>
-            <h2>Check the device, then check the settings</h2>
-            <p>
-              Choose a brand and model family. The result is a cautious guide, not a
-              certification. The most reliable check is the device&apos;s own option to add a
-              mobile plan.
-            </p>
+            <span className="badge badge-neutral">{t("compatibility.guidance")}</span>
+            <h2>{t("compatibility.emptyTitle")}</h2>
+            <p>{t("compatibility.emptyBody")}</p>
             <ul className="check-list">
               <li>
-                <CheckIcon className="inline-icon" /> Look for “Add eSIM” or “Add mobile plan”.
+                <CheckIcon className="inline-icon" /> {t("compatibility.bullet1")}
               </li>
               <li>
-                <CheckIcon className="inline-icon" /> Confirm the phone is carrier-unlocked.
+                <CheckIcon className="inline-icon" /> {t("compatibility.bullet2")}
               </li>
               <li>
-                <CheckIcon className="inline-icon" /> Keep the QR code until installation is
-                complete.
+                <CheckIcon className="inline-icon" /> {t("compatibility.bullet3")}
               </li>
             </ul>
           </>

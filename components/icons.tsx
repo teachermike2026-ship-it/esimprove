@@ -20,9 +20,9 @@ function Svg({ children, ...props }: IconProps & { children: ReactNode }) {
   );
 }
 
-export function ArrowRight(props: IconProps) {
+export function ArrowRight({ className, ...props }: IconProps) {
   return (
-    <Svg {...props}>
+    <Svg className={className ? `icon-arrow ${className}` : "icon-arrow"} {...props}>
       <path d="M5 12h14" />
       <path d="m13 6 6 6-6 6" />
     </Svg>
@@ -152,6 +152,20 @@ export function CreditCardIcon(props: IconProps) {
     <Svg {...props}>
       <rect x="3" y="5" width="18" height="14" rx="2" />
       <path d="M3 10h18M7 15h3" />
+    </Svg>
+  );
+}
+
+/**
+ * Generic cryptocurrency/token mark. It deliberately avoids naming or implying
+ * a specific asset, network, wallet, or exchange.
+ */
+export function CryptoIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M14.9 8.7a4.2 4.2 0 1 0 0 6.6" />
+      <path d="M12 6.6v10.8" />
     </Svg>
   );
 }

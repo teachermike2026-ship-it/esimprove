@@ -89,6 +89,9 @@ export async function checkRateLimit(
 export const REQUEST_RATE_LIMITS = {
   analyticsTrack: { key: "analytics:track", limit: 120, windowSeconds: 60 },
   consent: { key: "consent:record", limit: 30, windowSeconds: 60 },
+  // Browser polling runs every 15 seconds (4/minute). Leave room for manual
+  // checks without allowing an unauthenticated caller to hammer the endpoint.
+  cryptoVerify: { key: "crypto:verify", limit: 30, windowSeconds: 60 },
 } as const;
 
 export type RequestRateLimitScope = keyof typeof REQUEST_RATE_LIMITS;

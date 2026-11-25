@@ -1,40 +1,169 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createCheckoutAction } from "@/app/checkout/actions";
 import { LEGAL_DOCUMENT_VERSION } from "@/lib/legal-profile";
-import { AlertIcon, CreditCardIcon, LockIcon } from "@/components/icons";
+import {
+  AlertIcon,
+  CheckIcon,
+  CryptoIcon,
+  CreditCardIcon,
+  LockIcon,
+} from "@/components/icons";
+import { useI18n } from "@/components/i18n-provider";
+import { CardDetailsFields } from "@/components/card-details-fields";
+import {
+  CHECKOUT_CARD_NETWORKS,
+  DEFAULT_CHECKOUT_PAYMENT_METHOD,
+  type CheckoutPaymentMethod,
+} from "@/lib/checkout-payment";
 
 type CheckoutState = { error?: string };
+
+const COUNTRIES = ["US", "GB", "CA", "AU", "DE", "FR", "ES", "IT", "JP"] as const;
 
 export function CheckoutForm({
   idempotencyKey,
   defaultEmail = "",
   defaultName = "",
   disabled = false,
+  previewOnly = false,
+  cryptoAvailable = false,
+  cardReady = false,
 }: {
   idempotencyKey: string;
   defaultEmail?: string;
   defaultName?: string;
   disabled?: boolean;
+  previewOnly?: boolean;
+  cryptoAvailable?: boolean;
+  /** True only when the Whop card checkout is fully configured on the server. */
+  cardReady?: boolean;
 }) {
+  const { t, href, locale } = useI18n();
   const [state, formAction, pending] = useActionState<CheckoutState, FormData>(
     createCheckoutAction,
     {},
   );
+  const [method, setMethod] = useState<CheckoutPaymentMethod>(
+    DEFAULT_CHECKOUT_PAYMENT_METHOD,
+  );
+  const regionNames = new Intl.DisplayNames([locale], { type: "region" });
+  const cryptoSelected = method === "crypto";
+  const cardBlocked = !cryptoSelected && !cardReady;
 
   return (
     <form className="form card checkout-form" action={formAction}>
+      {previewOnly ? (
+        <div className="callout callout-warning" role="note">
+          <AlertIcon className="inline-icon" />
+          <span>{t("demo.previewFormNote")}</span>
+        </div>
+      ) : null}
       {state.error ? (
         <div className="form-error" role="alert">
           <AlertIcon className="inline-icon" />
           <span>{state.error}</span>
         </div>
       ) : null}
+      <input type="hidden" name="previewOnly" value={previewOnly ? "1" : "0"} />
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <input type="hidden" name="termsVersion" value={LEGAL_DOCUMENT_VERSION} />
+      <input type="hidden" name="paymentMethod" value={method} />
+
+      <fieldset className="payment-method-fieldset">
+        <legend className="payment-method-legend">{t("checkout.choosePaymentTitle")}</legend>
+        <p className="form-note payment-method-intro">{t("checkout.choosePaymentLead")}</p>
+        <div className="payment-method-grid">
+          <label
+            className={`payment-method-card${method === "card" ? " is-selected" : ""}`}
+            htmlFor="payment-method-card"
+          >
+            <input
+              id="payment-method-card"
+              className="payment-method-input"
+              type="radio"
+              name="paymentMethodChoice"
+              value="card"
+              checked={method === "card"}
+              onChange={() => setMethod("card")}
+              disabled={disabled}
+            />
+            <span className="payment-method-top">
+              <span className="payment-method-icon" aria-hidden="true">
+                <CreditCardIcon />
+              </span>
+              <span className="payment-method-body">
+                <span className="payment-method-title">{t("checkout.cardTitle")}</span>
+                <span className="payment-method-description">{t("checkout.cardLead")}</span>
+              </span>
+              <span className="payment-method-indicator" aria-hidden="true">
+                {method === "card" ? <CheckIcon /> : null}
+              </span>
+            </span>
+            <span
+              className="payment-network-list"
+              role="group"
+              aria-label={t("checkout.cardNetworksAria")}
+            >
+              {CHECKOUT_CARD_NETWORKS.map((network) => (
+                <span className="payment-network" key={network}>
+                  {network}
+                </span>
+              ))}
+            </span>
+          </label>
+
+          <label
+            className={`payment-method-card${cryptoSelected ? " is-selected" : ""}${
+              cryptoAvailable ? "" : " is-disabled"
+            }`}
+            htmlFor="payment-method-crypto"
+          >
+            <input
+              id="payment-method-crypto"
+              className="payment-method-input"
+              type="radio"
+              name="paymentMethodChoice"
+              value="crypto"
+              checked={cryptoSelected}
+              onChange={() => setMethod("crypto")}
+              disabled={disabled || !cryptoAvailable}
+              aria-describedby={cryptoAvailable ? undefined : "crypto-unavailable-note"}
+            />
+            <span className="payment-method-top">
+              <span className="payment-method-icon" aria-hidden="true">
+                <CryptoIcon />
+              </span>
+              <span className="payment-method-body">
+                <span className="payment-method-title">{t("checkout.cryptoTitle")}</span>
+                <span className="payment-method-description">{t("checkout.cryptoLead")}</span>
+              </span>
+              <span className="payment-method-indicator" aria-hidden="true">
+                {cryptoSelected ? <CheckIcon /> : null}
+              </span>
+            </span>
+            <span className="payment-method-badges">
+              <span className="payment-network" dir="ltr">
+                Binance-Peg USDT · BEP-20
+              </span>
+              <span className="payment-network" dir="ltr">
+                BNB Smart Chain
+              </span>
+            </span>
+            {!cryptoAvailable ? (
+              <span className="payment-method-note" id="crypto-unavailable-note">
+                {t("checkout.cryptoUnavailableNote")}
+              </span>
+            ) : null}
+          </label>
+        </div>
+      </fieldset>
+
+      {!cryptoSelected ? <CardDetailsFields cardReady={cardReady} /> : null}
+
       <div className="field">
-        <label htmlFor="checkout-email">Email for the order</label>
+        <label htmlFor="checkout-email">{t("checkout.emailForOrder")}</label>
         <input
           id="checkout-email"
           name="email"
@@ -46,7 +175,7 @@ export function CheckoutForm({
         />
       </div>
       <div className="field">
-        <label htmlFor="checkout-name">Name on the order</label>
+        <label htmlFor="checkout-name">{t("checkout.nameOnOrder")}</label>
         <input
           id="checkout-name"
           name="name"
@@ -59,42 +188,53 @@ export function CheckoutForm({
         />
       </div>
       <div className="field">
-        <label htmlFor="checkout-country">Country of residence</label>
+        <label htmlFor="checkout-country">{t("checkout.countryResidence")}</label>
         <select id="checkout-country" name="country" required defaultValue="US">
-          <option value="US">United States</option>
-          <option value="GB">United Kingdom</option>
-          <option value="CA">Canada</option>
-          <option value="AU">Australia</option>
-          <option value="DE">Germany</option>
-          <option value="FR">France</option>
-          <option value="ES">Spain</option>
-          <option value="IT">Italy</option>
-          <option value="JP">Japan</option>
-          <option value="OTHER">Other / not listed</option>
+          {COUNTRIES.map((code) => (
+            <option key={code} value={code}>
+              {regionNames.of(code) ?? code}
+            </option>
+          ))}
+          <option value="OTHER">{t("checkout.countryOther")}</option>
         </select>
       </div>
       <label className="checkbox">
         <input type="checkbox" name="terms" required />
         <span>
-          I accept the{" "}
-          <a href="/legal/terms" target="_blank" rel="noreferrer">
-            Terms of Service
+          {t("checkout.acceptPrefix")}{" "}
+          <a href={href("/legal/terms")} target="_blank" rel="noreferrer">
+            {t("checkout.termsLink")}
           </a>{" "}
-          (version {LEGAL_DOCUMENT_VERSION}) and acknowledge the{" "}
-          <a href="/legal/privacy" target="_blank" rel="noreferrer">
-            Privacy Policy
+          (version {LEGAL_DOCUMENT_VERSION}) {t("checkout.termsMiddle")}{" "}
+          <a href={href("/legal/privacy")} target="_blank" rel="noreferrer">
+            {t("checkout.privacyLink")}
           </a>
-          . The total shown in the order summary is the amount due at the next step. No
-          additional fees are added later.
+          {t("checkout.termsSuffix")}
         </span>
       </label>
-      <button className="button button-wide" type="submit" disabled={pending || disabled}>
-        <CreditCardIcon className="inline-icon" />
-        {pending ? "Creating order…" : "Continue to payment"}
+      <button
+        className="button button-wide"
+        type="submit"
+        disabled={pending || disabled || previewOnly || cardBlocked}
+      >
+        {cryptoSelected ? (
+          <CryptoIcon className="inline-icon" />
+        ) : (
+          <CreditCardIcon className="inline-icon" />
+        )}
+        {previewOnly
+          ? t("demo.previewSubmit")
+          : pending
+            ? t("checkout.creatingOrder")
+            : cryptoSelected
+              ? t("checkout.continueWithCrypto")
+              : cardReady
+                ? t("checkout.continueWithCard")
+                : t("checkout.cardUnavailableSubmit")}
       </button>
       <p className="form-note">
-        <LockIcon className="inline-icon" /> Prices and tax are confirmed before your order is
-        placed.
+        <LockIcon className="inline-icon" />{" "}
+        {cryptoSelected ? t("checkout.cryptoOrderNote") : t("checkout.priceNote")}
       </p>
     </form>
   );

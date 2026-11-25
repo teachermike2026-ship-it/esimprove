@@ -13,17 +13,24 @@ import { requestMeta } from "@/lib/auth/session";
 import { logActivationAccess } from "@/lib/orders";
 import { ActivationCard } from "@/components/activation-card";
 import { ArrowRight } from "@/components/icons";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "eSIM activation",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/portal/esims",
+    title: t("activation.title"),
+    robots: { index: false, follow: false },
+  });
+}
 
 export default async function PortalEsimPage({
   params,
 }: {
   params: Promise<{ esimId: string }>;
 }) {
+  const { t, href } = await getI18n();
   const { esimId } = await params;
   const user = await requireUser(`/portal/esims/${esimId}`);
   const db = await getDb();
@@ -76,21 +83,21 @@ export default async function PortalEsimPage({
       <nav aria-label="Breadcrumb">
         <ol className="breadcrumbs">
           <li>
-            <Link href="/portal">Portal</Link>
+            <Link href={href("/portal")}>{t("profile.breadcrumbPortal")}</Link>
           </li>
           <li>
-            <Link href={`/portal/orders/${row.order.orderNumber}`}>{row.order.orderNumber}</Link>
+            <Link href={href(`/portal/orders/${row.order.orderNumber}`)}>
+              {row.order.orderNumber}
+            </Link>
           </li>
-          <li aria-current="page">Activation</li>
+          <li aria-current="page">{t("activation.eyebrow")}</li>
         </ol>
       </nav>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Customer portal</p>
-          <h1>Your eSIM</h1>
-          <p className="muted">
-            Activation data is shown only for this authorized view.
-          </p>
+          <p className="eyebrow">{t("activation.portalEyebrow")}</p>
+          <h1>{t("activation.title")}</h1>
+          <p className="muted">{t("activation.authorizedNote")}</p>
         </div>
       </div>
       <ActivationCard
@@ -101,11 +108,14 @@ export default async function PortalEsimPage({
         qrDataUrl={qrDataUrl}
       />
       <div className="hero-actions section-tight">
-        <Link className="button button-secondary" href={`/portal/orders/${row.order.orderNumber}`}>
-          Back to order <ArrowRight className="inline-icon" />
+        <Link
+          className="button button-secondary"
+          href={href(`/portal/orders/${row.order.orderNumber}`)}
+        >
+          {t("activation.backToOrder")} <ArrowRight className="inline-icon" />
         </Link>
-        <Link className="button button-ghost" href="/guides">
-          Install guides
+        <Link className="button button-ghost" href={href("/guides")}>
+          {t("activation.installGuides")}
         </Link>
       </div>
     </>

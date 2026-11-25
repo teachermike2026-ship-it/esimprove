@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import type { ReactNode } from "react";
 import { getCurrentUser } from "@/lib/auth/session";
 import {
   PrivacyRequestForm,
@@ -11,106 +13,97 @@ import {
 } from "@/components/legal-document";
 import { ClockIcon, LockIcon } from "@/components/icons";
 import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Privacy request",
-  description:
-    "Submit an access, correction, deletion, restriction, portability, or objection request and check its status.",
-  alternates: { canonical: "/privacy/request" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/privacy/request",
+    title: t("privacyRequest.metaTitle"),
+    description: t("privacyRequest.lead"),
+  });
+}
 
 export const dynamic = "force-dynamic";
 
+function splitAround(text: string, marker: string, node: ReactNode): ReactNode {
+  const index = text.indexOf(marker);
+  if (index === -1) return text;
+  return (
+    <>
+      {text.slice(0, index)}
+      {node}
+      {text.slice(index + marker.length)}
+    </>
+  );
+}
+
 export default async function PrivacyRequestPage() {
+  const { t, href } = await getI18n();
   const user = await getCurrentUser();
+  const privacyLabel = t("privacyRequest.privacyLink");
+  const rightsText = t("privacyRequest.rightsBody2", {
+    privacyLink: privacyLabel,
+    email: LEGAL_CONTACT_EMAIL,
+  });
+  const noEmailText = t("privacyRequest.noEmailNote", { email: LEGAL_CONTACT_EMAIL });
+  const privacyNode = <Link href={href("/legal/privacy")}>{privacyLabel}</Link>;
+  const emailNode = <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>;
 
   return (
     <div className="legal-page">
       <header className="legal-header">
-        <p className="eyebrow">Privacy rights</p>
-        <h1>Make a privacy request</h1>
-        <p className="lead">
-          Ask for access, correction, deletion, restriction, portability, or objection. Your
-          request is recorded with a reference so it can be reviewed and verified.
-        </p>
+        <p className="eyebrow">{t("privacyRequest.eyebrow")}</p>
+        <h1>{t("privacyRequest.heading")}</h1>
+        <p className="lead">{t("privacyRequest.pageLead")}</p>
       </header>
 
       <div className="privacy-request-grid">
         <section aria-labelledby="privacy-request-form-title">
-          <h2 id="privacy-request-form-title">Submit a request</h2>
+          <h2 id="privacy-request-form-title">{t("privacyRequest.submitTitle")}</h2>
           <PrivacyRequestForm defaultEmail={user?.email ?? ""} />
         </section>
 
         <aside className="privacy-request-aside">
           <section className="card form" aria-labelledby="privacy-request-process-title">
             <h2 id="privacy-request-process-title">
-              <ClockIcon className="inline-icon" /> What happens next
+              <ClockIcon className="inline-icon" /> {t("privacyRequest.whatNext")}
             </h2>
             <ol className="simple-list">
-              <li>The request is recorded with a reference and an unverified identity status.</li>
-              <li>
-                If you are signed in with the same email address, the request is marked verified
-                automatically. Otherwise an administrator verifies your identity before disclosing
-                or changing any account data.
-              </li>
-              <li>
-                The administrator records a decision, a resolution, or a reason for refusal. A
-                deletion request anonymises the account profile while financial and audit records
-                are retained where the law requires them.
-              </li>
-              <li>You can check the status at any time with the reference and email below.</li>
+              <li>{t("privacyRequest.step1")}</li>
+              <li>{t("privacyRequest.step2")}</li>
+              <li>{t("privacyRequest.step3")}</li>
+              <li>{t("privacyRequest.step4")}</li>
             </ol>
             <p className="small muted">
-              No notification email is sent automatically. Keep your request reference and check
-              the status here, or email{" "}
-              <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> if you need an
-              update. Response times follow the requirements of the privacy laws that apply to you.
+              {splitAround(noEmailText, LEGAL_CONTACT_EMAIL, emailNode)}
             </p>
           </section>
 
           <section className="card form" aria-labelledby="privacy-request-rights-title">
             <h2 id="privacy-request-rights-title">
-              <LockIcon className="inline-icon" /> Rights and limits
+              <LockIcon className="inline-icon" /> {t("privacyRequest.rightsTitle")}
             </h2>
-            <p>
-              Depending on where you live, you may have rights to access, correct, delete, restrict,
-              object to, or receive a portable copy of your data, and to withdraw consent. These
-              rights are not absolute. Legal recordkeeping, fraud prevention, dispute handling, or
-              another lawful basis may limit a request.
-            </p>
-            <p>
-              Read the <a href="/legal/privacy">Privacy policy</a> first, then submit your request
-              here or email{" "}
-              <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>.
-            </p>
+            <p>{t("privacyRequest.rightsBody1")}</p>
+            <p>{splitAround(rightsText, privacyLabel, privacyNode)}</p>
           </section>
 
           <section className="card form" aria-labelledby="privacy-request-auth-title">
-            <h2 id="privacy-request-auth-title">Signed-in vs. anonymous requests</h2>
-            <p>
-              A signed-in session with a matching email verifies identity for the request. An
-              anonymous submission is never enough to delete an account merely by typing an email
-              address; this protects accounts from impersonation.
-            </p>
-            <p>
-              If you cannot access the account email, explain that in the details of your request
-              and we will agree on a safe way to verify your identity.
-            </p>
+            <h2 id="privacy-request-auth-title">{t("privacyRequest.signedInTitle")}</h2>
+            <p>{t("privacyRequest.signedInBody1")}</p>
+            <p>{t("privacyRequest.signedInBody2")}</p>
           </section>
 
           <section className="card form" aria-labelledby="privacy-request-format-title">
-            <h2 id="privacy-request-format-title">What not to include</h2>
-            <p>
-              Do not include passwords, one-time authentication codes, full card numbers, or
-              identity-document images in your request. If verification documents are ever needed,
-              we will tell you what is acceptable and why.
-            </p>
+            <h2 id="privacy-request-format-title">{t("privacyRequest.notIncludeTitle")}</h2>
+            <p>{t("privacyRequest.notIncludeBody")}</p>
           </section>
         </aside>
       </div>
 
       <section className="section-tight" aria-labelledby="privacy-lookup-title">
-        <h2 id="privacy-lookup-title">Check an existing request</h2>
+        <h2 id="privacy-lookup-title">{t("privacyRequest.lookupTitle")}</h2>
         <PrivacyRequestLookupForm />
       </section>
 

@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Legal FAQ",
-  description:
-    "Answers about ESIMPROVE legal documents, orders, refunds, privacy requests, and cookies.",
-  alternates: { canonical: "/legal/faq" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/legal/faq",
+    title: t("legal.faq"),
+    description: t("legal.faqDescription"),
+  });
+}
 
 const items = [
   {
@@ -47,15 +51,14 @@ const items = [
   },
 ];
 
-export default function LegalFaqPage() {
+export default async function LegalFaqPage() {
+  const { t, href } = await getI18n();
   return (
     <div className="legal-page">
       <header className="legal-header">
-        <p className="eyebrow">Legal</p>
-        <h1>Legal FAQ</h1>
-        <p className="lead">
-          Short answers about ESIMPROVE legal documents and how to exercise your rights.
-        </p>
+        <p className="eyebrow">{t("legal.eyebrow")}</p>
+        <h1>{t("legal.faq")}</h1>
+        <p className="lead">{t("legal.faqDescription")}</p>
       </header>
 
       <article className="card form prose legal-body">
@@ -66,11 +69,17 @@ export default function LegalFaqPage() {
           </section>
         ))}
         <p>
-          See the <Link href="/legal">legal hub</Link>, the{" "}
-          <Link href="/legal/privacy">Privacy policy</Link>, the{" "}
-          <Link href="/legal/refunds">Refund policy</Link>, or the{" "}
-          <Link href="/#faq">main FAQ</Link>. You can also email us at{" "}
-          <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>.
+          <Link href={href("/legal")}>{t("legal.title")}</Link>
+          {" · "}
+          <Link href={href("/legal/privacy")}>{t("legal.privacy")}</Link>
+          {" · "}
+          <Link href={href("/legal/refunds")}>{t("legal.refunds")}</Link>
+          {" · "}
+          <Link href={href("/#faq")}>{t("footer.faq")}</Link>
+          {" · "}
+          <a href={`mailto:${LEGAL_CONTACT_EMAIL}`} dir="ltr">
+            {LEGAL_CONTACT_EMAIL}
+          </a>
         </p>
       </article>
     </div>

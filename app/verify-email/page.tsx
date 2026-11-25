@@ -2,12 +2,19 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { verifyEmailAction } from "@/lib/auth/actions";
 import { AlertIcon, CheckIcon, MailIcon } from "@/components/icons";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Verify email",
-  robots: { index: false, follow: false },
-  referrer: "no-referrer",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  const meta = await localizedMetadata({
+    path: "/verify-email",
+    title: t("auth.metaVerify"),
+    robots: { index: false, follow: false },
+  });
+  return { ...meta, referrer: "no-referrer" };
+}
 
 export default async function VerifyEmailPage({
   searchParams,
@@ -15,63 +22,48 @@ export default async function VerifyEmailPage({
   searchParams: Promise<{ token?: string; status?: string }>;
 }) {
   const { token, status } = await searchParams;
+  const { t, href } = await getI18n();
   const tokenValue = token ?? "";
 
   return (
     <div className="auth-layout auth-layout-narrow">
       <section className="auth-copy">
-        <p className="eyebrow">Account security</p>
-        <h1>Verify your email address</h1>
-        <p className="lead">
-          Confirming your address secures your account and keeps your contact details current. The
-          link can only be used once.
-        </p>
+        <p className="eyebrow">{t("auth.securityEyebrow")}</p>
+        <h1>{t("auth.verifyHeading")}</h1>
+        <p className="lead">{t("auth.verifyLead")}</p>
         <div className="callout">
           <MailIcon className="inline-icon" />
-          <p>
-            If you have not received a verification link, contact{" "}
-            <a href="mailto:contact@esimprove.com">contact@esimprove.com</a> for assistance.
-          </p>
+          <p>{t("auth.verifyMailNote", { email: LEGAL_CONTACT_EMAIL })}</p>
         </div>
       </section>
       <section className="auth-form">
         {status === "invalid" ? (
           <div className="form-error" role="alert">
             <AlertIcon className="inline-icon" />
-            <p>
-              This verification link is invalid, already used, or expired. Sign in and request a
-              new verification email from your profile page.
-            </p>
+            <p>{t("auth.verifyInvalid")}</p>
           </div>
         ) : null}
 
         {tokenValue ? (
           <form action={verifyEmailAction} className="form card">
-            <h2>Confirm this address</h2>
-            <p className="muted small">
-              Submit the form to mark the account email as verified. Email scanners that only open
-              links cannot consume the token.
-            </p>
+            <h2>{t("auth.verifyConfirmTitle")}</h2>
+            <p className="muted small">{t("auth.verifyConfirmBody")}</p>
             <input type="hidden" name="token" value={tokenValue} />
             <button className="button" type="submit">
               <CheckIcon className="inline-icon" />
-              Verify email address
+              {t("auth.verifyButton")}
             </button>
           </form>
         ) : (
           <div className="card form">
-            <h2>Verification link required</h2>
-            <p className="muted">
-              Open the verification link we sent you. If it is missing or has expired, sign in and
-              request a new one from your profile page, or contact{" "}
-              <a href="mailto:contact@esimprove.com">contact@esimprove.com</a>.
-            </p>
+            <h2>{t("auth.verifyLinkTitle")}</h2>
+            <p className="muted">{t("auth.verifyLinkBody", { email: LEGAL_CONTACT_EMAIL })}</p>
           </div>
         )}
 
         <p className="form-note" style={{ textAlign: "center" }}>
-          <Link href="/login">Back to sign in</Link>.{" "}
-          <Link href="/portal/profile">Profile and security</Link>.
+          <Link href={href("/login")}>{t("auth.backToSignIn")}</Link>.{" "}
+          <Link href={href("/portal/profile")}>{t("nav.profile")}</Link>.
         </p>
       </section>
     </div>

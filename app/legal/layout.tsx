@@ -1,20 +1,22 @@
 import Link from "next/link";
+import { getI18n } from "@/lib/i18n/server";
 
-const links = [
-  { href: "/legal/privacy", label: "Privacy policy" },
-  { href: "/legal/terms", label: "Terms of service" },
-  { href: "/legal/refunds", label: "Refund policy" },
-  { href: "/legal/cookies", label: "Cookie policy" },
-  { href: "/legal/accessibility", label: "Accessibility" },
-  { href: "/privacy/request", label: "Privacy request" },
-];
+export default async function LegalLayout({ children }: { children: React.ReactNode }) {
+  const { t, href } = await getI18n();
+  const links = [
+    { href: "/legal/privacy", label: t("legal.privacy") },
+    { href: "/legal/terms", label: t("legal.terms") },
+    { href: "/legal/refunds", label: t("legal.refunds") },
+    { href: "/legal/cookies", label: t("legal.cookies") },
+    { href: "/legal/accessibility", label: t("legal.accessibility") },
+    { href: "/privacy/request", label: t("common.privacyRequest") },
+  ];
 
-export default function LegalLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <nav className="pill-row section-tight" aria-label="Legal documents and privacy requests">
+      <nav className="pill-row section-tight" aria-label={t("legal.documentsAria")}>
         {links.map((link) => (
-          <Link key={link.href} className="badge badge-neutral" href={link.href}>
+          <Link key={link.href} className="badge badge-neutral" href={href(link.href)}>
             {link.label}
           </Link>
         ))}

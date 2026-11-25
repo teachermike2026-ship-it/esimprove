@@ -10,6 +10,8 @@ import { LEGAL_DOCUMENT_VERSION } from "@/lib/legal-profile";
 import { recordConsent } from "@/lib/consents";
 import { recordConsentEvent } from "@/lib/consent";
 import { hashToken } from "@/lib/crypto";
+import { isCheckoutPaymentMethod } from "@/lib/checkout-payment";
+import { onlineCheckoutAvailable, paymentProviderKey } from "@/lib/config";
 
 type CheckoutState = { error?: string };
 
@@ -17,6 +19,16 @@ export async function createCheckoutAction(
   _prev: CheckoutState,
   formData: FormData,
 ): Promise<CheckoutState> {
+  // Defence in depth for the local checkout UI preview. The preview button is
+  // disabled, but a Server Action is a public POST endpoint, so reject any
+  // preview submission before touching the cart, database, or payment adapter.
+  if (formString(formData, "previewOnly") === "1") {
+    return {
+      error:
+        "This is a local checkout UI preview. No order was created, no payment provider was contacted, and no database record was written.",
+    };
+  }
+
   const parsed = checkoutSchema.safeParse({
     email: formString(formData, "email"),
     name: formString(formData, "name"),
@@ -29,6 +41,21 @@ export async function createCheckoutAction(
 
   const cartToken = await readCartToken();
   if (!cartToken) return { error: "Your cart is empty. Add a plan first." };
+
+  const requestedMethod = formString(formData, "paymentMethod");
+  if (requestedMethod !== "" && !isCheckoutPaymentMethod(requestedMethod)) {
+    return { error: "Select a valid payment method." };
+  }
+  const paymentMethod = isCheckoutPaymentMethod(requestedMethod) ? requestedMethod : "card";
+  // The card UI is disabled until Whop is configured; enforce the same rule
+  // here because a Server Action can be called directly. This reads config
+  // only and never contacts Whop.
+  if (
+    paymentMethod === "card" &&
+    !(paymentProviderKey() === "whop" && onlineCheckoutAvailable())
+  ) {
+    return { error: "Card payments are coming soon. Please pay with crypto (USDT BEP-20)." };
+  }
 
   const db = await getDb();
   if (parsed.data.termsVersion !== LEGAL_DOCUMENT_VERSION) {
@@ -48,6 +75,7 @@ export async function createCheckoutAction(
       idempotencyKey: parsed.data.idempotencyKey,
       userId: user?.id ?? null,
       termsVersion: LEGAL_DOCUMENT_VERSION,
+      paymentMethod,
     });
     redirectUrl = result.redirectUrl;
 

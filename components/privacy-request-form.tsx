@@ -9,16 +9,18 @@ import {
   type PrivacyRequestFormState,
 } from "@/app/privacy/request/actions";
 import { AlertIcon, CheckIcon, LockIcon } from "@/components/icons";
+import { useI18n } from "@/components/i18n-provider";
+import { statusLabel } from "@/lib/i18n/status";
 
 const REQUEST_TYPES = [
-  { value: "access", label: "Access to my personal data" },
-  { value: "correction", label: "Correct inaccurate data" },
-  { value: "deletion", label: "Delete my account or personal data" },
-  { value: "restriction", label: "Restrict how my data is used" },
-  { value: "portability", label: "Receive a portable copy" },
-  { value: "objection", label: "Object to a processing activity" },
-  { value: "other", label: "Another privacy request" },
-];
+  { value: "access", key: "privacyRequest.typeAccess" },
+  { value: "correction", key: "privacyRequest.typeCorrection" },
+  { value: "deletion", key: "privacyRequest.typeDeletion" },
+  { value: "restriction", key: "privacyRequest.typeRestriction" },
+  { value: "portability", key: "privacyRequest.typePortability" },
+  { value: "objection", key: "privacyRequest.typeObjection" },
+  { value: "other", key: "privacyRequest.typeOther" },
+] as const;
 
 function ErrorMessage({ error }: { error?: string }) {
   if (!error) return null;
@@ -31,6 +33,7 @@ function ErrorMessage({ error }: { error?: string }) {
 }
 
 export function PrivacyRequestForm({ defaultEmail = "" }: { defaultEmail?: string }) {
+  const { t, href } = useI18n();
   const [state, formAction, pending] = useActionState<PrivacyRequestFormState, FormData>(
     submitPrivacyRequestAction,
     {},
@@ -43,21 +46,18 @@ export function PrivacyRequestForm({ defaultEmail = "" }: { defaultEmail?: strin
           <CheckIcon className="inline-icon" />
           <div>
             <p>
-              <strong>Request recorded.</strong>{" "}
-              {state.reference ? (
-                <>
-                  Your reference is <code>{state.reference}</code>.
-                </>
-              ) : (
-                "Your submission was received."
-              )}
+              <strong>{t("privacyRequest.recorded")}</strong>{" "}
+              {state.reference
+                ? t("privacyRequest.referenceInline", { reference: state.reference })
+                : t("privacyRequest.submissionReceived")}
             </p>
-            {state.status ? <p className="small">Current status: {state.status}.</p> : null}
+            {state.status ? (
+              <p className="small">
+                {t("privacyRequest.currentStatus", { status: statusLabel(t, state.status) })}
+              </p>
+            ) : null}
             {state.message ? <p className="small">{state.message}</p> : null}
-            <p className="small">
-              Keep the reference and the email address used. You can check progress with the
-              status lookup below.
-            </p>
+            <p className="small">{t("privacyRequest.keepReference")}</p>
           </div>
         </div>
       ) : null}
@@ -65,17 +65,17 @@ export function PrivacyRequestForm({ defaultEmail = "" }: { defaultEmail?: strin
       <form className="form card" action={formAction}>
         <ErrorMessage error={state.error} />
         <div className="field">
-          <label htmlFor="privacy-request-type">What are you asking for?</label>
+          <label htmlFor="privacy-request-type">{t("privacyRequest.typeLabel")}</label>
           <select id="privacy-request-type" name="requestType" required defaultValue="access">
             {REQUEST_TYPES.map((type) => (
               <option key={type.value} value={type.value}>
-                {type.label}
+                {t(type.key)}
               </option>
             ))}
           </select>
         </div>
         <div className="field">
-          <label htmlFor="privacy-request-name">Name (optional)</label>
+          <label htmlFor="privacy-request-name">{t("privacyRequest.nameOptional")}</label>
           <input
             id="privacy-request-name"
             name="name"
@@ -85,7 +85,7 @@ export function PrivacyRequestForm({ defaultEmail = "" }: { defaultEmail?: strin
           />
         </div>
         <div className="field">
-          <label htmlFor="privacy-request-email">Email used for the account or order</label>
+          <label htmlFor="privacy-request-email">{t("privacyRequest.emailLabel")}</label>
           <input
             id="privacy-request-email"
             name="email"
@@ -95,23 +95,20 @@ export function PrivacyRequestForm({ defaultEmail = "" }: { defaultEmail?: strin
             maxLength={254}
             defaultValue={defaultEmail}
           />
-          <p className="form-note">
-            Use the same address the account or order uses. A request with a different address
-            cannot be matched to an account automatically.
-          </p>
+          <p className="form-note">{t("privacyRequest.emailNote")}</p>
         </div>
         <div className="field">
-          <label htmlFor="privacy-request-details">Details (optional)</label>
+          <label htmlFor="privacy-request-details">{t("privacyRequest.formDetailsLabel")}</label>
           <textarea
             id="privacy-request-details"
             name="details"
             rows={5}
             maxLength={4000}
-            placeholder="Tell us what you need. Do not include passwords, one-time codes, or full card numbers."
+            placeholder={t("privacyRequest.detailsPlaceholder")}
           />
         </div>
         <div className="honeypot" aria-hidden="true">
-          <label htmlFor="privacy-request-website">Leave this field empty</label>
+          <label htmlFor="privacy-request-website">{t("privacyRequest.honeypot")}</label>
           <input
             id="privacy-request-website"
             name="website"
@@ -123,25 +120,23 @@ export function PrivacyRequestForm({ defaultEmail = "" }: { defaultEmail?: strin
         <label className="checkbox">
           <input type="checkbox" name="privacyNotice" required />
           <span>
-            I understand this request is recorded for administrator review, that identity may
-            need to be verified, and that financial or audit records may be retained where the law
-            requires it. See the <Link href="/legal/privacy">Privacy Policy</Link>.
+            {t("privacyRequest.confirmDetailed")}{" "}
+            <Link href={href("/legal/privacy")}>{t("privacyRequest.privacyLink")}</Link>
+            .
           </span>
         </label>
         <button className="button" type="submit" disabled={pending}>
           <LockIcon className="inline-icon" />
-          {pending ? "Recording request…" : "Submit privacy request"}
+          {pending ? t("privacyRequest.recording") : t("privacyRequest.submitPrivacy")}
         </button>
-        <p className="form-note">
-          Submitting the form records your request; no confirmation email is sent automatically.
-          Keep the reference you receive and check the status below.
-        </p>
+        <p className="form-note">{t("privacyRequest.noEmailSent")}</p>
       </form>
     </div>
   );
 }
 
 export function PrivacyRequestLookupForm() {
+  const { t } = useI18n();
   const [state, formAction, pending] = useActionState<PrivacyLookupState, FormData>(
     lookupPrivacyRequestAction,
     {},
@@ -155,38 +150,48 @@ export function PrivacyRequestLookupForm() {
           <CheckIcon className="inline-icon" />
           <div>
             <p>
-              <strong>Request {state.reference}</strong>
+              <strong>
+                {t("privacyRequest.lookupRequest", { reference: state.reference ?? "—" })}
+              </strong>
             </p>
             <dl className="meta-list">
               <div>
-                <dt>Type</dt>
-                <dd>{state.requestType}</dd>
+                <dt>{t("privacyRequest.lookupType")}</dt>
+                <dd>{state.requestType ? t(`privacyRequest.${state.requestType}`) : "—"}</dd>
               </div>
               <div>
-                <dt>Status</dt>
-                <dd>{state.status}</dd>
+                <dt>{t("privacyRequest.lookupStatus")}</dt>
+                <dd>{state.status ? statusLabel(t, state.status) : "—"}</dd>
               </div>
               <div>
-                <dt>Identity</dt>
-                <dd>{state.verified ? "Verified" : "Verification pending"}</dd>
+                <dt>{t("privacyRequest.lookupIdentity")}</dt>
+                <dd>
+                  {state.verified
+                    ? t("privacyRequest.identityVerified")
+                    : t("privacyRequest.identityPending")}
+                </dd>
               </div>
               <div>
-                <dt>Created</dt>
-                <dd>{state.createdAt} (UTC)</dd>
+                <dt>{t("privacyRequest.lookupCreated")}</dt>
+                <dd>
+                  {state.createdAt} (UTC)
+                </dd>
               </div>
               <div>
-                <dt>Last update</dt>
-                <dd>{state.updatedAt} (UTC)</dd>
+                <dt>{t("privacyRequest.lookupUpdated")}</dt>
+                <dd>
+                  {state.updatedAt} (UTC)
+                </dd>
               </div>
               {state.resolution ? (
                 <div>
-                  <dt>Resolution</dt>
+                  <dt>{t("privacyRequest.lookupResolution")}</dt>
                   <dd>{state.resolution}</dd>
                 </div>
               ) : null}
               {state.rejectionReason ? (
                 <div>
-                  <dt>Reason</dt>
+                  <dt>{t("privacyRequest.lookupReason")}</dt>
                   <dd>{state.rejectionReason}</dd>
                 </div>
               ) : null}
@@ -195,7 +200,7 @@ export function PrivacyRequestLookupForm() {
         </div>
       ) : null}
       <div className="field">
-        <label htmlFor="privacy-lookup-reference">Request reference</label>
+        <label htmlFor="privacy-lookup-reference">{t("privacyRequest.referenceLabel")}</label>
         <input
           id="privacy-lookup-reference"
           name="reference"
@@ -204,10 +209,11 @@ export function PrivacyRequestLookupForm() {
           maxLength={40}
           placeholder="PR-YYYYMM-XXXXXXXX"
           autoComplete="off"
+          dir="ltr"
         />
       </div>
       <div className="field">
-        <label htmlFor="privacy-lookup-email">Email used for the request</label>
+        <label htmlFor="privacy-lookup-email">{t("privacyRequest.lookupEmailLabel")}</label>
         <input
           id="privacy-lookup-email"
           name="email"
@@ -218,12 +224,9 @@ export function PrivacyRequestLookupForm() {
         />
       </div>
       <button className="button button-ghost" type="submit" disabled={pending}>
-        {pending ? "Checking…" : "Check request status"}
+        {pending ? t("privacyRequest.checking") : t("privacyRequest.checkStatus")}
       </button>
-      <p className="form-note">
-        Both the reference and the matching email are required. This prevents someone else from
-        viewing your request by guessing a reference.
-      </p>
+      <p className="form-note">{t("privacyRequest.lookupNote")}</p>
     </form>
   );
 }

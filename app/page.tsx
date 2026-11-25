@@ -8,7 +8,6 @@ import {
   type PlanSummary,
 } from "@/lib/catalog";
 import { formatData, formatMoney } from "@/lib/money";
-import { faqItems } from "@/lib/site-content";
 import { CountryFlag } from "@/components/country-flag";
 import { DestinationExplorer, type ExplorerDestination } from "@/components/home/destination-explorer";
 import { DestinationSearch } from "@/components/home/destination-search";
@@ -16,6 +15,8 @@ import { PhoneShowcase, type PhoneDestination, type PhoneRegion } from "@/compon
 import { ExampleQr } from "@/components/home/example-qr";
 import { TutorialSection } from "@/components/home/tutorial-section";
 import { WorldMap } from "@/components/home/world-map";
+import { localizedMetadata } from "@/lib/i18n/metadata";
+import { getI18n } from "@/lib/i18n/server";
 import {
   ArrowRight,
   CheckIcon,
@@ -26,14 +27,18 @@ import {
   StarIcon,
 } from "@/components/icons";
 
-export const metadata: Metadata = {
-  title: { absolute: "Travel eSIMs for your next trip · Esimprove" },
-  description:
-    "Compare travel eSIM plans by destination. Explore data, validity, and pricing in the Esimprove storefront.",
-  alternates: { canonical: "/" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/",
+    title: t("home.metaTitle"),
+    description: t("home.metaDescription"),
+    absoluteTitle: true,
+  });
+}
 
 export default async function HomePage() {
+  const { t, href } = await getI18n();
   const db = await getDb();
   const [regions, destinations, plans] = await Promise.all([
     getRegions(db),
@@ -122,6 +127,11 @@ export default async function HomePage() {
     ]),
   );
 
+  const faqItems = Array.from({ length: 10 }, (_, index) => ({
+    question: t(`faq.q${index + 1}`),
+    answer: t(`faq.a${index + 1}`),
+  }));
+
   return (
     <div className="es-home">
       <section className="es-hero" aria-labelledby="hero-title">
@@ -132,14 +142,15 @@ export default async function HomePage() {
         <div className="es-shell es-hero-grid">
           <div className="es-hero-copy">
             <h1 id="hero-title" className="es-hero-title">
-              <span>Travel Freely</span>
-              <span>Connect Instantly</span>
-              <span className="es-hero-accent">Anywhere, Anytime</span>
+              <span>{t("home.hero.title1")}</span>
+              <span>{t("home.hero.title2")}</span>
+              <span className="es-hero-accent">{t("home.hero.title3")}</span>
             </h1>
             <p className="es-hero-lead">
-              Compare travel eSIM plans for {destinationCount} destinations across{" "}
-              {regionCount} regions. Clear data, validity, and pricing up front — no plastic
-              SIM, no roaming guesswork.
+              {t("home.hero.lead", {
+                destinations: destinationCount,
+                regions: regionCount,
+              })}
             </p>
             <DestinationSearch id="hero-search" suggestions={searchSuggestions} />
             <ul className="es-hero-checks">
@@ -147,19 +158,19 @@ export default async function HomePage() {
                 <span className="es-check-mark">
                   <CheckIcon />
                 </span>
-                {destinationCount} destinations
+                {t("home.explorer.destinationsCount", { count: destinationCount })}
               </li>
               <li>
                 <span className="es-check-mark">
                   <CheckIcon />
                 </span>
-                {regionCount} regions
+                {regionCount} {t("common.regions")}
               </li>
               <li>
                 <span className="es-check-mark">
                   <CheckIcon />
                 </span>
-                {planCount} plan options
+                {t("home.explorer.planOptions", { count: planCount })}
               </li>
             </ul>
           </div>
@@ -176,29 +187,31 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="es-trust" aria-label="Coverage overview">
+      <section className="es-trust" aria-label={t("home.trust.label")}>
         <div className="es-shell">
-          <p className="es-trust-title">Coverage built for international travel</p>
+          <p className="es-trust-title">{t("home.trust.title")}</p>
           <ul className="es-trust-list">
             <li>
               <GlobeIcon />
-              <span>{destinationCount} destinations</span>
+              <span>{t("home.explorer.destinationsCount", { count: destinationCount })}</span>
             </li>
             <li>
               <SignalIcon />
-              <span>{regionCount} regions</span>
+              <span>
+                {regionCount} {t("common.regions")}
+              </span>
             </li>
             <li>
               <QrIcon />
-              <span>{planCount} plan options</span>
+              <span>{t("home.explorer.planOptions", { count: planCount })}</span>
             </li>
             <li>
               <ShieldIcon />
-              <span>Digital delivery</span>
+              <span>{t("home.trust.digital")}</span>
             </li>
             <li>
               <CheckIcon />
-              <span>Clear status labels</span>
+              <span>{t("home.trust.clearStatus")}</span>
             </li>
           </ul>
         </div>
@@ -207,27 +220,25 @@ export default async function HomePage() {
       <section className="es-intro" aria-labelledby="intro-title">
         <div className="es-shell">
           <h2 id="intro-title" className="es-intro-heading">
-            <span>Esimprove: Always Connected.</span> Instant travel data, no plastic SIM —
-            simple, digital connectivity for your next trip.
+            <span>{t("home.intro.title")}</span> {t("home.intro.body")}
           </h2>
-          <p>
-            Browse plans by destination, compare data and validity, and check your device
-            before you travel.
-          </p>
+          <p>{t("home.intro.body2")}</p>
         </div>
       </section>
 
       <section className="es-features" aria-labelledby="features-title">
         <div className="es-shell">
           <h2 id="features-title" className="visually-hidden">
-            What Esimprove offers
+            {t("home.features.title")}
           </h2>
           <div className="es-feature-grid">
             <article className="es-feature-card">
-              <h3>Global Coverage</h3>
+              <h3>{t("home.features.globalTitle")}</h3>
               <p>
-                Explore {destinationCount} destinations across {regionCount} regions,
-                with data, validity, and starting prices shown up front.
+                {t("home.features.globalBody", {
+                  destinations: destinationCount,
+                  regions: regionCount,
+                })}
               </p>
               <div className="es-flag-cloud" aria-hidden="true">
                 {flagDestinations.map((destination) => (
@@ -237,32 +248,30 @@ export default async function HomePage() {
                 ))}
                 <span className="es-flag-orbit" />
               </div>
-              <Link className="es-text-link" href="/destinations">
-                Browse destinations <ArrowRight />
+              <Link className="es-text-link" href={href("/destinations")}>
+                {t("home.features.browse")} <ArrowRight />
               </Link>
             </article>
 
             <article className="es-feature-card">
-              <h3>Flexible Plans</h3>
-              <p>
-                Choose from data plans sized for a short break or a longer stay. The
-                selected row is the clear, green choice.
-              </p>
+              <h3>{t("home.features.flexibleTitle")}</h3>
+              <p>{t("home.features.flexibleBody")}</p>
               <div className="es-plan-choice">
                 {flexiblePlans.map((plan, index) => (
                   <Link
                     key={plan.id}
-                    href={`/plans/${plan.slug}`}
+                    href={href(`/plans/${plan.slug}`)}
                     className={`es-plan-option${index === selectedPlanIndex ? " is-selected" : ""}`}
                   >
                     <span className="es-plan-radio" aria-hidden="true" />
                     <span className="es-plan-option-copy">
                       <strong>
-                        {formatData(plan.dataMb)} · {plan.validityDays} days
+                        <span dir="ltr">{formatData(plan.dataMb)}</span> ·{" "}
+                        {plan.validityDays} {t("common.days")}
                       </strong>
                       <small>{plan.destinationName}</small>
                     </span>
-                    <strong className="es-plan-option-price">
+                    <strong className="es-plan-option-price" dir="ltr">
                       {formatMoney(plan.priceMinor, plan.currency)}
                     </strong>
                   </Link>
@@ -271,25 +280,23 @@ export default async function HomePage() {
               {flexibleDestination ? (
                 <Link
                   className="es-text-link"
-                  href={`/destinations/${flexibleDestination.slug}`}
+                  href={href(`/destinations/${flexibleDestination.slug}`)}
                 >
-                  See {flexibleDestination.name} plans <ArrowRight />
+                  {t("home.features.seePlans", { country: flexibleDestination.name })}{" "}
+                  <ArrowRight />
                 </Link>
               ) : null}
             </article>
 
             <article className="es-feature-card">
-              <h3>Instant Activation</h3>
-              <p>
-                QR or manual installation instructions, with a written guide for iOS and
-                Android.
-              </p>
+              <h3>{t("home.features.instantTitle")}</h3>
+              <p>{t("home.features.instantBody")}</p>
               <div className="es-qr-panel">
                 <ExampleQr />
-                <span>Install with a QR code or manual activation code.</span>
+                <span>{t("home.features.installWithQr")}</span>
               </div>
-              <Link className="es-text-link" href="/guides">
-                Open install guide <ArrowRight />
+              <Link className="es-text-link" href={href("/guides")}>
+                {t("home.features.openGuide")} <ArrowRight />
               </Link>
             </article>
           </div>
@@ -299,14 +306,12 @@ export default async function HomePage() {
       <section className="es-destinations" id="destinations" aria-labelledby="destinations-title">
         <div className="es-shell">
           <header className="es-section-head es-section-head-center">
-            <p className="es-eyebrow">Find your next stop</p>
+            <p className="es-eyebrow">{t("home.destinations.eyebrow")}</p>
             <h2 id="destinations-title">
-              Pick a Vacation <span className="es-green">Destination</span>
+              {t("home.destinations.title")}{" "}
+              <span className="es-green">{t("home.destinations.titleGreen")}</span>
             </h2>
-            <p>
-              Choose a destination to explore available packages, data allowances, and
-              pricing before you compare plans.
-            </p>
+            <p>{t("home.destinations.body")}</p>
           </header>
           <DestinationExplorer destinations={explorerDestinations} regions={explorerRegions} />
         </div>
@@ -315,14 +320,12 @@ export default async function HomePage() {
       <section className="es-install" id="install" aria-labelledby="install-title">
         <div className="es-shell">
           <header className="es-section-head es-section-head-center">
-            <p className="es-eyebrow">From code to connection</p>
+            <p className="es-eyebrow">{t("home.install.eyebrow")}</p>
             <h2 id="install-title">
-              How to <span className="es-green">Install eSIM</span>
+              {t("home.install.title")}{" "}
+              <span className="es-green">{t("home.install.titleGreen")}</span>
             </h2>
-            <p>
-              A clear, provider-neutral walkthrough for checking compatibility, installing
-              your plan, and labelling the line.
-            </p>
+            <p>{t("home.install.body")}</p>
           </header>
           <TutorialSection />
         </div>
@@ -332,12 +335,10 @@ export default async function HomePage() {
         <div className="es-shell">
           <div className="es-reviews-head">
             <h2 id="reviews-title">
-              Traveler <span className="es-green">stories</span>
+              {t("home.reviews.title")}{" "}
+              <span className="es-green">{t("home.reviews.titleGreen")}</span>
             </h2>
-            <p>
-              We only publish verified customer reviews. None are published yet, so no review
-              names, quotes, ratings, or platform scores are shown.
-            </p>
+            <p>{t("home.reviews.body")}</p>
           </div>
 
           <div className="es-reviews-empty">
@@ -345,32 +346,29 @@ export default async function HomePage() {
               <StarIcon />
             </span>
             <div>
-              <h3>No reviews published yet</h3>
-              <p>
-                When real, approved reviews are available, this section will show the review,
-                date, destination, and source. We do not invent customer identities or ratings.
-              </p>
+              <h3>{t("home.reviews.emptyTitle")}</h3>
+              <p>{t("home.reviews.emptyBody")}</p>
             </div>
-            <Link className="es-text-link" href="/about#reviews">
-              Read our review policy <ArrowRight />
+            <Link className="es-text-link" href={href("/about#reviews")}>
+              {t("home.reviews.policyLink")} <ArrowRight />
             </Link>
           </div>
 
           <ul className="es-review-principles">
             <li>
               <span>01</span>
-              <strong>Real reviews only</strong>
-              <p>Published with permission and kept in context.</p>
+              <strong>{t("home.reviews.principle1Title")}</strong>
+              <p>{t("home.reviews.principle1Body")}</p>
             </li>
             <li>
               <span>02</span>
-              <strong>Source and date shown</strong>
-              <p>Every future review will be traceable and dated.</p>
+              <strong>{t("home.reviews.principle2Title")}</strong>
+              <p>{t("home.reviews.principle2Body")}</p>
             </li>
             <li>
               <span>03</span>
-              <strong>No invented ratings</strong>
-              <p>No star score, review count, or platform badge without data.</p>
+              <strong>{t("home.reviews.principle3Title")}</strong>
+              <p>{t("home.reviews.principle3Body")}</p>
             </li>
           </ul>
         </div>
@@ -379,15 +377,14 @@ export default async function HomePage() {
       <section className="es-faq" id="faq" aria-labelledby="faq-title">
         <div className="es-shell es-faq-layout">
           <div className="es-faq-intro">
-            <p className="es-eyebrow">Before you go</p>
+            <p className="es-eyebrow">{t("home.faq.eyebrow")}</p>
             <h2 id="faq-title">
-              Frequently asked <span className="es-green">questions</span>
+              {t("home.faq.title")}{" "}
+              <span className="es-green">{t("home.faq.titleGreen")}</span>
             </h2>
-            <p>
-              Straight answers about eSIMs, compatibility, and installation.
-            </p>
-            <Link className="es-text-link" href="/guides">
-              Read the installation guides <ArrowRight />
+            <p>{t("home.faq.body")}</p>
+            <Link className="es-text-link" href={href("/guides")}>
+              {t("home.faq.link")} <ArrowRight />
             </Link>
           </div>
 
@@ -409,21 +406,19 @@ export default async function HomePage() {
         <div className="es-shell">
           <div className="es-cta-panel">
             <div className="es-cta-copy">
-              <p className="es-eyebrow">Start with a destination</p>
+              <p className="es-eyebrow">{t("home.cta.eyebrow")}</p>
               <h2 id="cta-title">
-                Where are you <span className="es-green">heading next?</span>
+                {t("home.cta.title")}{" "}
+                <span className="es-green">{t("home.cta.titleGreen")}</span>
               </h2>
-              <p>
-                Search the catalogue, then compare data, validity, and price before you
-                choose a plan.
-              </p>
+              <p>{t("home.cta.body")}</p>
               <DestinationSearch id="cta-search" suggestions={searchSuggestions} size="cta" />
               <div className="es-cta-actions">
-                <Link className="es-button es-button-primary" href="/destinations">
-                  Browse all destinations <ArrowRight />
+                <Link className="es-button es-button-primary" href={href("/destinations")}>
+                  {t("home.cta.browseAll")} <ArrowRight />
                 </Link>
-                <Link className="es-button es-button-secondary" href="/plans">
-                  Compare plans
+                <Link className="es-button es-button-secondary" href={href("/plans")}>
+                  {t("home.cta.compare")}
                 </Link>
               </div>
             </div>
@@ -443,11 +438,10 @@ export default async function HomePage() {
                 </span>
               ))}
               <span className="es-cta-pill">
-                <CheckIcon /> {destinationCount} destinations
+                <CheckIcon /> {t("home.cta.pill", { count: destinationCount })}
               </span>
             </div>
           </div>
-
         </div>
       </section>
     </div>

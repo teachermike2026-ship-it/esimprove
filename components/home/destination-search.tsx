@@ -1,6 +1,7 @@
 import { SearchIcon } from "@/components/icons";
+import { getI18n } from "@/lib/i18n/server";
 
-export function DestinationSearch({
+export async function DestinationSearch({
   id,
   suggestions,
   size = "hero",
@@ -9,25 +10,26 @@ export function DestinationSearch({
   suggestions: string[];
   size?: "hero" | "cta";
 }) {
+  const { t, href } = await getI18n();
   const inputId = `${id}-input`;
   const listId = `${id}-suggestions`;
 
   return (
     <form
       className={`es-search es-search-${size}`}
-      action="/search"
+      action={href("/search")}
       method="get"
       role="search"
     >
       <label className="visually-hidden" htmlFor={inputId}>
-        Search for a destination
+        {t("home.hero.searchLabel")}
       </label>
       <SearchIcon className="es-search-icon" />
       <input
         id={inputId}
         name="q"
         type="search"
-        placeholder="Search for destination"
+        placeholder={t("home.hero.searchPlaceholder")}
         autoComplete="off"
         list={listId}
       />
@@ -36,9 +38,9 @@ export function DestinationSearch({
           <option key={suggestion} value={suggestion} />
         ))}
       </datalist>
-      <button className="es-search-button" type="submit" aria-label="Search">
+      <button className="es-search-button" type="submit" aria-label={t("common.search")}>
         <SearchIcon />
-        <span>Search</span>
+        <span>{t("common.search")}</span>
       </button>
     </form>
   );

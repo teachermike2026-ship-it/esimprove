@@ -5,13 +5,17 @@ import { getDestinations, getRegions } from "@/lib/catalog";
 import { DestinationCard } from "@/components/destination-card";
 import { SearchForm } from "@/components/search-form";
 import { EmptyState } from "@/components/empty-state";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Destinations",
-  description:
-    "Browse eSIM destinations and compare plans by region, validity, and price.",
-  alternates: { canonical: "/destinations" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/destinations",
+    title: t("catalog.metaDestinationsTitle"),
+    description: t("catalog.metaDestinationsDescription"),
+  });
+}
 
 export default async function DestinationsPage({
   searchParams,
@@ -19,6 +23,7 @@ export default async function DestinationsPage({
   searchParams: Promise<{ region?: string }>;
 }) {
   const { region } = await searchParams;
+  const { t, href } = await getI18n();
   const db = await getDb();
   const [regions, destinations] = await Promise.all([
     getRegions(db),
@@ -29,25 +34,25 @@ export default async function DestinationsPage({
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Destination catalogue</p>
-          <h1>Destinations</h1>
-          <p className="lead">
-            Choose a country or region to see plans. Coverage, network, and supplier terms vary by
-            plan and operator; each plan page shows the specifics that apply.
-          </p>
+          <p className="eyebrow">{t("catalog.destinationsEyebrow")}</p>
+          <h1>{t("catalog.destinationsTitle")}</h1>
+          <p className="lead">{t("catalog.destinationsLead")}</p>
         </div>
         <SearchForm />
       </div>
 
-      <nav className="pill-row section-tight" aria-label="Filter destinations by region">
-        <Link className={`badge ${!region ? "badge-success" : "badge-neutral"}`} href="/destinations">
-          All regions
+      <nav className="pill-row section-tight" aria-label={t("catalog.filterAria")}>
+        <Link
+          className={`badge ${!region ? "badge-success" : "badge-neutral"}`}
+          href={href("/destinations")}
+        >
+          {t("catalog.allRegions")}
         </Link>
         {regions.map((item) => (
           <Link
             key={item.id}
             className={`badge ${region === item.slug ? "badge-success" : "badge-neutral"}`}
-            href={`/destinations?region=${encodeURIComponent(item.slug)}`}
+            href={href(`/destinations?region=${encodeURIComponent(item.slug)}`)}
           >
             {item.name}
           </Link>
@@ -61,8 +66,11 @@ export default async function DestinationsPage({
           ))}
         </div>
       ) : (
-        <EmptyState title="No destinations in this filter" action={{ href: "/destinations", label: "Show all destinations" }}>
-          The catalogue does not have a destination for that region yet.
+        <EmptyState
+          title={t("catalog.noDestinationsTitle")}
+          action={{ href: href("/destinations"), label: t("catalog.showAllDestinations") }}
+        >
+          {t("catalog.noDestinationsBody")}
         </EmptyState>
       )}
     </>

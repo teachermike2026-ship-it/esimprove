@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { DestinationSummary, RegionSummary } from "@/lib/catalog";
+import { getI18n } from "@/lib/i18n/server";
 
 export interface PlanFilterValues {
   q?: string;
@@ -11,7 +12,7 @@ export interface PlanFilterValues {
   sort?: string;
 }
 
-export function FilterBar({
+export async function FilterBar({
   regions,
   destinations,
   values,
@@ -22,23 +23,30 @@ export function FilterBar({
   values: PlanFilterValues;
   action?: string;
 }) {
+  const { t, href } = await getI18n();
+
   return (
-    <form className="filter-bar card" action={action} method="get" aria-label="Filter plans">
+    <form
+      className="filter-bar card"
+      action={href(action)}
+      method="get"
+      aria-label={t("catalog.filterPlans")}
+    >
       <div className="filter-grid">
         <div className="field">
-          <label htmlFor="filter-q">Search</label>
+          <label htmlFor="filter-q">{t("catalog.filterSearch")}</label>
           <input
             id="filter-q"
             name="q"
             type="search"
             defaultValue={values.q ?? ""}
-            placeholder="Destination or plan"
+            placeholder={t("catalog.filterDestinationOrPlan")}
           />
         </div>
         <div className="field">
-          <label htmlFor="filter-region">Region</label>
+          <label htmlFor="filter-region">{t("catalog.filterRegion")}</label>
           <select id="filter-region" name="region" defaultValue={values.region ?? ""}>
-            <option value="">All regions</option>
+            <option value="">{t("catalog.allRegions")}</option>
             {regions.map((region) => (
               <option key={region.id} value={region.slug}>
                 {region.name}
@@ -47,13 +55,13 @@ export function FilterBar({
           </select>
         </div>
         <div className="field">
-          <label htmlFor="filter-destination">Destination</label>
+          <label htmlFor="filter-destination">{t("catalog.filterDestination")}</label>
           <select
             id="filter-destination"
             name="destination"
             defaultValue={values.destination ?? ""}
           >
-            <option value="">All destinations</option>
+            <option value="">{t("catalog.filterAllDestinations")}</option>
             {destinations.map((destination) => (
               <option key={destination.id} value={destination.slug}>
                 {destination.name}
@@ -62,29 +70,29 @@ export function FilterBar({
           </select>
         </div>
         <div className="field">
-          <label htmlFor="filter-data">Minimum data</label>
+          <label htmlFor="filter-data">{t("catalog.filterMinData")}</label>
           <select id="filter-data" name="minDataMb" defaultValue={values.minDataMb ?? ""}>
-            <option value="">Any data</option>
-            <option value="1000">1 GB or more</option>
-            <option value="5000">5 GB or more</option>
-            <option value="10000">10 GB or more</option>
+            <option value="">{t("catalog.filterAnyData")}</option>
+            <option value="1000">{t("catalog.filterData1")}</option>
+            <option value="5000">{t("catalog.filterData5")}</option>
+            <option value="10000">{t("catalog.filterData10")}</option>
           </select>
         </div>
         <div className="field">
-          <label htmlFor="filter-validity">Minimum validity</label>
+          <label htmlFor="filter-validity">{t("catalog.filterMinValidity")}</label>
           <select
             id="filter-validity"
             name="minValidityDays"
             defaultValue={values.minValidityDays ?? ""}
           >
-            <option value="">Any validity</option>
-            <option value="7">7 days or more</option>
-            <option value="15">15 days or more</option>
-            <option value="30">30 days or more</option>
+            <option value="">{t("catalog.filterAnyValidity")}</option>
+            <option value="7">{t("catalog.filterValidity7")}</option>
+            <option value="15">{t("catalog.filterValidity15")}</option>
+            <option value="30">{t("catalog.filterValidity30")}</option>
           </select>
         </div>
         <div className="field">
-          <label htmlFor="filter-price">Maximum price (USD)</label>
+          <label htmlFor="filter-price">{t("catalog.filterMaxPrice")}</label>
           <input
             id="filter-price"
             name="maxPrice"
@@ -93,31 +101,28 @@ export function FilterBar({
             step="1"
             inputMode="decimal"
             defaultValue={values.maxPrice ?? ""}
-            placeholder="e.g. 25"
+            placeholder={t("catalog.filterMaxPricePlaceholder")}
           />
         </div>
         <div className="field">
-          <label htmlFor="filter-sort">Sort</label>
+          <label htmlFor="filter-sort">{t("catalog.filterSort")}</label>
           <select id="filter-sort" name="sort" defaultValue={values.sort ?? "price_asc"}>
-            <option value="price_asc">Price: low to high</option>
-            <option value="price_desc">Price: high to low</option>
-            <option value="data_desc">Data: high to low</option>
-            <option value="newest">Newest</option>
+            <option value="price_asc">{t("catalog.sortPriceAsc")}</option>
+            <option value="price_desc">{t("catalog.sortPriceDesc")}</option>
+            <option value="data_desc">{t("catalog.sortDataDesc")}</option>
+            <option value="newest">{t("catalog.sortNewest")}</option>
           </select>
         </div>
         <div className="filter-actions">
           <button className="button" type="submit">
-            Apply filters
+            {t("catalog.filterApply")}
           </button>
-          <Link className="button button-ghost" href={action}>
-            Reset
+          <Link className="button button-ghost" href={href(action)}>
+            {t("catalog.filterReset")}
           </Link>
         </div>
       </div>
-      <p className="filter-note">
-        Every plan shown is sample data. Filters and prices are functional locally, but no
-        supplier price or coverage has been verified.
-      </p>
+      <p className="filter-note">{t("catalog.filterNote")}</p>
     </form>
   );
 }

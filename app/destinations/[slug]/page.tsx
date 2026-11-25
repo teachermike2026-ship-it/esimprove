@@ -11,7 +11,10 @@ import {
 import { PlanCard } from "@/components/plan-card";
 import { DestinationCard } from "@/components/destination-card";
 import { formatMoney } from "@/lib/money";
-import { canonicalUrl } from "@/lib/config";
+import { siteUrl } from "@/lib/config";
+import { absoluteLocalizedUrl } from "@/lib/i18n/config";
+import { localizedMetadata } from "@/lib/i18n/metadata";
+import { getI18n } from "@/lib/i18n/server";
 
 export async function generateMetadata({
   params,
@@ -19,14 +22,15 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  const { t } = await getI18n();
   const db = await getDb();
   const row = await getDestinationBySlug(db, slug);
   if (!row) notFound();
-  return {
-    title: `${row.destination.name} eSIM plans`,
-    description: row.destination.summary,
-    alternates: { canonical: canonicalUrl(`/destinations/${row.destination.slug}`) },
-  };
+  return localizedMetadata({
+    path: `/destinations/${row.destination.slug}`,
+    title: t("catalog.destinationTitle", { country: row.destination.name }),
+    description: row.destination.summary || t("catalog.destinationSummary", { country: row.destination.name }),
+  });
 }
 
 export default async function DestinationPage({
@@ -35,6 +39,7 @@ export default async function DestinationPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const { t, href, locale } = await getI18n();
   const db = await getDb();
   const row = await getDestinationBySlug(db, slug);
   if (!row) notFound();
@@ -49,18 +54,23 @@ export default async function DestinationPage({
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Destinations", item: canonicalUrl("/destinations") },
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: t("catalog.breadcrumbDestinations"),
+        item: absoluteLocalizedUrl("/destinations", locale, siteUrl),
+      },
       {
         "@type": "ListItem",
         position: 2,
         name: row.region.name,
-        item: canonicalUrl(`/regions/${row.region.slug}`),
+        item: absoluteLocalizedUrl(`/regions/${row.region.slug}`, locale, siteUrl),
       },
       {
         "@type": "ListItem",
         position: 3,
         name: row.destination.name,
-        item: canonicalUrl(`/destinations/${row.destination.slug}`),
+        item: absoluteLocalizedUrl(`/destinations/${row.destination.slug}`, locale, siteUrl),
       },
     ],
   };
@@ -75,10 +85,10 @@ export default async function DestinationPage({
       <nav aria-label="Breadcrumb">
         <ol className="breadcrumbs">
           <li>
-            <Link href="/destinations">Destinations</Link>
+            <Link href={href("/destinations")}>{t("catalog.breadcrumbDestinations")}</Link>
           </li>
           <li>
-            <Link href={`/regions/${row.region.slug}`}>{row.region.name}</Link>
+            <Link href={href(`/regions/${row.region.slug}`)}>{row.region.name}</Link>
           </li>
           <li aria-current="page">{row.destination.name}</li>
         </ol>
@@ -86,16 +96,20 @@ export default async function DestinationPage({
 
       <section className={`card destination-hero accent-${row.region.accent}`}>
         <div className="destination-hero-art" aria-hidden="true">
-          <span>{row.destination.countryCode}</span>
+          <span dir="ltr">{row.destination.countryCode}</span>
         </div>
         <div className="destination-hero-copy">
           <p className="eyebrow">{row.region.name}</p>
-          <h1>{row.destination.name} eSIM plans</h1>
+          <h1>{t("catalog.destinationTitle", { country: row.destination.name })}</h1>
           <p className="lead">{row.destination.description}</p>
           <div className="pill-row">
-            <span className="badge badge-neutral">{plans.length} plans</span>
+            <span className="badge badge-neutral">
+              {t("catalog.plansBadge", { count: plans.length })}
+            </span>
             {fromPrice !== null ? (
-              <span className="badge badge-neutral">From {formatMoney(fromPrice, "USD")}</span>
+              <span className="badge badge-neutral" dir="ltr">
+                {t("catalog.fromPrice", { price: formatMoney(fromPrice, "USD") })}
+              </span>
             ) : null}
           </div>
         </div>
@@ -104,14 +118,17 @@ export default async function DestinationPage({
       <section className="section" aria-labelledby="destination-plans">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Compare</p>
-            <h2 id="destination-plans">Plans for {row.destination.name}</h2>
-            <p className="muted">
-              Compare plans by data, validity, and price to find the best fit for your trip.
-            </p>
+            <p className="eyebrow">{t("catalog.compare")}</p>
+            <h2 id="destination-plans">
+              {t("catalog.plansFor", { country: row.destination.name })}
+            </h2>
+            <p className="muted">{t("catalog.compareBody")}</p>
           </div>
-          <Link className="button button-ghost" href={`/plans?destination=${row.destination.slug}`}>
-            Filter all plans
+          <Link
+            className="button button-ghost"
+            href={href(`/plans?destination=${row.destination.slug}`)}
+          >
+            {t("catalog.filterAllPlans")}
           </Link>
         </div>
         <div className="grid grid-3">
@@ -124,8 +141,8 @@ export default async function DestinationPage({
       <section className="section" aria-labelledby="region-more">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Keep exploring</p>
-            <h2 id="region-more">More in {row.region.name}</h2>
+            <p className="eyebrow">{t("catalog.keepExploring")}</p>
+            <h2 id="region-more">{t("catalog.moreIn", { region: row.region.name })}</h2>
           </div>
         </div>
         <div className="grid grid-4">

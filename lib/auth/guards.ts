@@ -5,11 +5,13 @@ import {
   type AdminSection,
 } from "@/lib/auth/admin-access";
 import { isAdminRole, isStaffRole, requirePermissionFor, type Permission } from "@/lib/auth/roles";
+import { getI18n } from "@/lib/i18n/server";
 
 export async function requireUser(nextPath = "/portal") {
   const user = await getCurrentUser();
   if (!user) {
-    redirect(`/login?next=${encodeURIComponent(nextPath)}`);
+    const { href } = await getI18n();
+    redirect(`${href("/login")}?next=${encodeURIComponent(href(nextPath))}`);
   }
   return user;
 }

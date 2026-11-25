@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AlertIcon, RetryIcon } from "@/components/icons";
+import { useI18n } from "@/components/i18n-provider";
 
 export default function ErrorPage({
   error,
@@ -10,27 +11,25 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { t, href } = useI18n();
   return (
     <div className="not-found">
-      <span className="badge badge-danger">Error</span>
-      <h1>Something went wrong</h1>
-      <p className="lead">
-        The server could not complete that request. No payment was taken and no eSIM was
-        activated as part of the failed step.
-      </p>
+      <span className="badge badge-danger">{t("errors.errorBadge")}</span>
+      <h1>{t("errors.errorTitle")}</h1>
+      <p className="lead">{t("errors.errorBody")}</p>
       <div className="callout callout-warning">
         <AlertIcon className="inline-icon" />
         <p>
-          Please try again. If the problem continues, contact support with the reference
-          below.{error.digest ? ` Reference ${error.digest}` : ""}
+          {t("errors.errorCallout")}
+          {error.digest ? ` ${t("errors.reference", { reference: error.digest })}` : ""}
         </p>
       </div>
       <div className="hero-actions">
         <button className="button" type="button" onClick={reset}>
-          <RetryIcon className="inline-icon" /> Try again
+          <RetryIcon className="inline-icon" /> {t("common.retry")}
         </button>
-        <Link className="button button-secondary" href="/">
-          Go home
+        <Link className="button button-secondary" href={href("/")}>
+          {t("common.goHome")}
         </Link>
       </div>
     </div>

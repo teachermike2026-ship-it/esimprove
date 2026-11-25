@@ -1,0 +1,633 @@
+{
+  "audit": {
+    "title": "ESIMPROVE Security Audit",
+    "audit_date": "2026-11-24",
+    "target": "https://esimprove.netlify.app",
+    "repository": "teachermike2026-ship-it/esimprove",
+    "branch": "main",
+    "deployed_commit": "f52e25ea32df45b7eecd77168b994f2891b0805f",
+    "deployed_commit_short": "f52e25e",
+    "audit_type": "Read-only backend security audit: static analysis, configuration review, read-only database inspection, build-artifact inspection, and dependency audit",
+    "verdict": "MODERATE RISK",
+    "live_application_verification": "Blocked by Netlify Edge Access; unauthenticated requests returned 401 Login Redirect before the application.",
+    "production_build_run": false,
+    "deployment_triggered": false,
+    "production_settings_or_data_modified": false,
+    "application_source_or_dependencies_changed": false
+  },
+  "findings_summary": {
+    "confirmed_vulnerability": 7,
+    "potential_vulnerability": 3,
+    "false_positive": 16,
+    "informational_recommendation": 10,
+    "total": 36
+  },
+  "production_observations": {
+    "seo_settings_rows": 0,
+    "ga4_configured": false,
+    "users_by_role": {
+      "admin": 1,
+      "support": 0,
+      "finance": 0
+    },
+    "admin_totp_enabled": true,
+    "active_sessions": 0,
+    "live_email_transport": "disabled",
+    "mock_commerce_production": "disabled",
+    "orders_or_payments_created_during_audit": false
+  },
+  "findings": [
+    {
+      "id": "AUTH-01",
+      "title": "Password-reset token can be consumed more than once under concurrency",
+      "classification": "CONFIRMED VULNERABILITY",
+      "severity": "Medium",
+      "confidence": "High",
+      "component": "lib/auth/actions.ts -> resetPasswordAction",
+      "locations": [
+        "lib/auth/actions.ts:504-570",
+        "lib/auth/actions.ts:520-536",
+        "lib/auth/actions.ts:544-552",
+        "lib/auth/actions.ts:545",
+        "lib/auth/actions.ts:416-422 (correct conditional-claim pattern in verifyEmailAction)"
+      ],
+      "evidence": "resetPasswordAction selects the reset row and checks consumedAt and expiry in application code, then opens a transaction that unconditionally sets consumedAt for the same row without an isNull(consumedAt) predicate or RETURNING claim check. scrypt hashing inside the transaction widens the race window. The email-verification flow in the same file uses a conditional claim with isNull(passwordResets.consumedAt) and RETURNING.",
+      "attack_scenario": "An attacker who possesses a valid reset token races the legitimate user's redemption. Both requests pass the consumedAt pre-check before either transaction commits, and both update the password; the last writer wins and both callers may see success.",
+      "impact": "The single-use guarantee for password-reset tokens is broken under concurrency. Possession of the token is still required, but the flaw undermines account recovery and can produce a last-writer-wins race over the account password.",
+      "current_exposure": "Live email delivery is disabled in the deployed build, so reset links are not currently delivered. The defect remains and becomes directly relevant when a live email transport is enabled.",
+      "remediation": "Claim the token atomically inside the transaction with UPDATE ... SET consumed_at = now() WHERE id = :id AND consumed_at IS NULL AND expires_at > now() RETURNING id. Abort if no row is returned, then update the password and delete sessions. Add a concurrent-redemption regression test.",
+      "verification": "Two concurrent redemptions of the same token succeed exactly once; the final password matches only the winning request."
+    },
+    {
+      "id": "AUTH-02",
+      "title": "TOTP codes can be replayed within the acceptance window",
+      "classification": "CONFIRMED VULNERABILITY",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "lib/auth/totp.ts -> verifyTotp; lib/auth/actions.ts -> loginTwoFactorAction",
+      "locations": [
+        "lib/auth/totp.ts:62-77",
+        "lib/auth/actions.ts:147-154",
+        "lib/db/schema.ts:28-44"
+      ],
+      "evidence": "verifyTotp accepts a default window of 1 and tests offsets -1, 0, and +1 without persisting the accepted timestep. loginTwoFactorAction verifies the code but stores no last-used step. The users table has totpEnabled and totpSecretEncrypted but no totpLastUsedStep or equivalent replay-state column.",
+      "attack_scenario": "An attacker who knows the account password and observes or phishes a valid six-digit code reuses it within the roughly 90-second acceptance window. The 8-attempts/10-minutes limit does not prevent replay of a known-valid code.",
+      "impact": "TOTP's one-time property is weakened. The practical impact is limited because the password and a valid code are already required, but replay protection is a standard second-factor requirement.",
+      "current_exposure": "Production has one administrator with TOTP enabled. No active sessions were present at audit time.",
+      "remediation": "Persist the last accepted TOTP timestep per user and reject codes whose matched step is less than or equal to the stored value. Perform the check-and-update atomically with a conditional UPDATE ... RETURNING. Optionally reduce the window to zero after measuring clock skew.",
+      "verification": "A code accepted once is rejected immediately on reuse."
+    },
+    {
+      "id": "AUTH-03",
+      "title": "Support and finance staff roles bypass TOTP at login",
+      "classification": "CONFIRMED VULNERABILITY",
+      "severity": "Medium",
+      "severity_note": "Latent: not exploitable with the current production account set, but becomes exploitable when support or finance accounts are provisioned.",
+      "confidence": "High",
+      "component": "lib/auth/actions.ts -> loginAction; lib/auth/guards.ts -> requireStaff; lib/auth/roles.ts",
+      "locations": [
+        "lib/auth/actions.ts:80-105",
+        "lib/auth/roles.ts:45-67",
+        "lib/auth/guards.ts:64-82",
+        "app/admin/layout.tsx:17-33"
+      ],
+      "evidence": "The login flow gates TOTP on isAdminRole(user.role). isAdminRole is true only for admin and super_admin, while support and finance are staff roles. A support or finance login therefore skips the pending-2FA flow and receives a full session. requireStaff checks session presence, pendingTwoFactor, and the access matrix, but does not require completed TOTP. The admin layout uses requireStaff('/admin').",
+      "attack_scenario": "A support or finance password is compromised through phishing, reuse, or a leak. The attacker signs in and receives a full staff session without a TOTP challenge, then reads customer/order data or support tickets and, for support, writes support replies.",
+      "impact": "The deployment's admin 2FA policy does not cover all staff roles. A support account can read customer and order data and read/write support tickets; a finance account can read orders and invoices. The blast radius is smaller than an administrator but still includes customer PII and commercial data.",
+      "current_exposure": "Read-only production check: 1 admin with TOTP enabled, 0 support accounts, 0 finance accounts. No staff account currently exists to exploit."
+    ,
+      "remediation": "Require TOTP for every role that can access /admin (all isStaffRole users), not only isAdminRole. Enforce the requirement in both login and requireStaff as defense-in-depth. Provision support/finance accounts with TOTP secrets and test the flow. If a deliberate read-only exception is required, document it and add a separate step-up mechanism for sensitive reads.",
+      "verification": "A support or finance login is challenged for TOTP before a full session is issued; a pre-existing session without TOTP is rejected by requireStaff."
+    },
+    {
+      "id": "AUTH-04",
+      "title": "Registration discloses whether an email is already registered",
+      "classification": "CONFIRMED VULNERABILITY",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "lib/auth/actions.ts -> registerAction",
+      "locations": [
+        "lib/auth/actions.ts:207-210",
+        "lib/auth/actions.ts:204"
+      ],
+      "evidence": "registerAction queries users by normalized email and returns the specific error 'An account with that email already exists. Sign in instead.' when a row is found. The response is distinguishable from a successful registration. Registration is rate-limited to 5 attempts per hour per IP, which slows but does not prevent enumeration.",
+      "attack_scenario": "An attacker submits candidate email addresses to the registration form and records which return the already-exists error, producing a list of valid accounts for credential stuffing, phishing, or support impersonation.",
+      "impact": "Account enumeration. The impact is amplified by the contact-form account linkage (DATA-01) and the login timing oracle (AUTH-05), which provide additional confirmation channels.",
+      "current_exposure": "The registration surface exists in the deployed commit; live testing was blocked by Netlify Edge Access.",
+      "remediation": "Return a uniform response for new and existing addresses, such as 'Check your email to continue'. Notify the existing owner by email instead of disclosing existence in the HTTP response. Keep the per-IP limit and consider CAPTCHA or proof-of-work for repeated attempts.",
+      "verification": "Registration with an existing email and with a new email produce indistinguishable responses."
+    },
+    {
+      "id": "AUTH-05",
+      "title": "Login has an account-existence timing oracle",
+      "classification": "CONFIRMED VULNERABILITY",
+      "severity": "Low",
+      "confidence": "Medium",
+      "component": "lib/auth/actions.ts -> loginAction",
+      "locations": [
+        "lib/auth/actions.ts:73-76",
+        "lib/auth/password.ts:8",
+        "lib/auth/password.ts:24-40"
+      ],
+      "evidence": "For an unknown email, loginAction skips scrypt entirely. For a known email, it performs scrypt with N=16384. The error message is uniform but response time is not. Account and IP rate limits constrain sampling but do not eliminate the side channel.",
+      "attack_scenario": "An attacker measures login response latency over many samples for candidate emails. Unknown emails cluster at lower latency; known emails cluster higher. Multiple source addresses can increase sample volume despite per-IP limits.",
+      "impact": "Account enumeration. Practical impact is low because of rate limits, network noise, and the simpler registration enumeration channel, but the timing difference is a real side channel.",
+      "current_exposure": "The login surface exists in the deployed commit; live testing was blocked by Netlify Edge Access.",
+      "remediation": "When the user is not found, verify the submitted password against a fixed dummy scrypt hash with identical parameters, then return the same error. Do not rely on a fixed sleep alone.",
+      "verification": "Unknown-email and known-email-wrong-password response times are statistically indistinguishable over a representative sample."
+    },
+    {
+      "id": "WEB-01",
+      "title": "Webhook reads an unbounded body before signature verification",
+      "classification": "CONFIRMED VULNERABILITY",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "app/api/webhooks/whop/route.ts -> POST; app/api/webhooks/payments/mock/route.ts -> POST",
+      "locations": [
+        "app/api/webhooks/whop/route.ts:27",
+        "app/api/webhooks/payments/mock/route.ts:14",
+        "lib/http/bounded-body.ts:1-28",
+        "app/api/track/route.ts:20",
+        "app/api/track/route.ts:98-100",
+        "app/api/consent/route.ts:15",
+        "app/api/consent/route.ts:66-72"
+      ],
+      "evidence": "The Whop route calls await request.text() and reads the entire body before verifying the signature. The mock route does the same. A bounded-body helper with explicit limits already exists and is used by /api/track and /api/consent.",
+      "attack_scenario": "An unauthenticated attacker sends large POST bodies to /api/webhooks/whop. The function allocates memory and processes the body before rejecting the signature, increasing memory pressure and consuming concurrency under repeated requests.",
+      "impact": "Denial-of-service and resource-exhaustion risk. Platform payload limits and timeouts reduce maximum impact, but the application should not rely on them as its only bound.",
+      "current_exposure": "The Whop webhook is publicly reachable at the application layer, subject to Netlify Edge Access in the current deployment.",
+      "remediation": "Replace request.text() with readBoundedText(request, MAX_WEBHOOK_BYTES), using a limit comfortably above Whop event sizes, and return 413 when the limit is exceeded. Verify the signature immediately after reading. Apply the same change to the mock route for consistency.",
+      "verification": "A body above the configured limit returns 413 before signature verification or database access."
+    },
+    {
+      "id": "DATA-01",
+      "title": "Anonymous contact form links tickets to unverified accounts",
+      "classification": "CONFIRMED VULNERABILITY",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "app/contact/actions.ts -> submitContactAction; lib/support.ts",
+      "locations": [
+        "app/contact/actions.ts:54-66",
+        "app/contact/actions.ts:78-96",
+        "lib/support.ts:86-121",
+        "lib/support.ts:131-146",
+        "app/portal/support/page.tsx:24"
+      ],
+      "evidence": "The contact action normalizes the submitted email and resolves it to an existing user ID even when the requester is unauthenticated or signed in with a different address. The ticket and consent event are then recorded under that user ID. Portal support lists tickets by userId.",
+      "attack_scenario": "An attacker submits the contact form using a victim's email address. The ticket is attached to the victim's account and appears in the victim's portal support list. Staff may act on the message or reply to the victim. The attacker can repeat this to pollute the queue or impersonate the victim to staff.",
+      "impact": "Support-queue pollution, false attribution, potential staff deception, unexpected support replies to the victim, and incorrect consent records. The attacker cannot read the ticket through the portal because ownership checks prevent access.",
+      "current_exposure": "The contact form exists in the deployed commit; live testing was blocked by Netlify Edge Access.",
+      "remediation": "Only attach userId when the request is authenticated and the submitted email matches the session email. For anonymous submissions, store userId = null and require verification before linking. Do not record user-scoped consent for an unverified email.",
+      "verification": "An unauthenticated contact submission using a known account email results in userId = null."
+    },
+    {
+      "id": "PAY-01",
+      "title": "Checkout idempotency key is not bound to the cart or user and mints a fresh access token",
+      "classification": "POTENTIAL VULNERABILITY",
+      "severity": "Low",
+      "confidence": "High (code flaw); Low (current exploitability)",
+      "component": "lib/checkout.ts -> createCheckout; app/checkout/page.tsx; lib/ids.ts",
+      "locations": [
+        "lib/checkout.ts:250-312",
+        "app/checkout/page.tsx:39",
+        "lib/ids.ts:3-5"
+      ],
+      "evidence": "After pricing the current cart, createCheckout looks up an order by the supplied idempotency key globally. On a hit, it returns the existing order and mints a new 30-day order access token without comparing existing.userId with input.userId or the existing order's cart with input.cartToken. The key is generated server-side per checkout page render with newId('checkout'), which uses crypto.randomUUID(), and is submitted as a hidden form field.",
+      "attack_scenario": "An attacker obtains a victim's idempotency key from a shared device, browser extension, log, referrer, or future XSS. The attacker creates their own non-empty cart so the cart check passes, then submits checkout with the victim's key and their own cart. The existing branch ignores the attacker's cart and returns the victim's order number, total, payment URL, and a fresh access token.",
+      "impact": "Potential unauthorized access to order data and eSIM activation secrets. Severity is Low because the UUID is unguessable and no leakage path was confirmed, but an idempotency key should not function as a bearer capability for an unrelated order.",
+      "current_exposure": "No leakage path for the UUID was confirmed in the deployed code. Live checkout testing was blocked by Netlify Edge Access.",
+      "remediation": "Bind the idempotency key to the cart and, when present, the user. On replay, verify that the current cart and user match the existing order and return a conflict otherwise. Do not mint a new access token on replay. Handle duplicate-key races explicitly and re-check ownership before returning an existing order.",
+      "verification": "Replaying a key with a different cart or user is rejected and no new access token is issued."
+    },
+    {
+      "id": "ANL-01",
+      "title": "GA4 automatic page_view can leak order or reset tokens if GA4 is enabled",
+      "classification": "POTENTIAL VULNERABILITY",
+      "severity": "Medium",
+      "severity_note": "Conditional: GA4 must be configured and analytics consent granted. Production currently has zero seo_settings rows, so the loader is inert.",
+      "confidence": "High",
+      "component": "app/layout.tsx; components/analytics-tracker.tsx -> Ga4Loader",
+      "locations": [
+        "app/layout.tsx:101-102",
+        "app/layout.tsx:123-127",
+        "components/analytics-tracker.tsx:674-738",
+        "components/analytics-tracker.tsx:725-729",
+        "components/analytics-tracker.tsx:29-38",
+        "components/analytics-tracker.tsx:564-587"
+      ],
+      "evidence": "Ga4Loader is rendered globally in the root layout whenever ga4Enabled is true. After consent it calls gtag('config', measurementKey, { anonymize_ip: true, allow_google_signals: false, allow_ad_personalization_signals: false }) without send_page_view: false. GA4 therefore sends the full page URL, including query parameters, automatically. The loader does not check isPrivatePath. The first-party tracker excludes private prefixes, but that protection does not apply to the GA4 loader. Sensitive URLs include /orders/[orderNumber]?token=..., /orders/[orderNumber]/esim/[esimId]?token=..., and /login/reset?token=... .",
+      "attack_scenario": "The owner configures a GA4 measurement ID. A user grants analytics consent and opens an order, activation, or password-reset link containing a token. GA4 automatically sends a page_view with the full URL, including the token, to Google. Anyone with access to the analytics property or able to intercept the analytics request can extract the token.",
+      "impact": "Potential disclosure of high-value bearer tokens to a third-party analytics provider, enabling unauthorized order/eSIM access or password reset. The impact is high but the preconditions are significant.",
+      "current_exposure": "Production seo_settings has 0 rows, so GA4 is not configured and the loader is inert.",
+      "remediation": "Set send_page_view: false and send page views manually only for non-private paths. Add an isPrivatePath guard in Ga4Loader or do not render it on private routes. Strip query strings and set page_location explicitly to origin plus sanitized path.",
+      "verification": "With GA4 enabled in a test environment, no analytics request from an order, activation, or reset URL contains token= or other private query parameters."
+    },
+    {
+      "id": "CFG-01",
+      "title": "Session TTL environment variables are unvalidated",
+      "classification": "POTENTIAL VULNERABILITY",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "lib/auth/actions.ts; lib/auth/session.ts; lib/config.ts",
+      "locations": [
+        "lib/auth/actions.ts:109",
+        "lib/auth/actions.ts:156",
+        "lib/auth/actions.ts:280",
+        "lib/auth/session.ts:37-60",
+        "lib/auth/session.ts:152-163",
+        "lib/config.ts:286-334"
+      ],
+      "evidence": "Session TTLs are parsed with Number(process.env.SESSION_TTL_DAYS || '30') * 24 * 60 and Number(process.env.ADMIN_SESSION_TTL_MINUTES || '60'). createSession and promotePendingSession compute expiresAt without validating that the value is positive and bounded. getConfigurationProblems() validates many deployment values but does not include these TTLs.",
+      "attack_scenario": "This is an operator-misconfiguration risk, not attacker-controlled input. An empty, non-numeric, negative, or excessively large value can produce an invalid expiresAt, an immediately expired session, or an unexpectedly long-lived administrator session. A very large admin TTL extends the usable window for a stolen administrator cookie.",
+      "impact": "Configuration-dependent session lifetime errors. Severity is Low because an operator mistake is required and there is no direct external attack path.",
+      "current_exposure": "No misconfiguration was observed in the deployed configuration; the validation gap is latent.",
+      "remediation": "Parse both values with a positive-integer helper and enforce bounds such as SESSION_TTL_DAYS 1-90 and ADMIN_SESSION_TTL_MINUTES 5-480. Add both checks to getConfigurationProblems() so deployed environments fail closed. Log effective TTLs at startup without logging secrets.",
+      "verification": "Empty, non-numeric, zero, negative, and huge values fail deployment configuration validation."
+    },
+    {
+      "id": "OPS-01",
+      "title": "Active Netlify access token with prior exposure was not rotated",
+      "classification": "INFORMATIONAL RECOMMENDATION",
+      "severity": "High",
+      "severity_note": "Operational item outside application code; treat overall operational risk as HIGH until rotation and audit-log review are complete if scope or exposure audience is uncertain.",
+      "confidence": "Medium",
+      "component": "Netlify account and site access; outside application code",
+      "locations": [
+        "Operational: Netlify account teacher.mike2026@gmail.com, team teachermike2026-ship-it, site 40c1119e-df9c-46b0-aa3b-a511c08debb1"
+      ],
+      "evidence": "The engagement hand-off noted that a Netlify access token had previously been exposed and remained active. The token was not used for any write operation, was not printed, and was not rotated because credential rotation was outside the read-only scope.",
+      "attack_scenario": "If the token has deploy, environment-variable, or site-admin scope, an attacker with the token could deploy arbitrary code, read production secrets including database credentials and KEKs, or alter site configuration.",
+      "impact": "Could dominate application-level risk if the token is broadly scoped and was exposed beyond the owner. If exposure was limited and the token is read-only, immediate risk is lower but still unresolved.",
+      "current_exposure": "Token remains active; rotation is outstanding.",
+      "remediation": "Rotate the token immediately and revoke the old token. Review Netlify deploy, environment-variable, and member audit logs. Replace long-lived personal tokens with scoped, short-lived credentials. Enable 2FA on the Netlify account and restrict team membership. Store production secrets in a managed secret store and re-run production configuration checks after rotation.",
+      "verification": "Old token is revoked and cannot authenticate; no unauthorized deploy, environment-variable, or member changes appear in audit logs."
+    },
+    {
+      "id": "AUTH-06",
+      "title": "Email verification is not required before account use",
+      "classification": "INFORMATIONAL RECOMMENDATION",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "lib/auth/actions.ts; app/checkout/actions.ts",
+      "locations": [
+        "lib/auth/actions.ts:213-220",
+        "lib/auth/actions.ts:273-284",
+        "lib/auth/actions.ts:108-113",
+        "app/checkout/actions.ts:40-51"
+      ],
+      "evidence": "Registration sets emailVerifiedAt to null, issues a verification token, and immediately creates a full session. Login does not check emailVerifiedAt. Checkout does not require verification.",
+      "attack_scenario": "An attacker registers with an arbitrary email address and uses the account without proving control of the mailbox, enabling spam, false account attribution, and delivery of order notifications to an unverified address.",
+      "impact": "Abuse and data-integrity risk, not direct account takeover because the attacker cannot read the victim's mailbox.",
+      "current_exposure": "The flow exists in the deployed commit; live testing was blocked by Netlify Edge Access.",
+      "remediation": "Gate account-linked features such as portal access, order history, and support ticket creation on verification, or show a verification banner with limited functionality. Allow guest checkout but require verification before linking an order to an account. Expire verification tokens and rate-limit re-sends.",
+      "verification": "Unverified accounts cannot access account-linked features or link orders to their profile."
+    },
+    {
+      "id": "CRYPTO-01",
+      "title": "scrypt cost is below current OWASP recommendation",
+      "classification": "INFORMATIONAL RECOMMENDATION",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "lib/auth/password.ts",
+      "locations": [
+        "lib/auth/password.ts:8",
+        "lib/auth/password.ts:24-40",
+        "lib/auth/password.ts:42-56"
+      ],
+      "evidence": "Password hashing uses scrypt with N=16384, r=8, p=1, a 16-byte random salt, and a 64-byte derived key. OWASP's Password Storage Cheat Sheet currently recommends scrypt N=2^17 (131072), r=8, p=1, or Argon2id with appropriate parameters. The deployed cost is eight times lower than the scrypt recommendation.",
+      "attack_scenario": "If the password hash database is exfiltrated, offline cracking proceeds faster than it would at the recommended cost.",
+      "impact": "Reduced offline-cracking resistance. Online attacks remain constrained by rate limits and the database is not publicly accessible, so immediate risk is low.",
+      "current_exposure": "Applies to all stored password hashes if the database is compromised.",
+      "remediation": "Benchmark a higher cost on the production runtime and raise N to the highest tolerable value, ideally 131072. Store parameters in the hash string and rehash on successful login when the stored cost is below policy. Consider Argon2id if the runtime supports it. Do not lower cost without a documented risk decision.",
+      "verification": "New and rehashed passwords use the approved cost; login performance remains within runtime limits."
+    },
+    {
+      "id": "WEB-02",
+      "title": "Sensitive pages lack explicit no-store and no-referrer headers in source",
+      "classification": "INFORMATIONAL RECOMMENDATION",
+      "severity": "Low",
+      "confidence": "Medium",
+      "component": "Order, activation, portal, and reset routes; proxy.ts; next.config.ts",
+      "locations": [
+        "app/orders/[orderNumber]/page.tsx",
+        "app/orders/[orderNumber]/esim/[esimId]/page.tsx",
+        "app/portal/**",
+        "app/login/reset/**",
+        "proxy.ts",
+        "next.config.ts"
+      ],
+      "evidence": "Sensitive order and activation pages carry bearer tokens in query strings and display PII or eSIM activation data. The source does not explicitly set Cache-Control: no-store or Referrer-Policy: no-referrer for these routes. Next.js may emit a private/no-store default for dynamic pages and the global Referrer-Policy is strict-origin-when-cross-origin, but this was not live-verifiable.",
+      "attack_scenario": "A shared cache, browser cache, or same-origin referrer log retains or discloses the full URL, including a token.",
+      "impact": "Defense-in-depth risk rather than a confirmed leak.",
+      "current_exposure": "Live header verification was blocked by Netlify Edge Access.",
+      "remediation": "Set Cache-Control: no-store, max-age=0 and Referrer-Policy: no-referrer on /orders, /portal, /admin, /checkout, and /login/reset in proxy.ts or route-level headers. Avoid tokens in URLs where a cookie or POST body can be used. Add a post-access header verification step.",
+      "verification": "Sensitive routes emit no-store and no-referrer headers on the deployed origin."
+    },
+    {
+      "id": "WEB-03",
+      "title": "CSP always allows the Google Tag Manager origin",
+      "classification": "INFORMATIONAL RECOMMENDATION",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "lib/security-headers.ts",
+      "locations": [
+        "lib/security-headers.ts:37-42",
+        "lib/security-headers.ts:84-90"
+      ],
+      "evidence": "script-src always includes https://www.googletagmanager.com and connect-src always includes Google Analytics collection origins, even when GA4 is not configured.",
+      "attack_scenario": "A future markup injection has an allowed third-party script origin available. An attacker would still need a script-injection primitive; the nonce-based CSP blocks inline scripts.",
+      "impact": "Low. The allowlist is broader than the current configuration requires.",
+      "current_exposure": "GA4 is not configured, but the origins remain allowlisted.",
+      "remediation": "Build the CSP conditionally and include GA4 script and connect origins only when a valid measurement ID is configured. Keep script-src-attr 'none' and the nonce requirement. Re-test the consent-gated analytics flow.",
+      "verification": "With GA4 disabled, the CSP does not contain Google Tag Manager or Google Analytics origins."
+    },
+    {
+      "id": "DATA-02",
+      "title": "Admin-authored HTML and JSON-LD are not sanitized or escaped",
+      "classification": "INFORMATIONAL RECOMMENDATION",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "Blog rendering and SEO JSON-LD",
+      "locations": [
+        "app/blog/[slug]/page.tsx:159",
+        "app/blog/[slug]/page.tsx:110",
+        "app/blog/[slug]/page.tsx:115",
+        "app/layout.tsx:115",
+        "lib/seo.ts:275",
+        "lib/seo.ts:333-371"
+      ],
+      "evidence": "article.bodyHtml is rendered with dangerouslySetInnerHTML. Site and article JSON-LD are produced with JSON.stringify and inserted into a script type=application/ld+json block without escaping < as \\u003c. A value containing </script> could break out of the JSON-LD block if it reaches these fields.",
+      "attack_scenario": "An administrator account is compromised, content is imported from an external feed, or a future role is allowed to edit blog content without full administrator trust, allowing script injection through stored HTML or JSON-LD breakout.",
+      "impact": "Stored XSS or markup injection in a trusted administrative context. Not a lower-privileged-user path today because only administrators can edit blog content and SEO settings.",
+      "current_exposure": "Blog and SEO editing is restricted to trusted administrators.",
+      "remediation": "Sanitize blog HTML with a strict allowlist before storage or render. Serialize JSON-LD with < escaped as \\u003c and > and & escaped as appropriate. Add a CSP report-only test with a benign </script> payload in staging. Keep blog editing restricted to trusted administrators until sanitization is in place.",
+      "verification": "A blog or JSON-LD payload containing </script> is neutralized and cannot create executable markup."
+    },
+    {
+      "id": "AUTH-07",
+      "title": "Reset-token redemption is not rate-limited",
+      "classification": "INFORMATIONAL RECOMMENDATION",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "lib/auth/actions.ts -> resetPasswordAction",
+      "locations": [
+        "lib/auth/actions.ts:504-570",
+        "lib/auth/actions.ts:453-461"
+      ],
+      "evidence": "requestPasswordResetAction is rate-limited to 5 requests per 30 minutes per IP and email, but resetPasswordAction has no rate limit. Invalid-token redemption requests cause database lookups; valid tokens trigger scrypt work.",
+      "attack_scenario": "An attacker sends many invalid-token redemption requests to consume resources or generate log noise. Token entropy makes brute force infeasible and invalid requests do not perform scrypt.",
+      "impact": "Low-volume resource consumption or log noise.",
+      "current_exposure": "The redemption endpoint exists in the deployed commit; live testing was blocked by Netlify Edge Access.",
+      "remediation": "Add per-IP and per-token-hash rate limits to redemption attempts. Return a generic error for invalid, used, or expired tokens. Monitor spikes in invalid redemption attempts.",
+      "verification": "Repeated redemption attempts are throttled without disclosing token validity."
+    },
+    {
+      "id": "AUTH-08",
+      "title": "Account-based login limit enables targeted lockout",
+      "classification": "INFORMATIONAL RECOMMENDATION",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "lib/auth/actions.ts -> loginAction",
+      "locations": [
+        "lib/auth/actions.ts:65-70"
+      ],
+      "evidence": "The login limiter uses the key login:account:${email} with 10 attempts per 15 minutes in addition to an IP key. An attacker who knows a victim's email can deliberately fail 10 logins to lock the account for 15 minutes.",
+      "attack_scenario": "Targeted denial of service against a known account by exhausting the account-based login counter.",
+      "impact": "Short targeted lockout. The IP limiter also constrains the attacker and the lockout is brief, but availability is affected.",
+      "current_exposure": "The login limiter exists in the deployed commit; live testing was blocked by Netlify Edge Access.",
+      "remediation": "Prefer progressive delays, CAPTCHA, or risk-based challenges over a hard account lock. Notify the account owner of repeated failed attempts. Allow recovery through a verified email channel. Consider separate counters for password and 2FA failures.",
+      "verification": "Repeated failed logins trigger a challenge or delay without allowing indefinite account lockout."
+    },
+    {
+      "id": "IR-09",
+      "title": "Supply-chain and security monitoring improvements",
+      "classification": "INFORMATIONAL RECOMMENDATION",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "Dependency and operations posture",
+      "locations": [
+        "package.json",
+        "package-lock.json"
+      ],
+      "evidence": "npm audit --package-lock-only reports 0 known vulnerabilities across 528 packages. Three packages have install scripts: esbuild, fsevents, and unrs-resolver. There are 0 missing integrity entries, 0 non-registry resolutions, and 1 deprecated package: eslint 9.39.5.",
+      "attack_scenario": "A future dependency compromise, malicious install script, or zero-day is not detected by npm audit alone.",
+      "impact": "Supply-chain blind spots. No current known vulnerability was identified.",
+      "current_exposure": "No known dependency vulnerability at audit time.",
+      "remediation": "Generate an SBOM, pin production dependency versions, review install scripts, and monitor advisories. Alert on repeated webhook failures, unusual 2FA failure rates, password-reset bursts, and admin login anomalies. Do not run npm audit fix --force without compatibility review.",
+      "verification": "SBOM is produced, dependency advisories are monitored, and security alerts are routed to an owner."
+    },
+    {
+      "id": "IR-10",
+      "title": "Production environment-file hygiene and secret rotation discipline",
+      "classification": "INFORMATIONAL RECOMMENDATION",
+      "severity": "Low",
+      "confidence": "High",
+      "component": "Local workspace and production secret handling",
+      "locations": [
+        "Isolated audit clone (untracked local environment files)",
+        "Production environment configuration"
+      ],
+      "evidence": "The isolated clone contained untracked local environment files used for read-only database access. They are gitignored and not part of the deployed commit. No values were printed. Production environment files should remain access-controlled and out of build artifacts.",
+      "attack_scenario": "A local environment file is copied, backed up, or shared beyond the intended operator, exposing production credentials or encryption keys.",
+      "impact": "Potential disclosure of production secrets if local files are mishandled.",
+      "current_exposure": "No secret value was observed in tracked source or build output.",
+      "remediation": "Keep production env files access-controlled, gitignored, and out of build artifacts. Rotate any secret that has been copied into an untracked workspace file. Prefer a managed secret store and scoped, short-lived credentials.",
+      "verification": "Production secrets are stored in an approved secret manager, local copies are removed or rotated, and build artifacts contain no secret values."
+    }
+  ],
+  "false_positives": [
+    {
+      "id": "FP-01",
+      "classification": "FALSE POSITIVE",
+      "title": "Netlify secret-scanner warnings indicate leaked secrets",
+      "disposition": "Warnings concerned non-secret APP_ENV, DATABASE_ENV, and DATABASE_SSL identifiers. No secret values were found in 368 tracked files or the .next output. SECRETS_SCAN_OMIT_KEYS also excludes them.",
+      "evidence": [
+        "Netlify build scan: 368 files, zero secrets",
+        ".next output contained only non-secret environment identifiers",
+        "SECRETS_SCAN_OMIT_KEYS configured for APP_ENV, DATABASE_ENV, DATABASE_SSL"
+      ]
+    },
+    {
+      "id": "FP-02",
+      "classification": "FALSE POSITIVE",
+      "title": "SQL injection in rate-limit or analytics SQL",
+      "disposition": "Rate-limit SQL is parameterized. sql.raw uses only closed enum values day/month and constant format strings. Analytics event counts are parameterized.",
+      "evidence": [
+        "lib/rate-limit.ts:54-82",
+        "lib/analytics-commerce.ts:102-117",
+        "lib/analytics-commerce.ts:201-207",
+        "lib/analytics-commerce.ts:250-254",
+        "lib/analytics-web.ts:225-231"
+      ]
+    },
+    {
+      "id": "FP-03",
+      "classification": "FALSE POSITIVE",
+      "title": "Client-side price manipulation at checkout",
+      "disposition": "Plans and prices are loaded from the database; totals are calculated server-side. The client submits plan IDs and quantities, not prices.",
+      "evidence": [
+        "lib/checkout.ts:194-248",
+        "app/checkout/actions.ts:30-51"
+      ]
+    },
+    {
+      "id": "FP-04",
+      "classification": "FALSE POSITIVE",
+      "title": "Webhook forgery, replay, or duplicate processing",
+      "disposition": "Whop uses Standard Webhooks signature verification with a five-minute timestamp tolerance. Payment and order references and amount/currency are checked. webhook_events has a unique (provider, external_event_id) index.",
+      "evidence": [
+        "lib/payments.ts:54-128",
+        "lib/payments.ts:139-220",
+        "lib/db/schema.ts:246-263",
+        "lib/integrations/payment/whop.ts:312-360"
+      ]
+    },
+    {
+      "id": "FP-05",
+      "classification": "FALSE POSITIVE",
+      "title": "IDOR on orders, eSIMs, or support tickets",
+      "disposition": "canViewOrder enforces admin, owner, or token. Portal eSIM queries filter by orders.userId. Support detail uses getSupportTicketForUser, which returns null unless ticket.userId matches.",
+      "evidence": [
+        "lib/orders.ts:69-78",
+        "app/portal/esims/[esimId]/page.tsx:28-38",
+        "lib/support.ts:182-190",
+        "app/portal/support/[ticketId]/page.tsx:31-34"
+      ]
+    },
+    {
+      "id": "FP-06",
+      "classification": "FALSE POSITIVE",
+      "title": "Open redirect via the next parameter",
+      "disposition": "safeNextPath rejects external, protocol-relative, backslash, and control-character values.",
+      "evidence": [
+        "lib/validation.ts:288-296"
+      ]
+    },
+    {
+      "id": "FP-07",
+      "classification": "FALSE POSITIVE",
+      "title": "Admin authorization bypass via the proxy cookie-presence gate",
+      "disposition": "The proxy only checks cookie presence for an early redirect. Invalid or forged cookies fail requireStaff/requireAdmin session lookup.",
+      "evidence": [
+        "proxy.ts:72-87",
+        "lib/auth/guards.ts:21-82"
+      ]
+    },
+    {
+      "id": "FP-08",
+      "classification": "FALSE POSITIVE",
+      "title": "Secrets in build output or public source maps",
+      "disposition": "No tracked .env beyond .env.example. No secret values in .next. Zero source maps under .next/static. No NEXT_PUBLIC_ secret.",
+      "evidence": [
+        "Repository secret scan",
+        ".next build-artifact inspection"
+      ]
+    },
+    {
+      "id": "FP-09",
+      "classification": "FALSE POSITIVE",
+      "title": "Known dependency vulnerabilities",
+      "disposition": "npm audit --package-lock-only reported 0 vulnerabilities across 528 packages, 0 missing integrity entries, and 0 non-registry resolutions.",
+      "evidence": [
+        "package.json",
+        "package-lock.json",
+        "npm audit --package-lock-only"
+      ]
+    },
+    {
+      "id": "FP-10",
+      "classification": "FALSE POSITIVE",
+      "title": "SSRF, command injection, or file upload",
+      "disposition": "No upload feature. No child_process, execSync, or spawnSync. Supplier adapters are mock/disabled. Future supplier URLs are restricted to public HTTPS.",
+      "evidence": [
+        "Application source search",
+        "lib/config.ts:141-149"
+      ]
+    },
+    {
+      "id": "FP-11",
+      "classification": "FALSE POSITIVE",
+      "title": "CSRF on state-changing operations",
+      "disposition": "State-changing operations are server actions. Next.js enforces same-origin action requests. Session and cart cookies are SameSite=Lax. No state-changing GET endpoint was found.",
+      "evidence": [
+        "Server-action modules",
+        "lib/auth/session.ts:120-131",
+        "app/actions/cart.ts:23-31"
+      ]
+    },
+    {
+      "id": "FP-12",
+      "classification": "FALSE POSITIVE",
+      "title": "Password-reset response reveals account existence",
+      "disposition": "requestPasswordResetAction always returns success after validation, regardless of whether the user exists. The separate timing observation is AUTH-05.",
+      "evidence": [
+        "lib/auth/actions.ts:463-501"
+      ]
+    },
+    {
+      "id": "FP-13",
+      "classification": "FALSE POSITIVE",
+      "title": "Reset or order tokens stored in email_events or logs",
+      "disposition": "sendTransactionalEmail stores a redacted body. The redactor removes query tokens and high-entropy strings. Fulfillment logs redact the order access token.",
+      "evidence": [
+        "lib/email-notices.ts:22-69",
+        "lib/integrations/email/redact.ts:1-15",
+        "lib/fulfillment.ts:123-145"
+      ]
+    },
+    {
+      "id": "FP-14",
+      "classification": "FALSE POSITIVE",
+      "title": "Session cookies lack protective flags",
+      "disposition": "Session cookie is HttpOnly, Secure when SITE_URL is HTTPS, SameSite=Lax, Path=/, with an expiry. Cart cookie has the same flags.",
+      "evidence": [
+        "lib/auth/session.ts:120-131",
+        "app/actions/cart.ts:23-31"
+      ]
+    },
+    {
+      "id": "FP-15",
+      "classification": "FALSE POSITIVE",
+      "title": "Mock payment webhook is reachable in production",
+      "disposition": "The route returns 404 when mockCommerceAllowed is false, and mockCommerceAllowed is false in production.",
+      "evidence": [
+        "app/api/webhooks/payments/mock/route.ts:9-13",
+        "lib/config.ts:35"
+      ]
+    },
+    {
+      "id": "FP-16",
+      "classification": "FALSE POSITIVE",
+      "title": "Refund race allows over-refunding",
+      "disposition": "applyRefund is transactional and checks the remaining refundable balance at approval time. Concurrent requests may over-reserve, but approval cannot exceed the order total.",
+      "evidence": [
+        "lib/refunds.ts:242-360"
+      ]
+    }
+  ],
+  "limitations": [
+    "Live application testing was blocked by Netlify Edge Access, which returned 401 Login Redirect before the application. Live header, login, 2FA, admin, and database-connectivity checks could not be completed without credentials or a prohibited access change.",
+    "No authenticated admin or 2FA session was available. Admin UI behavior, permission edge cases, and 2FA flows were reviewed statically, not exercised live.",
+    "No production build was run. Header and build-output conclusions are based on source and existing artifacts.",
+    "No DAST, fuzzing, or load testing was performed. The audit is a static and configuration review with read-only database checks, not a penetration test.",
+    "Dependency source code was not audited for malicious behavior; npm audit and lockfile metadata were checked.",
+    "Netlify platform controls such as Edge Access, WAF, DDoS protection, and function isolation were treated as deployment controls outside the application scope.",
+    "The Netlify token scope and exposure audience were not verified. OPS-01 remains an operational unknown until rotation and audit-log review."
+  ],
+  "confirmations": {
+    "no_deployment_triggered": true,
+    "no_production_settings_or_data_modified": true,
+    "no_application_source_code_or_dependencies_changed": true,
+    "statement": [
+      "NO DEPLOYMENT WAS TRIGGERED.",
+      "NO PRODUCTION SETTINGS OR DATA WERE MODIFIED.",
+      "NO APPLICATION SOURCE CODE OR DEPENDENCIES WERE CHANGED."
+    ]
+  },
+  "artifacts": [
+    "docs/ESIMPROVE_SECURITY_AUDIT_REPORT.md",
+    "docs/ESIMPROVE_SECURITY_FINDINGS.json"
+  ],
+  "fixes_implemented": false,
+  "approval_required_for_fixes": true
+}

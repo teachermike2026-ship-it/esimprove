@@ -3,8 +3,10 @@
 import { useRef } from "react";
 import Link from "next/link";
 import { PlayIcon } from "@/components/icons";
+import { useI18n } from "@/components/i18n-provider";
 
 export function TutorialSection() {
+  const { t, href } = useI18n();
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   function openGuide() {
@@ -23,7 +25,7 @@ export function TutorialSection() {
         type="button"
         className="es-video"
         onClick={openGuide}
-        aria-label="Open the written eSIM installation guide"
+        aria-label={t("home.tutorial.openAria")}
       >
         <span className="es-video-scene" aria-hidden="true">
           <span className="es-video-grain" />
@@ -51,7 +53,7 @@ export function TutorialSection() {
         <span className="es-video-play">
           <PlayIcon />
         </span>
-        <span className="es-video-tag">Written guide · no video published</span>
+        <span className="es-video-tag">{t("home.tutorial.tag")}</span>
       </button>
 
       <dialog
@@ -66,85 +68,48 @@ export function TutorialSection() {
       >
         <div className="es-guide-dialog-inner">
           <div className="es-guide-dialog-head">
-            <span>Installation guide</span>
+            <span>{t("home.tutorial.heading")}</span>
             <button
               type="button"
               className="es-dialog-close"
-              aria-label="Close installation guide"
+              aria-label={t("home.tutorial.closeAria")}
               onClick={() => dialogRef.current?.close()}
             >
               ×
             </button>
           </div>
-          <h2 id="es-guide-title">Install your eSIM, step by step</h2>
-          <p className="es-guide-lead">
-            This is a written, provider-neutral walkthrough; exact menus vary by device and
-            operating-system version.
-          </p>
+          <h2 id="es-guide-title">{t("home.tutorial.title")}</h2>
+          <p className="es-guide-lead">{t("home.tutorial.lead")}</p>
           <ol className="es-guide-steps">
-            <li>
-              <span>01</span>
-              <div>
-                <strong>Confirm your device supports eSIM</strong>
-                <p>
-                  Check for “Add eSIM” or “Add mobile plan” in settings, and confirm the device
-                  is carrier-unlocked. Our compatibility checker is a starting point only.
-                </p>
-              </div>
-            </li>
-            <li>
-              <span>02</span>
-              <div>
-                <strong>Install while you have reliable Wi-Fi</strong>
-                <p>
-                  Install before you travel. Keep the QR code and manual activation details
-                  until the plan appears in your device’s SIM manager.
-                </p>
-              </div>
-            </li>
-            <li>
-              <span>03</span>
-              <div>
-                <strong>Scan the code or enter the details manually</strong>
-                <p>
-                  Follow the instructions supplied with your plan. Do not delete an eSIM unless
-                  you have confirmed it can be re-added.
-                </p>
-              </div>
-            </li>
-            <li>
-              <span>04</span>
-              <div>
-                <strong>Label the line and choose your data line</strong>
-                <p>
-                  Give the eSIM a clear label, keep your primary SIM available for calls and
-                  messages, and select the travel line for mobile data.
-                </p>
-              </div>
-            </li>
+            {[1, 2, 3, 4].map((step) => (
+              <li key={step}>
+                <span>{String(step).padStart(2, "0")}</span>
+                <div>
+                  <strong>{t(`home.tutorial.step${step}Title`)}</strong>
+                  <p>{t(`home.tutorial.step${step}Body`)}</p>
+                </div>
+              </li>
+            ))}
           </ol>
-          <p className="es-guide-note">
-            This build does not issue a working eSIM, QR activation code, or carrier
-            connection. Read the full guides for device-specific steps.
-          </p>
+          <p className="es-guide-note">{t("home.tutorial.note")}</p>
           <div className="es-guide-actions">
-            <Link className="es-button es-button-primary" href="/guides">
-              Read the full guides
+            <Link className="es-button es-button-primary" href={href("/guides")}>
+              {t("home.tutorial.readFull")}
             </Link>
             <button
               type="button"
               className="es-button es-button-secondary"
               onClick={() => dialogRef.current?.close()}
             >
-              Close
+              {t("home.tutorial.close")}
             </button>
           </div>
         </div>
       </dialog>
 
       <p className="es-video-note">
-        No tutorial video is published yet. The play button opens the written guide instead.{" "}
-        <Link href="/guides">Browse all install guides</Link>.
+        {t("home.tutorial.videoNote")}{" "}
+        <Link href={href("/guides")}>{t("home.tutorial.browseGuides")}</Link>.
       </p>
     </div>
   );

@@ -5,11 +5,17 @@ import { getDb } from "@/lib/db/client";
 import { getCurrentUser } from "@/lib/auth/session";
 import { canViewOrder, getOrderViewByNumber } from "@/lib/orders";
 import { OrderDetail } from "@/components/order-detail";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Order details",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/orders",
+    title: t("order.metaTitle"),
+    robots: { index: false, follow: false },
+  });
+}
 
 export default async function GuestOrderPage({
   params,
@@ -18,6 +24,7 @@ export default async function GuestOrderPage({
   params: Promise<{ orderNumber: string }>;
   searchParams: Promise<{ token?: string }>;
 }) {
+  const { t, href } = await getI18n();
   const { orderNumber } = await params;
   const { token } = await searchParams;
   const db = await getDb();
@@ -41,7 +48,7 @@ export default async function GuestOrderPage({
       <nav aria-label="Breadcrumb">
         <ol className="breadcrumbs">
           <li>
-            <Link href="/">Home</Link>
+            <Link href={href("/")}>{t("nav.home")}</Link>
           </li>
           <li aria-current="page">{orderNumber}</li>
         </ol>

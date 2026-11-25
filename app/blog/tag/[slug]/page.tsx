@@ -3,6 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { getTagBySlug, listPublishedArticles } from "@/lib/blog";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
+import { localeIntl } from "@/lib/i18n/config";
 
 export const dynamic = "force-dynamic";
 
@@ -11,25 +14,22 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
+  const { t } = await getI18n();
   const { slug } = await params;
   const db = await getDb();
   const tag = await getTagBySlug(db, slug);
-  if (!tag) return { title: "Tag not found", robots: { index: false, follow: false } };
-  return {
-    title: `Articles tagged “${tag.name}”`,
-    description: `Browse articles tagged ${tag.name} from Esimprove.`,
-    alternates: { canonical: `/blog/tag/${tag.slug}` },
-    openGraph: {
-      title: `Articles tagged “${tag.name}” · Esimprove`,
-      description: `Browse articles tagged ${tag.name} from Esimprove.`,
-      type: "website",
-    },
-  };
-}
-
-function formatDate(date: Date | null): string {
-  if (!date) return "";
-  return new Intl.DateTimeFormat("en", { year: "numeric", month: "long", day: "numeric" }).format(date);
+  if (!tag) {
+    return localizedMetadata({
+      path: `/blog/tag/${slug}`,
+      title: t("blog.tagNotFound"),
+      robots: { index: false, follow: false },
+    });
+  }
+  return localizedMetadata({
+    path: `/blog/tag/${tag.slug}`,
+    title: t("blog.articlesTagged", { tag: tag.name }),
+    description: t("blog.browseTag", { tag: tag.name }),
+  });
 }
 
 export default async function BlogTagPage({
@@ -39,6 +39,7 @@ export default async function BlogTagPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const { t, href, locale } = await getI18n();
   const { slug } = await params;
   const query = await searchParams;
   const page = Math.max(1, Number(typeof query.page === "string" ? query.page : "1") || 1);
@@ -50,25 +51,39 @@ export default async function BlogTagPage({
     pageSize: 9,
     tagSlug: slug,
   });
+  const formatDate = (date: Date | null): string => {
+    if (!date) return "";
+    return new Intl.DateTimeFormat(localeIntl(locale), {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(date);
+  };
 
   return (
     <div className="es-page">
       <nav aria-label="Breadcrumb" className="breadcrumbs">
-        <Link href="/">Home</Link>
+        <Link href={href("/")}>{t("nav.home")}</Link>
         <span aria-hidden="true">/</span>
-        <Link href="/blog">Blog</Link>
+        <Link href={href("/blog")}>{t("blog.metaTitle")}</Link>
         <span aria-hidden="true">/</span>
         <span aria-current="page">#{tag.name}</span>
       </nav>
 
       <section className="es-page-hero">
-        <p className="es-eyebrow">Tag</p>
+        <p className="es-eyebrow">{t("blog.tagEyebrow")}</p>
         <h1>#{tag.name}</h1>
       </section>
 
+      {locale !== "en" ? (
+        <div className="callout section-tight">
+          <p>{t("blog.contentNotice")}</p>
+        </div>
+      ) : null}
+
       {total === 0 ? (
         <section className="card section-tight">
-          <p className="muted">No published articles with this tag yet.</p>
+          <p className="muted">{t("blog.noTagArticles")}</p>
         </section>
       ) : (
         <section className="es-page-section">
@@ -84,18 +99,34 @@ export default async function BlogTagPage({
                   />
                 ) : null}
                 <div className="blog-card-body">
-                  <h3><Link className="link" href={`/blog/${article.slug}`}>{article.title}</Link></h3>
+                  <h3>
+                    <Link className="link" href={href(`/blog/${article.slug}`)}>
+                      {article.title}
+                    </Link>
+                  </h3>
                   <p>{article.excerpt}</p>
-                  <p className="small muted"><time dateTime={article.publishedAt?.toISOString()}>{formatDate(article.publishedAt)}</time></p>
+                  <p className="small muted">
+                    <time dateTime={article.publishedAt?.toISOString()}>
+                      {formatDate(article.publishedAt)}
+                    </time>
+                  </p>
                 </div>
               </article>
             ))}
           </div>
           {pageCount > 1 ? (
-            <nav className="pagination" aria-label="Tag pages">
-              {page > 1 ? <Link className="page-link" href={`/blog/tag/${slug}?page=${page - 1}`}>← Previous</Link> : null}
-              <span className="small muted">Page {page} of {pageCount}</span>
-              {page < pageCount ? <Link className="page-link" href={`/blog/tag/${slug}?page=${page + 1}`}>Next →</Link> : null}
+            <nav className="pagination" aria-label={t("blog.tagPagesAria")}>
+              {page > 1 ? (
+                <Link className="page-link" href={href(`/blog/tag/${slug}?page=${page - 1}`)}>
+                  {t("blog.previous")}
+                </Link>
+              ) : null}
+              <span className="small muted">{t("blog.pageOf", { page, pageCount })}</span>
+              {page < pageCount ? (
+                <Link className="page-link" href={href(`/blog/tag/${slug}?page=${page + 1}`)}>
+                  {t("blog.next")}
+                </Link>
+              ) : null}
             </nav>
           ) : null}
         </section>

@@ -8,8 +8,10 @@ import {
 } from "@/app/portal/profile/actions";
 import { requestEmailVerificationAction } from "@/lib/auth/actions";
 import { AlertIcon, CheckIcon, MailIcon } from "@/components/icons";
+import { useI18n } from "@/components/i18n-provider";
 
 function Feedback({ state }: { state: ProfileFormState }) {
+  const { t } = useI18n();
   if (state.error) {
     return (
       <div className="form-error" role="alert">
@@ -22,12 +24,20 @@ function Feedback({ state }: { state: ProfileFormState }) {
     return (
       <div className="callout callout-success" role="status">
         <CheckIcon className="inline-icon" />
-        <p>Profile and communication preferences saved.</p>
+        <p>{t("profile.saved")}</p>
       </div>
     );
   }
   return null;
 }
+
+const LANGUAGE_OPTIONS = [
+  { value: "en", label: "English" },
+  { value: "pt", label: "Português" },
+  { value: "es", label: "Español" },
+  { value: "ar", label: "العربية" },
+  { value: "fr", label: "Français" },
+];
 
 export function ProfileForm({
   name,
@@ -42,16 +52,17 @@ export function ProfileForm({
   productUpdatesOptIn: boolean;
   orderUpdatesOptIn: boolean;
 }) {
+  const { t, href } = useI18n();
   const [state, formAction, pending] = useActionState<ProfileFormState, FormData>(
     updateProfileAction,
     {},
   );
   return (
     <form className="form card" action={formAction}>
-      <h2>Profile and preferences</h2>
+      <h2>{t("profile.formTitle")}</h2>
       <Feedback state={state} />
       <div className="field">
-        <label htmlFor="profile-name">Name</label>
+        <label htmlFor="profile-name">{t("profile.name")}</label>
         <input
           id="profile-name"
           name="name"
@@ -64,47 +75,37 @@ export function ProfileForm({
         />
       </div>
       <div className="field">
-        <label htmlFor="profile-locale">Preferred language</label>
+        <label htmlFor="profile-locale">{t("profile.preferredLanguage")}</label>
         <select id="profile-locale" name="locale" defaultValue={locale}>
-          <option value="en">English</option>
-          <option value="pt">Português</option>
-          <option value="es">Español</option>
+          {LANGUAGE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
-        <p className="form-note">
-          The site interface is currently available in English. Your language preference is saved
-          and will apply as more languages become available.
-        </p>
+        <p className="form-note">{t("profile.languageNote")}</p>
       </div>
       <fieldset className="field">
-        <legend>Email preferences</legend>
+        <legend>{t("profile.emailPreferences")}</legend>
         <label className="checkbox">
-          <input
-            type="checkbox"
-            name="orderUpdates"
-            defaultChecked={orderUpdatesOptIn}
-          />
-          <span>Order and fulfillment updates</span>
+          <input type="checkbox" name="orderUpdates" defaultChecked={orderUpdatesOptIn} />
+          <span>{t("profile.orderUpdates")}</span>
         </label>
         <label className="checkbox">
-          <input
-            type="checkbox"
-            name="productUpdates"
-            defaultChecked={productUpdatesOptIn}
-          />
-          <span>Product and coverage updates</span>
+          <input type="checkbox" name="productUpdates" defaultChecked={productUpdatesOptIn} />
+          <span>{t("profile.productUpdates")}</span>
         </label>
         <label className="checkbox">
           <input type="checkbox" name="marketing" defaultChecked={marketingOptIn} />
-          <span>Marketing email. You can withdraw this consent at any time.</span>
+          <span>{t("profile.marketing")}</span>
         </label>
       </fieldset>
       <p className="form-note">
-        Your email preferences are saved to your account. No marketing email is sent without your
-        consent. See the{" "}
-        <Link href="/legal/privacy">privacy policy</Link> for details.
+        {t("profile.emailPreferencesNote")}{" "}
+        <Link href={href("/legal/privacy")}>{t("profile.privacyPolicyLink")}</Link>.
       </p>
       <button className="button" type="submit" disabled={pending}>
-        {pending ? "Saving…" : "Save profile"}
+        {pending ? t("profile.saving") : t("profile.saveProfile")}
       </button>
     </form>
   );
@@ -117,6 +118,7 @@ export function RequestVerificationButton({
   verified: boolean;
   email: string;
 }) {
+  const { t } = useI18n();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -124,16 +126,14 @@ export function RequestVerificationButton({
     return (
       <div className="callout callout-success" role="status">
         <CheckIcon className="inline-icon" />
-        <p>This account email address is verified.</p>
+        <p>{t("profile.emailVerifiedBody")}</p>
       </div>
     );
   }
 
   return (
     <div className="stack-sm">
-      <p className="muted small">
-        This address is not verified yet. Check your inbox for a verification email.
-      </p>
+      <p className="muted small">{t("profile.emailNotVerifiedBody")}</p>
       <button
         className="button button-secondary button-small"
         type="button"
@@ -144,13 +144,13 @@ export function RequestVerificationButton({
             setMessage(
               result.error
                 ? { ok: false, text: result.error }
-                : { ok: true, text: `Verification notice recorded for ${email}.` },
+                : { ok: true, text: t("profile.verificationRecorded", { email }) },
             );
           });
         }}
       >
         <MailIcon className="inline-icon" />
-        {pending ? "Recording…" : "Send verification email"}
+        {pending ? t("profile.recording") : t("profile.sendVerification")}
       </button>
       {message ? (
         <p className={message.ok ? "form-note" : "form-error"} role="status">

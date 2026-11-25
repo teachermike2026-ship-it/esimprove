@@ -10,6 +10,7 @@ import {
   SearchIcon,
   UserIcon,
 } from "@/components/icons";
+import { useI18n } from "@/components/i18n-provider";
 import { formatData, formatMoney } from "@/lib/money";
 
 export interface PhoneDestination {
@@ -59,6 +60,7 @@ export function PhoneShowcase({
   regionCount,
   planCount,
 }: PhoneShowcaseProps) {
+  const { t, href } = useI18n();
   const [view, setView] = useState<"country" | "region">("country");
   const [destinationIndex, setDestinationIndex] = useState(0);
   const [regionIndex, setRegionIndex] = useState(0);
@@ -83,8 +85,8 @@ export function PhoneShowcase({
               </span>
             </div>
             <div className="es-app es-app-back">
-              <p className="es-app-label">Installation</p>
-              <h3>Three steps to get connected</h3>
+              <p className="es-app-label">{t("home.phone.installation")}</p>
+              <h3>{t("home.phone.threeSteps")}</h3>
               <div className="es-back-ring">
                 <span>1</span>
                 <span>2</span>
@@ -94,22 +96,22 @@ export function PhoneShowcase({
                 <li>
                   <span>01</span>
                   <div>
-                    <strong>Check your device</strong>
-                    <small>Confirm eSIM support and carrier lock status.</small>
+                    <strong>{t("home.phone.step1Title")}</strong>
+                    <small>{t("home.phone.step1Body")}</small>
                   </div>
                 </li>
                 <li>
                   <span>02</span>
                   <div>
-                    <strong>Install while online</strong>
-                    <small>Use a stable connection before you travel.</small>
+                    <strong>{t("home.phone.step2Title")}</strong>
+                    <small>{t("home.phone.step2Body")}</small>
                   </div>
                 </li>
                 <li>
                   <span>03</span>
                   <div>
-                    <strong>Label your line</strong>
-                    <small>Keep your primary SIM for calls and messages.</small>
+                    <strong>{t("home.phone.step3Title")}</strong>
+                    <small>{t("home.phone.step3Body")}</small>
                   </div>
                 </li>
               </ol>
@@ -134,9 +136,11 @@ export function PhoneShowcase({
               <div className="es-app-head">
                 <div>
                   <h3>
-                    {view === "country" ? "Explore supported countries" : "Explore regions"}
+                    {view === "country"
+                      ? t("home.phone.exploreCountries")
+                      : t("home.phone.exploreRegions")}
                   </h3>
-                  <p>Browse plans and manage your eSIMs</p>
+                  <p>{t("home.phone.browsePlans")}</p>
                 </div>
                 <span className="es-app-logo" aria-hidden="true">
                   e
@@ -145,17 +149,17 @@ export function PhoneShowcase({
 
               <div className="es-app-search" aria-hidden="true">
                 <SearchIcon />
-                <span>Search your destination</span>
+                <span>{t("home.phone.searchDestination")}</span>
               </div>
 
-              <div className="es-app-tabs" role="group" aria-label="Catalogue view">
+              <div className="es-app-tabs" role="group" aria-label={t("home.phone.catalogueView")}>
                 <button
                   type="button"
                   className={view === "country" ? "is-active" : ""}
                   aria-pressed={view === "country"}
                   onClick={() => setView("country")}
                 >
-                  Country
+                  {t("home.phone.country")}
                 </button>
                 <button
                   type="button"
@@ -163,13 +167,13 @@ export function PhoneShowcase({
                   aria-pressed={view === "region"}
                   onClick={() => setView("region")}
                 >
-                  Regional
+                  {t("home.phone.regional")}
                 </button>
               </div>
 
               {view === "country" ? (
                 <>
-                  <p className="es-app-label">Top picks</p>
+                  <p className="es-app-label">{t("home.phone.topPicks")}</p>
                   <div className="es-app-picks">
                     {destinations.slice(0, 4).map((item, index) => (
                       <button
@@ -177,7 +181,7 @@ export function PhoneShowcase({
                         type="button"
                         className={index === destinationIndex ? "is-selected" : ""}
                         aria-pressed={index === destinationIndex}
-                        aria-label={`View ${item.name} plans`}
+                        aria-label={t("home.phone.viewPlans", { name: item.name })}
                         onClick={() => setDestinationIndex(index)}
                       >
                         <span className="es-app-flag">
@@ -188,7 +192,7 @@ export function PhoneShowcase({
                     ))}
                   </div>
 
-                  <p className="es-app-label">All destinations</p>
+                  <p className="es-app-label">{t("home.phone.allDestinations")}</p>
                   <div className="es-app-list">
                     {destinations.map((item, index) => (
                       <button
@@ -204,10 +208,11 @@ export function PhoneShowcase({
                         <span className="es-app-row-copy">
                           <strong>{item.name}</strong>
                           <small>
-                            {formatData(item.dataMb)} · {item.validityDays} days
+                            <span dir="ltr">{formatData(item.dataMb)}</span> ·{" "}
+                            {t("common.days", { count: item.validityDays })}
                           </small>
                         </span>
-                        <span className="es-app-row-price">
+                        <span className="es-app-row-price" dir="ltr">
                           {formatMoney(item.priceMinor, item.currency)}
                         </span>
                         <ArrowRight className="es-app-row-arrow" />
@@ -216,15 +221,18 @@ export function PhoneShowcase({
                   </div>
 
                   {destination ? (
-                    <Link className="es-app-cta" href={`/destinations/${destination.slug}`}>
-                      <span>View {destination.name} plans</span>
+                    <Link
+                      className="es-app-cta"
+                      href={href(`/destinations/${destination.slug}`)}
+                    >
+                      <span>{t("home.phone.viewPlans", { name: destination.name })}</span>
                       <ArrowRight />
                     </Link>
                   ) : null}
                 </>
               ) : (
                 <>
-                  <p className="es-app-label">Regions</p>
+                  <p className="es-app-label">{t("home.phone.regions")}</p>
                   <div className="es-app-list es-app-list-regions">
                     {shownRegions.map((item, index) => (
                       <button
@@ -240,22 +248,22 @@ export function PhoneShowcase({
                         <span className="es-app-row-copy">
                           <strong>{item.name}</strong>
                           <small>
-                            {item.destinationCount} destination
-                            {item.destinationCount === 1 ? "" : "s"} · {item.planCount} plan
-                            {item.planCount === 1 ? "" : "s"}
+                            {item.destinationCount}{" "}
+                            {t("common.destinations").toLocaleLowerCase()} · {item.planCount}{" "}
+                            {t("common.plans").toLocaleLowerCase()}
                           </small>
                         </span>
-                        <span className="es-app-row-price">
+                        <span className="es-app-row-price" dir="ltr">
                           {item.fromPriceMinor !== null
-                            ? `from ${formatMoney(item.fromPriceMinor, "USD")}`
-                            : "Unavailable"}
+                            ? `${t("common.from")} ${formatMoney(item.fromPriceMinor, "USD")}`
+                            : t("common.unavailable")}
                         </span>
                       </button>
                     ))}
                   </div>
                   {region ? (
-                    <Link className="es-app-cta" href={`/regions/${region.slug}`}>
-                      <span>View {region.name} plans</span>
+                    <Link className="es-app-cta" href={href(`/regions/${region.slug}`)}>
+                      <span>{t("home.phone.viewPlans", { name: region.name })}</span>
                       <ArrowRight />
                     </Link>
                   ) : null}
@@ -264,43 +272,41 @@ export function PhoneShowcase({
             </div>
 
             <div className="es-phone-nav">
-              <Link href="/destinations" className="is-active">
+              <Link href={href("/destinations")} className="is-active">
                 <GlobeIcon />
-                <span>Countries</span>
+                <span>{t("home.phone.countriesNav")}</span>
               </Link>
-              <Link href="/portal">
+              <Link href={href("/portal")}>
                 <QrIcon />
-                <span>eSIMs</span>
+                <span>{t("home.phone.esimsNav")}</span>
               </Link>
-              <Link href="/login">
+              <Link href={href("/login")}>
                 <UserIcon />
-                <span>Account</span>
+                <span>{t("home.phone.accountNav")}</span>
               </Link>
             </div>
           </div>
         </div>
       </div>
 
-      <Link className="es-float es-float-coverage" href="/destinations">
+      <Link className="es-float es-float-coverage" href={href("/destinations")}>
         <span className="es-float-icon">
           <GlobeIcon />
         </span>
         <span className="es-float-copy">
-          <strong>{destinationCount} destinations</strong>
-          <small>
-            Across {regionCount} regions · {planCount} plans
-          </small>
+          <strong>{t("home.phone.coverage", { count: destinationCount })}</strong>
+          <small>{t("home.phone.coverageSub", { regions: regionCount, plans: planCount })}</small>
         </span>
         <ArrowRight className="es-float-arrow" />
       </Link>
 
-      <Link className="es-float es-float-install" href="/guides">
+      <Link className="es-float es-float-install" href={href("/guides")}>
         <span className="es-float-icon es-float-icon-qr">
           <QrIcon />
         </span>
         <span className="es-float-copy">
-          <strong>Install before you fly</strong>
-          <small>iOS and Android walkthroughs</small>
+          <strong>{t("home.phone.installBeforeFly")}</strong>
+          <small>{t("home.phone.iosAndroid")}</small>
         </span>
       </Link>
     </div>

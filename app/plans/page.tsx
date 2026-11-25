@@ -4,13 +4,22 @@ import { getDestinations, getPlans, getRegions } from "@/lib/catalog";
 import { FilterBar } from "@/components/filter-bar";
 import { PlanCard } from "@/components/plan-card";
 import { EmptyState } from "@/components/empty-state";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
+import {
+  demoPlan,
+  demoPlanMatchesFilters,
+  demoProductEnabled,
+} from "@/lib/demo-plan";
 
-export const metadata: Metadata = {
-  title: "Travel eSIM plans",
-  description:
-    "Search and filter eSIM plans by destination, region, data, validity, and price.",
-  alternates: { canonical: "/plans" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/plans",
+    title: t("catalog.metaPlansTitle"),
+    description: t("catalog.metaPlansDescription"),
+  });
+}
 
 interface SearchParams {
   q?: string;
@@ -34,29 +43,45 @@ export default async function PlansPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const { t, href } = await getI18n();
   const db = await getDb();
   const [regions, destinations] = await Promise.all([getRegions(db), getDestinations(db)]);
-  const plans = await getPlans(db, {
+  const maxPrice = numeric(params.maxPrice);
+  const minDataMb = numeric(params.minDataMb);
+  const minValidityDays = numeric(params.minValidityDays);
+  const dbPlans = await getPlans(db, {
     q: params.q,
     destination: params.destination,
     region: params.region,
-    maxPrice: numeric(params.maxPrice),
-    minDataMb: numeric(params.minDataMb),
-    minValidityDays: numeric(params.minValidityDays),
+    maxPrice,
+    minDataMb,
+    minValidityDays,
     sort: (params.sort as "price_asc" | "price_desc" | "data_desc" | "newest" | undefined) ?? "price_asc",
     limit: 60,
   });
+  const includeDemo =
+    demoProductEnabled() &&
+    demoPlanMatchesFilters({
+      q: params.q,
+      destination: params.destination,
+      region: params.region,
+      maxPrice,
+      minDataMb,
+      minValidityDays,
+    });
+  const plans = includeDemo
+    ? params.sort === "price_desc" || params.sort === "data_desc"
+      ? [...dbPlans, demoPlan]
+      : [demoPlan, ...dbPlans]
+    : dbPlans;
 
   return (
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Plan catalogue</p>
-          <h1>Compare eSIM plans</h1>
-          <p className="lead">
-            Filter the catalogue by destination, data, validity, and price to find the plan
-            that fits your trip.
-          </p>
+          <p className="eyebrow">{t("catalog.plansEyebrow")}</p>
+          <h1>{t("catalog.plansTitle")}</h1>
+          <p className="lead">{t("catalog.plansLead")}</p>
         </div>
       </div>
 
@@ -76,7 +101,9 @@ export default async function PlansPage({
 
       <div className="section-tight">
         <p className="muted small" role="status">
-          {plans.length} plan{plans.length === 1 ? "" : "s"} shown.
+          {plans.length === 1
+            ? t("catalog.onePlanShown")
+            : t("catalog.plansShown", { count: plans.length })}
         </p>
       </div>
 
@@ -87,8 +114,11 @@ export default async function PlansPage({
           ))}
         </div>
       ) : (
-        <EmptyState title="No plans match those filters" action={{ href: "/plans", label: "Clear filters" }}>
-          Try a broader region, a lower minimum data amount, or a higher maximum price.
+        <EmptyState
+          title={t("catalog.noPlansTitle")}
+          action={{ href: href("/plans"), label: t("catalog.clearFilters") }}
+        >
+          {t("catalog.noPlansBody")}
         </EmptyState>
       )}
     </>

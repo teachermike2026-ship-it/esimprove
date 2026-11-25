@@ -1,18 +1,26 @@
 import { SearchIcon } from "@/components/icons";
+import { getI18n } from "@/lib/i18n/server";
 
-export function SearchForm({
+export async function SearchForm({
   defaultValue = "",
   action = "/search",
-  label = "Search destinations or plans",
+  label,
 }: {
   defaultValue?: string;
   action?: string;
   label?: string;
 }) {
+  const { t, href } = await getI18n();
   return (
-    <form className="search-form" action={action} method="get" role="search" data-analytics-search>
+    <form
+      className="search-form"
+      action={href(action)}
+      method="get"
+      role="search"
+      data-analytics-search
+    >
       <label className="visually-hidden" htmlFor="site-search">
-        {label}
+        {label ?? t("home.hero.searchLabel")}
       </label>
       <SearchIcon className="search-icon" />
       <input
@@ -20,11 +28,11 @@ export function SearchForm({
         name="q"
         type="search"
         defaultValue={defaultValue}
-        placeholder="Try Japan, Europe, or 5 GB"
+        placeholder={t("catalog.filterDestinationOrPlan")}
         autoComplete="off"
       />
       <button className="button" type="submit">
-        Search
+        {t("common.search")}
       </button>
     </form>
   );

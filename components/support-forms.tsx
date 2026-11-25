@@ -7,14 +7,13 @@ import {
   replySupportTicketAction,
   type SupportFormState,
 } from "@/app/portal/support/actions";
-import {
-  SUPPORT_CATEGORIES,
-  SUPPORT_CATEGORY_LABELS,
-  type SupportCategory,
-} from "@/lib/support";
+import { SUPPORT_CATEGORIES } from "@/lib/support";
 import { AlertIcon, CheckIcon, MailIcon } from "@/components/icons";
+import { useI18n } from "@/components/i18n-provider";
+import { supportCategoryLabel } from "@/lib/i18n/labels";
 
 function Feedback({ state }: { state: SupportFormState }) {
+  const { t, href } = useI18n();
   if (state.error) {
     return (
       <div className="form-error" role="alert">
@@ -28,11 +27,12 @@ function Feedback({ state }: { state: SupportFormState }) {
       <div className="callout callout-success" role="status">
         <CheckIcon className="inline-icon" />
         <div>
-          <p>Your message was recorded.</p>
+          <p>{t("support.ticketRecorded")}</p>
           {state.ticketId ? (
             <p className="small">
-              Open <Link href={`/portal/support/${state.ticketId}`}>ticket {state.ticketId}</Link>{" "}
-              to follow the conversation.
+              <Link href={href(`/portal/support/${state.ticketId}`)}>
+                {t("support.openTicketLink", { id: state.ticketId })}
+              </Link>
             </p>
           ) : null}
         </div>
@@ -42,7 +42,12 @@ function Feedback({ state }: { state: SupportFormState }) {
   return null;
 }
 
-export function CreateSupportTicketForm({ defaultOrderNumber = "" }: { defaultOrderNumber?: string }) {
+export function CreateSupportTicketForm({
+  defaultOrderNumber = "",
+}: {
+  defaultOrderNumber?: string;
+}) {
+  const { t } = useI18n();
   const [state, formAction, pending] = useActionState<SupportFormState, FormData>(
     createSupportTicketAction,
     {},
@@ -51,17 +56,17 @@ export function CreateSupportTicketForm({ defaultOrderNumber = "" }: { defaultOr
     <form className="form card" action={formAction}>
       <Feedback state={state} />
       <div className="field">
-        <label htmlFor="support-category">Category</label>
+        <label htmlFor="support-category">{t("support.category")}</label>
         <select id="support-category" name="category" defaultValue="general" required>
           {SUPPORT_CATEGORIES.map((category) => (
             <option key={category} value={category}>
-              {SUPPORT_CATEGORY_LABELS[category as SupportCategory]}
+              {supportCategoryLabel(t, category)}
             </option>
           ))}
         </select>
       </div>
       <div className="field">
-        <label htmlFor="support-order">Related order number (optional)</label>
+        <label htmlFor="support-order">{t("support.relatedOrder")}</label>
         <input
           id="support-order"
           name="orderNumber"
@@ -72,7 +77,7 @@ export function CreateSupportTicketForm({ defaultOrderNumber = "" }: { defaultOr
         />
       </div>
       <div className="field">
-        <label htmlFor="support-subject">Subject</label>
+        <label htmlFor="support-subject">{t("support.subject")}</label>
         <input
           id="support-subject"
           name="subject"
@@ -83,7 +88,7 @@ export function CreateSupportTicketForm({ defaultOrderNumber = "" }: { defaultOr
         />
       </div>
       <div className="field">
-        <label htmlFor="support-message">Message</label>
+        <label htmlFor="support-message">{t("support.message")}</label>
         <textarea
           id="support-message"
           name="message"
@@ -91,44 +96,42 @@ export function CreateSupportTicketForm({ defaultOrderNumber = "" }: { defaultOr
           minLength={10}
           maxLength={4000}
           rows={6}
-          placeholder="Describe the issue and what you already tried. Do not include passwords, one-time codes, or full card numbers."
+          placeholder={t("support.messagePlaceholder")}
         />
       </div>
       <button className="button" type="submit" disabled={pending}>
         <MailIcon className="inline-icon" />
-        {pending ? "Recording ticket…" : "Open support ticket"}
+        {pending ? t("support.recordingTicket") : t("support.openTicket")}
       </button>
-      <p className="form-note">
-        The conversation is stored locally. No real email or live support response is generated
-        unless a live email provider is configured.
-      </p>
+      <p className="form-note">{t("support.localNote")}</p>
     </form>
   );
 }
 
 export function ReplySupportTicketForm({ ticketId }: { ticketId: string }) {
+  const { t } = useI18n();
   const [state, formAction, pending] = useActionState<SupportFormState, FormData>(
     replySupportTicketAction,
     {},
   );
   return (
     <form className="form card" action={formAction}>
-      <h2>Add a reply</h2>
+      <h2>{t("support.addReply")}</h2>
       <Feedback state={state} />
       <input type="hidden" name="ticketId" value={ticketId} />
       <div className="field">
-        <label htmlFor="support-reply">Reply</label>
+        <label htmlFor="support-reply">{t("support.reply")}</label>
         <textarea
           id="support-reply"
           name="message"
           required
           maxLength={4000}
           rows={4}
-          placeholder="Add details for the support team."
+          placeholder={t("support.replyPlaceholder")}
         />
       </div>
       <button className="button" type="submit" disabled={pending}>
-        {pending ? "Sending…" : "Send reply"}
+        {pending ? t("support.sending") : t("support.sendReply")}
       </button>
     </form>
   );

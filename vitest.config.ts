@@ -10,6 +10,9 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["./tests/setup.ts"],
+    // `.audit/` holds local, ignored historical snapshots (including old test
+    // copies). Only the live `tests/` suite is authoritative.
+    exclude: ["**/node_modules/**", "**/dist/**", "**/.next/**", ".audit/**"],
     fileParallelism: false,
     pool: "forks",
     testTimeout: 30000,

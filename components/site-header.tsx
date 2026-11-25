@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { BrandMark } from "@/components/brand-mark";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { getCurrentUser } from "@/lib/auth/session";
 import { isAdminRole } from "@/lib/auth/roles";
 import { logoutAction } from "@/lib/auth/actions";
@@ -8,17 +9,16 @@ import { getDb } from "@/lib/db/client";
 import { getCartView } from "@/lib/cart";
 import { CART_COOKIE } from "@/lib/cart-cookie";
 import {
-  AdminIcon,
   CartIcon,
-  CheckIcon,
   ChevronDownIcon,
-  GlobeIcon,
   HeadsetIcon,
   MenuIcon,
   UserIcon,
 } from "@/components/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export async function SiteHeader() {
+  const { t, href } = await getI18n();
   const user = await getCurrentUser();
   const token = (await cookies()).get(CART_COOKIE)?.value;
   let cartCount = 0;
@@ -29,58 +29,47 @@ export async function SiteHeader() {
   }
 
   const navLinks = [
-    { href: "/", label: "Home", className: "es-nav-home" },
-    { href: "/destinations", label: "Countries" },
-    { href: "/plans", label: "Plans" },
-    { href: "/guides", label: "Guides" },
-    { href: "/about", label: "About us" },
-    { href: "/contact", label: "Contact us" },
+    { href: "/", label: t("nav.home"), className: "es-nav-home" },
+    { href: "/destinations", label: t("nav.countries") },
+    { href: "/plans", label: t("nav.plans") },
+    { href: "/guides", label: t("nav.guides") },
+    { href: "/about", label: t("nav.about") },
+    { href: "/contact", label: t("nav.contact") },
   ];
+
+  const cartLabel =
+    cartCount === 0
+      ? t("header.cartEmpty")
+      : cartCount === 1
+        ? t("header.cartOne")
+        : t("header.cartMany", { count: String(cartCount) });
 
   return (
     <header className="es-header">
       <div className="es-shell es-header-inner">
-        <BrandMark />
+        <BrandMark href={href("/")} ariaLabel={t("nav.home")} />
 
-        <nav className="es-nav" aria-label="Primary navigation">
+        <nav className="es-nav" aria-label={t("nav.primary")}>
           {navLinks.map((link) => (
-            <Link key={link.href} href={link.href} className={link.className}>
+            <Link
+              key={link.href}
+              href={href(link.href)}
+              className={link.className}
+            >
               {link.label}
             </Link>
           ))}
         </nav>
 
         <div className="es-header-actions">
-          <details className="es-lang">
-            <summary aria-label="Language: English">
-              <GlobeIcon />
-              <span>EN</span>
-              <ChevronDownIcon className="es-chevron" />
-            </summary>
-            <div className="es-lang-menu" role="group" aria-label="Available languages">
-              <span className="es-lang-current">
-                <CheckIcon /> English
-              </span>
-              <span className="es-lang-note">More languages are planned.</span>
-              <span className="es-lang-unavailable" aria-disabled="true">
-                Español
-              </span>
-              <span className="es-lang-unavailable" aria-disabled="true">
-                Français
-              </span>
-            </div>
-          </details>
+          <LanguageSwitcher />
 
-          <Link className="es-support-link" href="/contact" aria-label="Support">
+          <Link className="es-support-link" href={href("/contact")} aria-label={t("nav.support")}>
             <HeadsetIcon />
-            <span>Support</span>
+            <span>{t("nav.support")}</span>
           </Link>
 
-          <Link
-            className="es-cart"
-            href="/cart"
-            aria-label={cartCount === 1 ? "Cart, 1 item" : `Cart, ${cartCount} items`}
-          >
+          <Link className="es-cart" href={href("/cart")} aria-label={cartLabel}>
             <CartIcon />
             {cartCount > 0 ? (
               <span className="es-cart-count" aria-hidden="true">
@@ -93,69 +82,68 @@ export async function SiteHeader() {
             <details className="es-account">
               <summary className="es-signin">
                 <UserIcon />
-                <span>Account</span>
+                <span>{t("header.account")}</span>
                 <ChevronDownIcon className="es-chevron" />
               </summary>
               <div className="es-account-menu">
                 <span className="es-account-name">
-                  <small>Signed in as</small>
+                  <small>{t("header.signedInAs")}</small>
                   {user.name || user.email}
                 </span>
-                <Link href="/portal">My eSIMs &amp; orders</Link>
-                <Link href="/portal/profile">Profile &amp; security</Link>
-                <Link href="/portal/support">Support</Link>
+                <Link href={href("/portal")}>{t("nav.myEsims")}</Link>
+                <Link href={href("/portal/profile")}>{t("nav.profile")}</Link>
+                <Link href={href("/portal/support")}>{t("nav.support")}</Link>
                 {isAdminRole(user.role) ? (
-                  <Link href="/admin">
-                    <AdminIcon /> Admin area
-                  </Link>
+                  <Link href="/admin">{t("nav.admin")}</Link>
                 ) : null}
                 <form action={logoutAction}>
                   <button className="es-menu-button" type="submit">
-                    Sign out
+                    {t("nav.signOut")}
                   </button>
                 </form>
               </div>
             </details>
           ) : (
-            <Link className="es-signin" href="/login">
+            <Link className="es-signin" href={href("/login")}>
               <UserIcon />
-              <span>Sign in</span>
+              <span>{t("nav.signIn")}</span>
             </Link>
           )}
 
           <details className="es-mobile-nav">
-            <summary className="es-menu-toggle" aria-label="Navigation menu">
+            <summary className="es-menu-toggle" aria-label={t("header.menuAria")}>
               <MenuIcon />
             </summary>
             <div className="es-mobile-panel">
-              <nav aria-label="Mobile navigation">
+              <nav aria-label={t("nav.mobile")}>
                 {navLinks.map((link) => (
-                  <Link key={link.href} href={link.href}>
+                  <Link key={link.href} href={href(link.href)}>
                     {link.label}
                   </Link>
                 ))}
               </nav>
+              <LanguageSwitcher variant="mobile" />
               <div className="es-mobile-account">
-                <Link href="/cart">Cart ({cartCount})</Link>
+                <Link href={href("/cart")}>
+                  {t("nav.cart")} ({cartCount})
+                </Link>
                 {user ? (
                   <>
-                    <Link href="/portal">My eSIMs &amp; orders</Link>
-                    <Link href="/portal/profile">Profile &amp; security</Link>
-                    <Link href="/portal/support">Support</Link>
-                    {isAdminRole(user.role) ? <Link href="/admin">Admin area</Link> : null}
+                    <Link href={href("/portal")}>{t("nav.myEsims")}</Link>
+                    <Link href={href("/portal/profile")}>{t("nav.profile")}</Link>
+                    <Link href={href("/portal/support")}>{t("nav.support")}</Link>
+                    {isAdminRole(user.role) ? <Link href="/admin">{t("nav.admin")}</Link> : null}
                     <form action={logoutAction}>
                       <button className="es-menu-button" type="submit">
-                        Sign out
+                        {t("nav.signOut")}
                       </button>
                     </form>
                   </>
                 ) : (
-                  <Link href="/login">Sign in</Link>
+                  <Link href={href("/login")}>{t("nav.signIn")}</Link>
                 )}
               </div>
-              <p className="es-mobile-note">
-                The interface is currently available in English.
-              </p>
+              <p className="es-mobile-note">{t("nav.mobileNote")}</p>
             </div>
           </details>
         </div>

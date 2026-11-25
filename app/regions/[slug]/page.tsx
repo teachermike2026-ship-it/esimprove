@@ -5,7 +5,8 @@ import { getDb } from "@/lib/db/client";
 import { getDestinations, getPlans, getRegionBySlug } from "@/lib/catalog";
 import { DestinationCard } from "@/components/destination-card";
 import { PlanCard } from "@/components/plan-card";
-import { canonicalUrl } from "@/lib/config";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
 export async function generateMetadata({
   params,
@@ -13,18 +14,21 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  const { t } = await getI18n();
   const db = await getDb();
   const region = await getRegionBySlug(db, slug);
-  if (!region) return { title: "Region not found" };
-  return {
-    title: `${region.name} eSIM plans`,
-    description: region.description,
-    alternates: { canonical: canonicalUrl(`/regions/${region.slug}`) },
-  };
+  if (!region) return { title: t("regions.notFound") };
+  return localizedMetadata({
+    path: `/regions/${region.slug}`,
+    title: t("regions.metaRegionTitle", { region: region.name }),
+    description:
+      region.description || t("regions.metaRegionDescription", { region: region.name }),
+  });
 }
 
 export default async function RegionPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  const { t, href } = await getI18n();
   const db = await getDb();
   const region = await getRegionBySlug(db, slug);
   if (!region) notFound();
@@ -38,19 +42,23 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
       <nav aria-label="Breadcrumb">
         <ol className="breadcrumbs">
           <li>
-            <Link href="/destinations">Destinations</Link>
+            <Link href={href("/destinations")}>{t("regions.breadcrumbDestinations")}</Link>
           </li>
           <li aria-current="page">{region.name}</li>
         </ol>
       </nav>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Region</p>
-          <h1>{region.name} eSIM plans</h1>
+          <p className="eyebrow">{t("regions.regionEyebrow")}</p>
+          <h1>{t("regions.metaRegionTitle", { region: region.name })}</h1>
           <p className="lead">{region.description}</p>
           <div className="pill-row">
-            <span className="badge badge-neutral">{destinations.length} destinations</span>
-            <span className="badge badge-neutral">{plans.length} plans</span>
+            <span className="badge badge-neutral">
+              {t("home.explorer.destinationsCount", { count: destinations.length })}
+            </span>
+            <span className="badge badge-neutral">
+              {t("common.plans")}: {plans.length}
+            </span>
           </div>
         </div>
       </div>
@@ -58,8 +66,8 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
       <section className="section" aria-labelledby="region-destinations">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Destinations</p>
-            <h2 id="region-destinations">Choose a country</h2>
+            <p className="eyebrow">{t("nav.countries")}</p>
+            <h2 id="region-destinations">{t("regions.chooseCountry")}</h2>
           </div>
         </div>
         <div className="grid grid-4">
@@ -72,11 +80,11 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
       <section className="section" aria-labelledby="region-plans">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Plans</p>
-            <h2 id="region-plans">Plans across {region.name}</h2>
+            <p className="eyebrow">{t("regions.plansEyebrow")}</p>
+            <h2 id="region-plans">{t("regions.plansAcross", { region: region.name })}</h2>
           </div>
-          <Link className="button button-ghost" href={`/plans?region=${region.slug}`}>
-            See all region plans
+          <Link className="button button-ghost" href={href(`/plans?region=${region.slug}`)}>
+            {t("regions.seeAllPlans")}
           </Link>
         </div>
         <div className="grid grid-3">

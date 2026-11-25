@@ -6,6 +6,8 @@ import { getDb } from "@/lib/db/client";
 import { getPublishedArticleBySlug, getRelatedArticles } from "@/lib/blog";
 import { loadSeoSettings, buildArticleJsonLd, buildBreadcrumbJsonLd } from "@/lib/seo";
 import { siteUrl } from "@/lib/config";
+import { getI18n } from "@/lib/i18n/server";
+import { localeIntl } from "@/lib/i18n/config";
 
 export const dynamic = "force-dynamic";
 
@@ -59,20 +61,12 @@ function parseRobots(value: string) {
   };
 }
 
-function formatDate(date: Date | null): string {
-  if (!date) return "";
-  return new Intl.DateTimeFormat("en", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(date);
-}
-
 export default async function BlogArticlePage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  const { t, href, locale } = await getI18n();
   const { slug } = await params;
   const db = await getDb();
   const [article, settings] = await Promise.all([
@@ -81,6 +75,14 @@ export default async function BlogArticlePage({
   ]);
   if (!article) notFound();
   const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const formatDate = (date: Date | null): string => {
+    if (!date) return "";
+    return new Intl.DateTimeFormat(localeIntl(locale), {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(date);
+  };
 
   const related = await getRelatedArticles(db, article.id, article.categoryId, 3);
   const canonical = article.canonicalUrl || absoluteUrl(`/blog/${article.slug}`);
@@ -94,8 +96,8 @@ export default async function BlogArticlePage({
     authorName: article.authorName ?? undefined,
   });
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([
-    { name: "Home", url: siteUrl },
-    { name: "Blog", url: absoluteUrl("/blog") },
+    { name: t("nav.home"), url: siteUrl },
+    { name: t("blog.metaTitle"), url: absoluteUrl("/blog") },
     ...(article.categoryName && article.categorySlug
       ? [{ name: article.categoryName, url: absoluteUrl(`/blog/category/${article.categorySlug}`) }]
       : []),
@@ -116,18 +118,24 @@ export default async function BlogArticlePage({
       />
 
       <nav aria-label="Breadcrumb" className="breadcrumbs">
-        <Link href="/">Home</Link>
+        <Link href={href("/")}>{t("nav.home")}</Link>
         <span aria-hidden="true">/</span>
-        <Link href="/blog">Blog</Link>
+        <Link href={href("/blog")}>{t("blog.metaTitle")}</Link>
         {article.categoryName && article.categorySlug ? (
           <>
             <span aria-hidden="true">/</span>
-            <Link href={`/blog/category/${article.categorySlug}`}>{article.categoryName}</Link>
+            <Link href={href(`/blog/category/${article.categorySlug}`)}>{article.categoryName}</Link>
           </>
         ) : null}
         <span aria-hidden="true">/</span>
         <span aria-current="page">{article.title}</span>
       </nav>
+
+      {locale !== "en" ? (
+        <div className="callout section-tight">
+          <p>{t("blog.contentNotice")}</p>
+        </div>
+      ) : null}
 
       <article className="blog-article">
         <header className="blog-article-header">
@@ -135,12 +143,20 @@ export default async function BlogArticlePage({
           <h1>{article.title}</h1>
           {article.excerpt ? <p className="es-page-lead">{article.excerpt}</p> : null}
           <p className="small muted">
-            {article.authorName ? <>By {article.authorName} · </> : null}
+            {article.authorName ? <>{t("blog.by", { author: article.authorName })} · </> : null}
             {article.publishedAt ? (
-              <time dateTime={article.publishedAt.toISOString()}>{formatDate(article.publishedAt)}</time>
+              <time dateTime={article.publishedAt.toISOString()}>
+                {formatDate(article.publishedAt)}
+              </time>
             ) : null}
             {article.updatedAt.getTime() - (article.publishedAt?.getTime() ?? 0) > 86_400_000 ? (
-              <> · Updated <time dateTime={article.updatedAt.toISOString()}>{formatDate(article.updatedAt)}</time></>
+              <>
+                {" "}
+                · {t("blog.updated")}{" "}
+                <time dateTime={article.updatedAt.toISOString()}>
+                  {formatDate(article.updatedAt)}
+                </time>
+              </>
             ) : null}
           </p>
         </header>
@@ -156,15 +172,17 @@ export default async function BlogArticlePage({
 
         <div
           className="blog-article-body"
+          lang="en"
+          dir="ltr"
           dangerouslySetInnerHTML={{ __html: article.bodyHtml }}
         />
 
         {article.tags.length > 0 ? (
           <footer className="blog-article-tags">
-            <p className="es-eyebrow">Tags</p>
+            <p className="es-eyebrow">{t("blog.tags")}</p>
             <div className="chip-row">
               {article.tags.map((tag) => (
-                <Link key={tag.id} className="chip" href={`/blog/tag/${tag.slug}`}>
+                <Link key={tag.id} className="chip" href={href(`/blog/tag/${tag.slug}`)}>
                   {tag.name}
                 </Link>
               ))}
@@ -173,7 +191,7 @@ export default async function BlogArticlePage({
         ) : null}
 
         <section className="card section-tight" aria-labelledby="share-heading">
-          <h2 id="share-heading">Share this article</h2>
+          <h2 id="share-heading">{t("blog.shareTitle")}</h2>
           <div className="row gap-8">
             <a
               className="chip"
@@ -181,7 +199,7 @@ export default async function BlogArticlePage({
               target="_blank"
               rel="noopener noreferrer"
             >
-              Share on X
+              {t("blog.shareX")}
             </a>
             <a
               className="chip"
@@ -189,13 +207,13 @@ export default async function BlogArticlePage({
               target="_blank"
               rel="noopener noreferrer"
             >
-              Share on LinkedIn
+              {t("blog.shareLinkedIn")}
             </a>
             <a
               className="chip"
               href={`mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(canonical)}`}
             >
-              Share by email
+              {t("blog.shareEmail")}
             </a>
           </div>
         </section>
@@ -204,8 +222,8 @@ export default async function BlogArticlePage({
       {related.length > 0 ? (
         <section className="es-page-section" aria-labelledby="related-heading">
           <div className="es-page-section-head">
-            <p className="es-eyebrow">Keep reading</p>
-            <h2 id="related-heading">Related articles</h2>
+            <p className="es-eyebrow">{t("blog.keepReading")}</p>
+            <h2 id="related-heading">{t("blog.related")}</h2>
           </div>
           <div className="es-page-grid es-page-grid-3">
             {related.map((item) => (
@@ -219,7 +237,11 @@ export default async function BlogArticlePage({
                   />
                 ) : null}
                 <div className="blog-card-body">
-                  <h3><Link className="link" href={`/blog/${item.slug}`}>{item.title}</Link></h3>
+                  <h3>
+                    <Link className="link" href={href(`/blog/${item.slug}`)}>
+                      {item.title}
+                    </Link>
+                  </h3>
                   <p>{item.excerpt}</p>
                 </div>
               </article>

@@ -3,6 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { getCategoryBySlug, listPublishedArticles } from "@/lib/blog";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
+import { localeIntl } from "@/lib/i18n/config";
 
 export const dynamic = "force-dynamic";
 
@@ -11,25 +14,23 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
+  const { t } = await getI18n();
   const { slug } = await params;
   const db = await getDb();
   const category = await getCategoryBySlug(db, slug);
-  if (!category) return { title: "Category not found", robots: { index: false, follow: false } };
-  return {
-    title: `${category.name} articles`,
-    description: category.description || `Browse ${category.name} articles from Esimprove.`,
-    alternates: { canonical: `/blog/category/${category.slug}` },
-    openGraph: {
-      title: `${category.name} articles · Esimprove`,
-      description: category.description || `Browse ${category.name} articles from Esimprove.`,
-      type: "website",
-    },
-  };
-}
-
-function formatDate(date: Date | null): string {
-  if (!date) return "";
-  return new Intl.DateTimeFormat("en", { year: "numeric", month: "long", day: "numeric" }).format(date);
+  if (!category) {
+    return localizedMetadata({
+      path: `/blog/category/${slug}`,
+      title: t("blog.categoryNotFound"),
+      robots: { index: false, follow: false },
+    });
+  }
+  return localizedMetadata({
+    path: `/blog/category/${category.slug}`,
+    title: t("blog.categoryArticles", { category: category.name }),
+    description:
+      category.description || t("blog.browseCategory", { category: category.name }),
+  });
 }
 
 export default async function BlogCategoryPage({
@@ -39,6 +40,7 @@ export default async function BlogCategoryPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const { t, href, locale } = await getI18n();
   const { slug } = await params;
   const query = await searchParams;
   const page = Math.max(1, Number(typeof query.page === "string" ? query.page : "1") || 1);
@@ -50,26 +52,40 @@ export default async function BlogCategoryPage({
     pageSize: 9,
     categorySlug: slug,
   });
+  const formatDate = (date: Date | null): string => {
+    if (!date) return "";
+    return new Intl.DateTimeFormat(localeIntl(locale), {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(date);
+  };
 
   return (
     <div className="es-page">
       <nav aria-label="Breadcrumb" className="breadcrumbs">
-        <Link href="/">Home</Link>
+        <Link href={href("/")}>{t("nav.home")}</Link>
         <span aria-hidden="true">/</span>
-        <Link href="/blog">Blog</Link>
+        <Link href={href("/blog")}>{t("blog.metaTitle")}</Link>
         <span aria-hidden="true">/</span>
         <span aria-current="page">{category.name}</span>
       </nav>
 
       <section className="es-page-hero">
-        <p className="es-eyebrow">Category</p>
+        <p className="es-eyebrow">{t("blog.categoryEyebrow")}</p>
         <h1>{category.name}</h1>
         {category.description ? <p className="es-page-lead">{category.description}</p> : null}
       </section>
 
+      {locale !== "en" ? (
+        <div className="callout section-tight">
+          <p>{t("blog.contentNotice")}</p>
+        </div>
+      ) : null}
+
       {total === 0 ? (
         <section className="card section-tight">
-          <p className="muted">No published articles in this category yet.</p>
+          <p className="muted">{t("blog.noCategoryArticles")}</p>
         </section>
       ) : (
         <section className="es-page-section">
@@ -85,18 +101,40 @@ export default async function BlogCategoryPage({
                   />
                 ) : null}
                 <div className="blog-card-body">
-                  <h3><Link className="link" href={`/blog/${article.slug}`}>{article.title}</Link></h3>
+                  <h3>
+                    <Link className="link" href={href(`/blog/${article.slug}`)}>
+                      {article.title}
+                    </Link>
+                  </h3>
                   <p>{article.excerpt}</p>
-                  <p className="small muted"><time dateTime={article.publishedAt?.toISOString()}>{formatDate(article.publishedAt)}</time></p>
+                  <p className="small muted">
+                    <time dateTime={article.publishedAt?.toISOString()}>
+                      {formatDate(article.publishedAt)}
+                    </time>
+                  </p>
                 </div>
               </article>
             ))}
           </div>
           {pageCount > 1 ? (
-            <nav className="pagination" aria-label="Category pages">
-              {page > 1 ? <Link className="page-link" href={`/blog/category/${slug}?page=${page - 1}`}>← Previous</Link> : null}
-              <span className="small muted">Page {page} of {pageCount}</span>
-              {page < pageCount ? <Link className="page-link" href={`/blog/category/${slug}?page=${page + 1}`}>Next →</Link> : null}
+            <nav className="pagination" aria-label={t("blog.categoryPagesAria")}>
+              {page > 1 ? (
+                <Link
+                  className="page-link"
+                  href={href(`/blog/category/${slug}?page=${page - 1}`)}
+                >
+                  {t("blog.previous")}
+                </Link>
+              ) : null}
+              <span className="small muted">{t("blog.pageOf", { page, pageCount })}</span>
+              {page < pageCount ? (
+                <Link
+                  className="page-link"
+                  href={href(`/blog/category/${slug}?page=${page + 1}`)}
+                >
+                  {t("blog.next")}
+                </Link>
+              ) : null}
             </nav>
           ) : null}
         </section>

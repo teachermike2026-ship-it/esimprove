@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getDb } from "@/lib/db/client";
 import { listPublishedArticles, listCategoriesWithCounts } from "@/lib/blog";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
+import { localeIntl } from "@/lib/i18n/config";
 
 export const dynamic = "force-dynamic";
 
@@ -12,37 +15,15 @@ export async function generateMetadata({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
+  const { t } = await getI18n();
   const params = await searchParams;
   const page = Math.max(1, Number(typeof params.page === "string" ? params.page : "1") || 1);
-  const title = page > 1 ? `Blog — page ${page}` : "Blog";
-  return {
+  const title = page > 1 ? `${t("blog.metaTitle")} — ${page}` : t("blog.metaTitle");
+  return localizedMetadata({
+    path: page > 1 ? `/blog?page=${page}` : "/blog",
     title,
-    description:
-      "Guides, destination tips, and practical travel connectivity advice from Esimprove.",
-    alternates: { canonical: page > 1 ? `/blog?page=${page}` : "/blog" },
-    openGraph: {
-      title: `${title} · Esimprove`,
-      description:
-        "Guides, destination tips, and practical travel connectivity advice from Esimprove.",
-      type: "website",
-      url: page > 1 ? `/blog?page=${page}` : "/blog",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${title} · Esimprove`,
-      description:
-        "Guides, destination tips, and practical travel connectivity advice from Esimprove.",
-    },
-  };
-}
-
-function formatDate(date: Date | null): string {
-  if (!date) return "Unpublished";
-  return new Intl.DateTimeFormat("en", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(date);
+    description: t("blog.metaDescription"),
+  });
 }
 
 export default async function BlogIndexPage({
@@ -50,6 +31,7 @@ export default async function BlogIndexPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const { t, href, locale } = await getI18n();
   const params = await searchParams;
   const page = Math.max(1, Number(typeof params.page === "string" ? params.page : "1") || 1);
   const db = await getDb();
@@ -57,6 +39,14 @@ export default async function BlogIndexPage({
     listPublishedArticles(db, { page, pageSize: PAGE_SIZE }),
     listCategoriesWithCounts(db),
   ]);
+  const formatDate = (date: Date | null): string => {
+    if (!date) return t("blog.unpublished");
+    return new Intl.DateTimeFormat(localeIntl(locale), {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(date);
+  };
 
   const featured = page === 1 ? articles[0] : undefined;
   const rest = page === 1 ? articles.slice(1) : articles;
@@ -64,22 +54,31 @@ export default async function BlogIndexPage({
   return (
     <div className="es-page">
       <section className="es-page-hero">
-        <p className="es-eyebrow">Esimprove journal</p>
+        <p className="es-eyebrow">{t("blog.journalEyebrow")}</p>
         <h1>
-          Travel smarter. <span className="es-green">Stay connected.</span>
+          {t("blog.heroTitle")} <span className="es-green">{t("blog.heroAccent")}</span>
         </h1>
-        <p className="es-page-lead">
-          Practical guides, destination notes, and honest advice for getting online wherever
-          you land.
-        </p>
+        <p className="es-page-lead">{t("blog.heroLead")}</p>
       </section>
 
+      {locale !== "en" ? (
+        <div className="callout section-tight">
+          <p>{t("blog.contentNotice")}</p>
+        </div>
+      ) : null}
+
       {categories.length > 0 ? (
-        <nav className="es-page-section" aria-label="Blog categories">
+        <nav className="es-page-section" aria-label={t("blog.categoriesAria")}>
           <div className="chip-row">
-            <Link href="/blog" className="chip chip-active">All articles</Link>
+            <Link href={href("/blog")} className="chip chip-active">
+              {t("blog.allArticles")}
+            </Link>
             {categories.map((category) => (
-              <Link key={category.id} href={`/blog/category/${category.slug}`} className="chip">
+              <Link
+                key={category.id}
+                href={href(`/blog/category/${category.slug}`)}
+                className="chip"
+              >
                 {category.name} ({category.articleCount})
               </Link>
             ))}
@@ -90,18 +89,17 @@ export default async function BlogIndexPage({
       {total === 0 ? (
         <section className="es-page-section">
           <div className="es-static-card">
-            <h2>No articles published yet</h2>
-            <p className="muted">
-              Articles will appear here once an administrator publishes them. Drafts and
-              scheduled posts are never shown publicly.
-            </p>
+            <h2>{t("blog.emptyTitle")}</h2>
+            <p className="muted">{t("blog.emptyBody")}</p>
           </div>
         </section>
       ) : (
         <>
           {featured ? (
             <section className="es-page-section" aria-labelledby="featured-heading">
-              <h2 id="featured-heading" className="visually-hidden">Featured article</h2>
+              <h2 id="featured-heading" className="visually-hidden">
+                {t("blog.featured")}
+              </h2>
               <article className="es-static-card blog-featured">
                 {featured.featuredImage ? (
                   <img
@@ -116,15 +114,19 @@ export default async function BlogIndexPage({
                     <p className="es-eyebrow">{featured.categoryName}</p>
                   ) : null}
                   <h2>
-                    <Link className="link" href={`/blog/${featured.slug}`}>{featured.title}</Link>
+                    <Link className="link" href={href(`/blog/${featured.slug}`)}>
+                      {featured.title}
+                    </Link>
                   </h2>
                   <p>{featured.excerpt}</p>
                   <p className="small muted">
                     {featured.authorName ? `${featured.authorName} · ` : ""}
-                    <time dateTime={featured.publishedAt?.toISOString()}>{formatDate(featured.publishedAt)}</time>
+                    <time dateTime={featured.publishedAt?.toISOString()}>
+                      {formatDate(featured.publishedAt)}
+                    </time>
                   </p>
-                  <Link className="es-button es-button-primary" href={`/blog/${featured.slug}`}>
-                    Read article
+                  <Link className="es-button es-button-primary" href={href(`/blog/${featured.slug}`)}>
+                    {t("blog.readArticle")}
                   </Link>
                 </div>
               </article>
@@ -133,8 +135,8 @@ export default async function BlogIndexPage({
 
           <section className="es-page-section" aria-labelledby="articles-heading">
             <div className="es-page-section-head">
-              <p className="es-eyebrow">Latest</p>
-              <h2 id="articles-heading">All articles</h2>
+              <p className="es-eyebrow">{t("blog.latest")}</p>
+              <h2 id="articles-heading">{t("blog.allArticles")}</h2>
             </div>
             <div className="es-page-grid es-page-grid-3">
               {rest.map((article) => (
@@ -154,11 +156,15 @@ export default async function BlogIndexPage({
                       <p className="es-eyebrow">{article.categoryName}</p>
                     ) : null}
                     <h3>
-                      <Link className="link" href={`/blog/${article.slug}`}>{article.title}</Link>
+                      <Link className="link" href={href(`/blog/${article.slug}`)}>
+                        {article.title}
+                      </Link>
                     </h3>
                     <p>{article.excerpt}</p>
                     <p className="small muted">
-                      <time dateTime={article.publishedAt?.toISOString()}>{formatDate(article.publishedAt)}</time>
+                      <time dateTime={article.publishedAt?.toISOString()}>
+                        {formatDate(article.publishedAt)}
+                      </time>
                     </p>
                   </div>
                 </article>
@@ -166,16 +172,22 @@ export default async function BlogIndexPage({
             </div>
 
             {pageCount > 1 ? (
-              <nav className="pagination" aria-label="Blog pages">
+              <nav className="pagination" aria-label={t("blog.pagesAria")}>
                 {page > 1 ? (
-                  <Link className="page-link" href={page === 2 ? "/blog" : `/blog?page=${page - 1}`} rel="prev">
-                    ← Previous
+                  <Link
+                    className="page-link"
+                    href={href(page === 2 ? "/blog" : `/blog?page=${page - 1}`)}
+                    rel="prev"
+                  >
+                    {t("blog.previous")}
                   </Link>
                 ) : null}
-                <span className="small muted">Page {page} of {pageCount}</span>
+                <span className="small muted">
+                  {t("blog.pageOf", { page, pageCount })}
+                </span>
                 {page < pageCount ? (
-                  <Link className="page-link" href={`/blog?page=${page + 1}`} rel="next">
-                    Next →
+                  <Link className="page-link" href={href(`/blog?page=${page + 1}`)} rel="next">
+                    {t("blog.next")}
                   </Link>
                 ) : null}
               </nav>

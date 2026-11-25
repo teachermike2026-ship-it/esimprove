@@ -5,11 +5,17 @@ import { TwoFactorForm } from "@/components/auth-forms";
 import { isAdminRole } from "@/lib/auth/roles";
 import { safeNextPath } from "@/lib/validation";
 import { LockIcon } from "@/components/icons";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Two-factor verification",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/login/2fa",
+    title: t("auth.metaTwoFactor"),
+    robots: { index: false, follow: false },
+  });
+}
 
 export default async function TwoFactorPage({
   searchParams,
@@ -17,6 +23,7 @@ export default async function TwoFactorPage({
   searchParams: Promise<{ next?: string }>;
 }) {
   const { next } = await searchParams;
+  const { t } = await getI18n();
   const session = await getCurrentSession();
   if (!session) redirect(`/login?next=${encodeURIComponent(safeNextPath(next, "/admin"))}`);
   if (!session.pendingTwoFactor) {
@@ -27,17 +34,12 @@ export default async function TwoFactorPage({
   return (
     <div className="auth-layout auth-layout-narrow">
       <section className="auth-copy">
-        <p className="eyebrow">Two-factor verification</p>
-        <h1>Enter your authenticator code</h1>
-        <p className="lead">
-          The password step succeeded. Admin access requires a current 6-digit TOTP code.
-        </p>
+        <p className="eyebrow">{t("auth.twoFactorTitle")}</p>
+        <h1>{t("auth.twoFactorHeading")}</h1>
+        <p className="lead">{t("auth.twoFactorPasswordStep")}</p>
         <div className="callout">
           <LockIcon className="inline-icon" />
-          <p>
-            Pending sessions expire after 10 minutes. After verification, this admin session
-            expires according to <code>ADMIN_SESSION_TTL_MINUTES</code>.
-          </p>
+          <p>{t("auth.twoFactorExpiry")}</p>
         </div>
       </section>
       <section className="auth-form">

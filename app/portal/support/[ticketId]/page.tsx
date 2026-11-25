@@ -4,29 +4,29 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { getOrderById } from "@/lib/orders";
-import {
-  getSupportTicketForUser,
-  SUPPORT_CATEGORY_LABELS,
-  SUPPORT_PRIORITY_LABELS,
-  SUPPORT_STATUS_LABELS,
-  type SupportCategory,
-  type SupportPriority,
-  type SupportStatus,
-} from "@/lib/support";
+import { getSupportTicketForUser, type SupportCategory } from "@/lib/support";
 import { formatDate } from "@/lib/money";
 import { StatusBadge } from "@/components/status-badge";
 import { ReplySupportTicketForm } from "@/components/support-forms";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
+import { supportCategoryLabel, supportPriorityLabel } from "@/lib/i18n/labels";
 
-export const metadata: Metadata = {
-  title: "Support ticket",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/portal/support",
+    title: t("support.ticketEyebrow"),
+    robots: { index: false, follow: false },
+  });
+}
 
 export default async function PortalSupportTicketPage({
   params,
 }: {
   params: Promise<{ ticketId: string }>;
 }) {
+  const { t, href } = await getI18n();
   const { ticketId } = await params;
   const user = await requireUser(`/portal/support/${ticketId}`);
   const db = await getDb();
@@ -39,43 +39,47 @@ export default async function PortalSupportTicketPage({
       <nav aria-label="Breadcrumb">
         <ol className="breadcrumbs">
           <li>
-            <Link href="/portal">Portal</Link>
+            <Link href={href("/portal")}>{t("profile.breadcrumbPortal")}</Link>
           </li>
           <li>
-            <Link href="/portal/support">Support</Link>
+            <Link href={href("/portal/support")}>{t("support.metaTitle")}</Link>
           </li>
           <li aria-current="page">{ticket.id}</li>
         </ol>
       </nav>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Support ticket</p>
+          <p className="eyebrow">{t("support.ticketEyebrow")}</p>
           <h1>{ticket.subject}</h1>
           <p className="muted">
-            {SUPPORT_CATEGORY_LABELS[ticket.category as SupportCategory] ?? ticket.category} ·{" "}
-            {SUPPORT_PRIORITY_LABELS[ticket.priority as SupportPriority] ?? ticket.priority} priority
+            {supportCategoryLabel(t, ticket.category as SupportCategory)} ·{" "}
+            {t("support.priorityLabel", {
+              priority: supportPriorityLabel(t, ticket.priority),
+            })}
             {order ? (
               <>
-                {" "}· Order{" "}
-                <Link href={`/portal/orders/${order.orderNumber}`}>{order.orderNumber}</Link>
+                {" "}
+                · {t("payment.order")}{" "}
+                <Link href={href(`/portal/orders/${order.orderNumber}`)}>
+                  {order.orderNumber}
+                </Link>
               </>
             ) : null}
           </p>
         </div>
-        <StatusBadge
-          status={ticket.status}
-          label={SUPPORT_STATUS_LABELS[ticket.status as SupportStatus] ?? ticket.status}
-        />
+        <StatusBadge status={ticket.status} />
       </div>
 
       <section className="card form" aria-labelledby="support-conversation-title">
-        <h2 id="support-conversation-title">Conversation</h2>
+        <h2 id="support-conversation-title">{t("support.conversations")}</h2>
         <ol className="timeline">
           {ticket.messages.map((message) => (
             <li key={message.id} className="timeline-item">
               <span className="timeline-dot" aria-hidden="true" />
               <div>
-                <strong>{message.authorType === "staff" ? "Support team" : "You"}</strong>
+                <strong>
+                  {message.authorType === "staff" ? t("support.supportTeam") : t("support.you")}
+                </strong>
                 <p>{message.body}</p>
                 <span className="small muted">{formatDate(message.createdAt)}</span>
               </div>
@@ -86,9 +90,7 @@ export default async function PortalSupportTicketPage({
 
       {ticket.status === "closed" ? (
         <div className="callout callout-warning section-tight">
-          <p>
-            This ticket is closed. Open a new ticket if you need help with a new request.
-          </p>
+          <p>{t("support.ticketClosed")}</p>
         </div>
       ) : (
         <div className="section-tight">
@@ -97,8 +99,8 @@ export default async function PortalSupportTicketPage({
       )}
 
       <div className="hero-actions section-tight">
-        <Link className="button button-secondary" href="/portal/support">
-          All conversations
+        <Link className="button button-secondary" href={href("/portal/support")}>
+          {t("support.allConversations")}
         </Link>
       </div>
     </>

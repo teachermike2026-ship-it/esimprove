@@ -2,81 +2,84 @@ import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
 import { CookieSettingsButton } from "@/components/analytics-tracker";
 import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
+import { getI18n } from "@/lib/i18n/server";
+import { localeDescriptors } from "@/lib/i18n/config";
 
-const footerGroups = [
-  {
-    title: "Company",
-    links: [
-      { href: "/about", label: "About Esimprove" },
-      { href: "/contact", label: "Contact" },
-      { href: "/about#how-it-works", label: "How it works" },
-    ],
-  },
-  {
-    title: "Destinations",
-    links: [
-      { href: "/destinations", label: "Countries" },
-      { href: "/regions", label: "Regional plans" },
-      { href: "/plans", label: "All plans" },
-      { href: "/compatibility", label: "Compatibility" },
-    ],
-  },
-  {
-    title: "Help",
-    links: [
-      { href: "/guides", label: "Help centre" },
-      { href: "/guides", label: "Installation guide" },
-      { href: "/compatibility", label: "Device compatibility" },
-      { href: "/#faq", label: "FAQs" },
-    ],
-  },
-  {
-    title: "Legal",
-    links: [
-      { href: "/legal/terms", label: "Terms of service" },
-      { href: "/legal/privacy", label: "Privacy policy" },
-      { href: "/legal/refunds", label: "Refunds & cancellation" },
-      { href: "/legal/cookies", label: "Cookie policy" },
-      { href: "/legal/accessibility", label: "Accessibility" },
-      { href: "/privacy/request", label: "Privacy request" },
-      { href: "/contact", label: "Contact & support" },
-    ],
-  },
-  {
-    title: "Account",
-    links: [
-      { href: "/login", label: "Sign in" },
-      { href: "/register", label: "Create account" },
-      { href: "/portal", label: "My eSIMs" },
-      { href: "/portal", label: "My orders" },
-    ],
-  },
-];
-
-export function SiteFooter() {
+export async function SiteFooter() {
+  const { t, href, dir, locale } = await getI18n();
   const year = new Date().getUTCFullYear();
+  const descriptor = localeDescriptors[locale];
+
+  const footerGroups = [
+    {
+      titleKey: "footer.company",
+      links: [
+        { href: "/about", labelKey: "footer.about" },
+        { href: "/contact", labelKey: "footer.contact" },
+        { href: "/about#how-it-works", labelKey: "footer.howItWorks" },
+      ],
+    },
+    {
+      titleKey: "footer.destinations",
+      links: [
+        { href: "/destinations", labelKey: "footer.countries" },
+        { href: "/regions", labelKey: "footer.regionalPlans" },
+        { href: "/plans", labelKey: "footer.allPlans" },
+        { href: "/compatibility", labelKey: "footer.compatibility" },
+      ],
+    },
+    {
+      titleKey: "footer.help",
+      links: [
+        { href: "/guides", labelKey: "footer.helpCentre" },
+        { href: "/guides", labelKey: "footer.installationGuide" },
+        { href: "/compatibility", labelKey: "footer.deviceCompatibility" },
+        { href: "/#faq", labelKey: "footer.faq" },
+      ],
+    },
+    {
+      titleKey: "footer.legal",
+      links: [
+        { href: "/legal/terms", labelKey: "footer.terms" },
+        { href: "/legal/privacy", labelKey: "footer.privacy" },
+        { href: "/legal/refunds", labelKey: "footer.refunds" },
+        { href: "/legal/cookies", labelKey: "footer.cookies" },
+        { href: "/legal/accessibility", labelKey: "footer.accessibility" },
+        { href: "/privacy/request", labelKey: "footer.privacyRequest" },
+        { href: "/contact", labelKey: "footer.contactSupport" },
+      ],
+    },
+    {
+      titleKey: "footer.account",
+      links: [
+        { href: "/login", labelKey: "footer.signIn" },
+        { href: "/register", labelKey: "footer.createAccount" },
+        { href: "/portal", labelKey: "footer.myEsims" },
+        { href: "/portal", labelKey: "footer.myOrders" },
+      ],
+    },
+  ] as const;
 
   return (
-    <footer className="es-footer">
+    <footer className="es-footer" dir={dir}>
       <div className="es-shell">
         <div className="es-footer-top">
           <div className="es-footer-brand">
-            <BrandMark />
-            <p>
-              Travel eSIM plans with clear data, validity, and pricing. Browse the
-              catalogue, compare plans, and follow the complete customer journey.
-            </p>
-            <span className="es-footer-badge">English (EN)</span>
+            <BrandMark href={href("/")} ariaLabel={t("nav.home")} />
+            <p>{t("footer.description")}</p>
+            <span className="es-footer-badge" lang={descriptor.code} dir="ltr">
+              {descriptor.nativeName} ({descriptor.shortLabel})
+            </span>
           </div>
 
-          <nav className="es-footer-nav" aria-label="Footer navigation">
+          <nav className="es-footer-nav" aria-label={t("footer.footerNav")}>
             {footerGroups.map((group) => (
-              <div key={group.title} className="es-footer-group">
-                <h2>{group.title}</h2>
+              <div key={group.titleKey} className="es-footer-group">
+                <h2>{t(group.titleKey)}</h2>
                 <ul>
                   {group.links.map((link) => (
-                    <li key={`${group.title}-${link.label}`}>
-                      <Link href={link.href}>{link.label}</Link>
+                    <li key={`${group.titleKey}-${link.labelKey}`}>
+                      <Link href={href(link.href)}>{t(link.labelKey)}</Link>
                     </li>
                   ))}
                 </ul>
@@ -87,20 +90,19 @@ export function SiteFooter() {
 
         <div className="es-footer-bottom">
           <div className="es-footer-legal">
-            <p>
-              © {year} ESIMPROVE. Online digital services platform · Vietnam. ESIMPROVE is an
-              online platform and brand, not a registered company; no registration number or VAT
-              number is held or claimed.
-            </p>
+            <p>{t("footer.legalText", { year: String(year) })}</p>
             <p className="small">
-              Contact: <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>
+              {t("footer.contactLabel")}{" "}
+              <a href={`mailto:${LEGAL_CONTACT_EMAIL}`} dir="ltr">
+                {LEGAL_CONTACT_EMAIL}
+              </a>
             </p>
           </div>
           <div className="es-footer-bottom-links">
             <CookieSettingsButton className="es-footer-link-button" />
-            <Link href="/privacy/request">Privacy request</Link>
-            <Link href="/legal/accessibility">Accessibility</Link>
-            <Link href="/api/health">System status</Link>
+            <Link href={href("/privacy/request")}>{t("footer.privacyRequest")}</Link>
+            <Link href={href("/legal/accessibility")}>{t("footer.accessibility")}</Link>
+            <Link href={href("/api/health")}>{t("common.systemStatus")}</Link>
           </div>
         </div>
       </div>

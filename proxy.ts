@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getConfigurationProblems, sessionCookieName } from "@/lib/config";
 import { buildContentSecurityPolicy, createSecurityNonce } from "@/lib/security-headers";
+import {
+  LOCALE_COOKIE,
+  LOCALE_COOKIE_MAX_AGE,
+  LOCALE_HEADER,
+  defaultLocale,
+  isLocale,
+  splitLocalePath,
+} from "@/lib/i18n/config";
 
 let loggedConfigurationFailure = false;
 
@@ -19,17 +27,22 @@ function withCsp<T extends NextResponse>(response: T, csp: string): T {
   return response;
 }
 
+function persistedLocaleCookie(value: string): string {
+  return `${LOCALE_COOKIE}=${value}; Path=/; Max-Age=${LOCALE_COOKIE_MAX_AGE}; SameSite=Lax`;
+}
+
 /**
  * Emits a fresh nonce for every application request. The nonce is passed both
  * on the request (so Next.js can attach it to framework scripts and server
  * components can read `x-nonce`) and on the response CSP header.
  */
-function nextWithNonce(request: NextRequest, nonce: string, csp: string): NextResponse {
-  const requestHeaders = new Headers(request.headers);
+function nextWithNonce(
+  request: NextRequest,
+  nonce: string,
+  csp: string,
+  requestHeaders: Headers,
+): NextResponse {
   requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("x-pathname", request.nextUrl.pathname);
-  // Next.js parses the nonce from this request header and applies it to its
-  // inline bootstrap, hydration, and flight scripts.
   requestHeaders.set("Content-Security-Policy", csp);
   return withCsp(NextResponse.next({ request: { headers: requestHeaders } }), csp);
 }
@@ -40,15 +53,19 @@ export async function proxy(request: NextRequest) {
   const csp = contentSecurityPolicy(nonce);
   const problems = getConfigurationProblems();
 
+  const { locale: prefixLocale, pathname: unlocalizedPath } = splitLocalePath(pathname);
+  const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value;
+  const activeLocale = prefixLocale ?? (isLocale(cookieLocale) ? cookieLocale : defaultLocale);
+
   // Fail closed on a misconfigured deployment before serving application
   // routes. /api/health stays reachable so the owner can see a safe, generic
   // 503 without the proxy exposing configuration details.
-  if (problems.length > 0 && pathname !== "/api/health") {
+  if (problems.length > 0 && unlocalizedPath !== "/api/health") {
     if (!loggedConfigurationFailure) {
       loggedConfigurationFailure = true;
       console.error("Deployment configuration check failed:", problems.join("; "));
     }
-    if (pathname.startsWith("/api/")) {
+    if (unlocalizedPath.startsWith("/api/")) {
       return withCsp(
         NextResponse.json(
           { error: "Service configuration error" },
@@ -75,18 +92,56 @@ export async function proxy(request: NextRequest) {
   // so without this check anonymous visitors receive a 200 from pages that will
   // ultimately force a client-side login redirect. Deeper role/permission
   // authorization stays with the admin layout, pages, and server actions.
-  const gated = pathname.startsWith("/admin") || pathname.startsWith("/portal");
+  const gated =
+    unlocalizedPath.startsWith("/admin") || unlocalizedPath.startsWith("/portal");
   if (gated) {
     const cookieName = sessionCookieName();
     const sessionCookie = request.cookies.get(cookieName);
     if (!sessionCookie) {
-      const redirectUrl = new URL("/login", request.url);
-      redirectUrl.searchParams.set("next", pathname + search);
-      return withCsp(NextResponse.redirect(redirectUrl, 307), csp);
+      const loginPath =
+        prefixLocale && prefixLocale !== defaultLocale ? `/${prefixLocale}/login` : "/login";
+      const redirectUrl = new URL(loginPath, request.url);
+      redirectUrl.searchParams.set(
+        "next",
+        prefixLocale === defaultLocale ? unlocalizedPath + search : pathname + search,
+      );
+      const response = withCsp(NextResponse.redirect(redirectUrl, 307), csp);
+      response.headers.set("Cache-Control", "no-store");
+      response.headers.append("Set-Cookie", persistedLocaleCookie(activeLocale));
+      return response;
     }
   }
 
-  return nextWithNonce(request, nonce, csp);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", unlocalizedPath);
+  requestHeaders.set(LOCALE_HEADER, activeLocale);
+
+  // `/en/*` is not a canonical URL: redirect it to the unprefixed English path.
+  if (prefixLocale === "en" && unlocalizedPath !== pathname) {
+    const redirectUrl = new URL(unlocalizedPath + search, request.url);
+    const response = withCsp(NextResponse.redirect(redirectUrl, 308), csp);
+    response.headers.set("Cache-Control", "no-store");
+    response.headers.append("Set-Cookie", persistedLocaleCookie("en"));
+    return response;
+  }
+
+  // Locale-prefixed URLs are rewritten to the existing unprefixed route files,
+  // so no page needs to move. The selected locale is passed to the server tree
+  // through a request header and persisted in a cookie for later navigation.
+  if (prefixLocale && prefixLocale !== defaultLocale) {
+    const rewriteUrl = new URL(unlocalizedPath + search, request.url);
+    requestHeaders.set("x-pathname", unlocalizedPath);
+    requestHeaders.set("x-nonce", nonce);
+    requestHeaders.set("Content-Security-Policy", csp);
+    const response = withCsp(
+      NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } }),
+      csp,
+    );
+    response.headers.append("Set-Cookie", persistedLocaleCookie(prefixLocale));
+    return response;
+  }
+
+  return nextWithNonce(request, nonce, csp, requestHeaders);
 }
 
 export const config = {

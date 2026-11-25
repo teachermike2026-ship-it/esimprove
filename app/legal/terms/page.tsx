@@ -7,19 +7,24 @@ import {
   SupportChannelNotice,
 } from "@/components/legal-document";
 import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Terms of service",
-  description:
-    "Terms of service covering accounts, eSIM compatibility, data plans, orders, payment, digital delivery, refunds, liability, and disputes for the ESIMPROVE platform.",
-  alternates: { canonical: "/legal/terms" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/legal/terms",
+    title: t("legal.terms"),
+    description: t("legal.termsDescription"),
+  });
+}
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const { t } = await getI18n();
   return (
     <div className="legal-page">
       <LegalDocumentHeader
-        title="Terms of service"
+        title={t("legal.terms")}
         intro="These terms govern use of the ESIMPROVE website and any account, order, or purchase made through it. They describe your rights and responsibilities, how orders and digital delivery work, and the rules that apply to the platform."
       />
 

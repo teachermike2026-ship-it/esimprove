@@ -7,6 +7,34 @@ GitHub remote change, commit, push, or live integration operation has occurred.
 **Secrets:** No connection string, password, token, key, or credential value appears in this
 report. Neon credentials were validated with true/false checks only.
 
+> **Addendum (2026-11-23, later same day) — this report is superseded as a status document.**
+> It remains accurate as the historical record of the initial audit, but several statements in
+> §§1, 9, and 11 below are now outdated. Since it was written:
+>
+> - Read-only Neon checks were performed on the pooled and direct endpoints: both connect as
+>   `neondb` / `neondb_owner` and TLS is enforced (plaintext rejected). At the time of the audit
+>   the database was empty (0 public tables, no `schema_migrations`). On 2026-11-23 the approved
+>   initial migration was applied once (9/9 migrations, 65 tables, no seed), and the first
+>   production administrator was created separately with verified 2FA.
+> - The Netlify site `esimprove-4eiz` was created under the new account. Deployment is paused
+>   because the free plan cannot store the required secret variables; no variables were uploaded
+>   and no deploy ran.
+> - The six required production secrets plus an optional health token were generated locally and
+>   placed only in `.env.netlify.production`, which is ignored by `.gitignore` and untracked.
+> - The real production preflight passed with that file, and typecheck, lint, tests
+>   (64 files / 546 tests), production build, `npm audit --omit=dev`, and the secret scan all passed.
+> - `new-origin` `main` already holds the published commit
+>   `6580a03f7c79a6936baa3ad2c35005452c2ab839`; the old `origin` is unchanged. Nothing was pushed
+>   in this phase.
+>
+> Current status, evidence, and the remaining approval gates live in:
+>
+> - `docs/PRODUCTION_READINESS_REPORT.md`
+> - `docs/NETLIFY_FIRST_DEPLOY_CHECKLIST.md`
+> - `docs/PRODUCTION_MIGRATION_RUNBOOK.md`
+>
+> Use those three documents, not this one, for deployment decisions.
+
 ---
 
 ## 1. Summary

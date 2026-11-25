@@ -8,19 +8,24 @@ import {
   SupportChannelNotice,
 } from "@/components/legal-document";
 import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Privacy policy",
-  description:
-    "How ESIMPROVE handles account, order, support, consent, analytics, and privacy-request data, and how you can exercise your privacy rights.",
-  alternates: { canonical: "/legal/privacy" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/legal/privacy",
+    title: t("legal.privacy"),
+    description: t("legal.privacyDescription"),
+  });
+}
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const { t } = await getI18n();
   return (
     <div className="legal-page">
       <LegalDocumentHeader
-        title="Privacy policy"
+        title={t("legal.privacy")}
         intro="This policy explains what personal information ESIMPROVE collects, why we collect it, how long we keep it, who processes it, and how you can exercise your privacy rights."
       />
 

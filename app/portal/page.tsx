@@ -7,13 +7,20 @@ import { formatMoney, formatDate } from "@/lib/money";
 import { StatusBadge } from "@/components/status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { ArrowRight, QrIcon, UserIcon } from "@/components/icons";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Customer portal",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/portal",
+    title: t("portal.metaTitle"),
+    robots: { index: false, follow: false },
+  });
+}
 
 export default async function PortalPage() {
+  const { t, href } = await getI18n();
   const user = await requireUser("/portal");
   const db = await getDb();
   const orders = await listOrdersForUser(db, user.id);
@@ -22,12 +29,9 @@ export default async function PortalPage() {
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Customer portal</p>
-          <h1>Welcome, {user.name}</h1>
-          <p className="muted">
-            Signed in as {user.email}. Orders and activation records linked to this
-            account appear here.
-          </p>
+          <p className="eyebrow">{t("portal.eyebrow")}</p>
+          <h1>{t("portal.welcome", { name: user.name })}</h1>
+          <p className="muted">{t("portal.signedInAs", { email: user.email })}</p>
         </div>
       </div>
 
@@ -35,24 +39,27 @@ export default async function PortalPage() {
         <section className="stack" aria-labelledby="portal-orders">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">History</p>
-              <h2 id="portal-orders">Your orders</h2>
+              <p className="eyebrow">{t("portal.history")}</p>
+              <h2 id="portal-orders">{t("portal.ordersTitle")}</h2>
             </div>
           </div>
           {orders.length === 0 ? (
-            <EmptyState title="No orders yet" action={{ href: "/plans", label: "Browse plans" }}>
-              Your orders and activation records will appear here once you place an order.
+            <EmptyState
+              title={t("portal.noOrdersTitle")}
+              action={{ href: href("/plans"), label: t("common.browsePlans") }}
+            >
+              {t("portal.noOrdersBody")}
             </EmptyState>
           ) : (
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th scope="col">Order</th>
-                    <th scope="col">Created</th>
-                    <th scope="col">Total</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Action</th>
+                    <th scope="col">{t("portal.tableOrder")}</th>
+                    <th scope="col">{t("portal.tableCreated")}</th>
+                    <th scope="col">{t("portal.tableTotal")}</th>
+                    <th scope="col">{t("portal.tableStatus")}</th>
+                    <th scope="col">{t("portal.tableAction")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -67,8 +74,11 @@ export default async function PortalPage() {
                         <StatusBadge status={order.fulfillmentStatus} />
                       </td>
                       <td>
-                        <Link className="button button-ghost button-small" href={`/portal/orders/${order.orderNumber}`}>
-                          Open <ArrowRight className="inline-icon" />
+                        <Link
+                          className="button button-ghost button-small"
+                          href={href(`/portal/orders/${order.orderNumber}`)}
+                        >
+                          {t("portal.openOrder")} <ArrowRight className="inline-icon" />
                         </Link>
                       </td>
                     </tr>
@@ -82,50 +92,49 @@ export default async function PortalPage() {
         <aside className="checkout-sidebar">
           <section className="card form">
             <h2>
-              <UserIcon className="inline-icon" /> Account
+              <UserIcon className="inline-icon" /> {t("portal.account")}
             </h2>
             <dl className="meta-list">
               <div>
-                <dt>Name</dt>
+                <dt>{t("portal.name")}</dt>
                 <dd>{user.name}</dd>
               </div>
               <div>
-                <dt>Email</dt>
+                <dt>{t("portal.email")}</dt>
                 <dd>{user.email}</dd>
               </div>
               <div>
-                <dt>Role</dt>
+                <dt>{t("portal.role")}</dt>
                 <dd>{user.role}</dd>
               </div>
               <div>
-                <dt>Verification</dt>
-                <dd>{user.emailVerifiedAt ? "Verified" : "Not verified"}</dd>
+                <dt>{t("portal.verification")}</dt>
+                <dd>{user.emailVerifiedAt ? t("portal.verified") : t("portal.notVerified")}</dd>
               </div>
             </dl>
             <div className="stack-sm">
-              <Link className="button button-secondary button-small" href="/portal/profile">
-                Profile and security
+              <Link
+                className="button button-secondary button-small"
+                href={href("/portal/profile")}
+              >
+                {t("portal.profileSecurity")}
               </Link>
-              <Link className="button button-ghost button-small" href="/portal/support">
-                Support conversations
+              <Link className="button button-ghost button-small" href={href("/portal/support")}>
+                {t("portal.supportConversations")}
               </Link>
-              <Link className="button button-ghost button-small" href="/legal/privacy">
-                Privacy and data
+              <Link className="button button-ghost button-small" href={href("/legal/privacy")}>
+                {t("portal.privacyData")}
               </Link>
             </div>
-            <p className="form-note">
-              Important account and order status is always shown here in your portal.
-            </p>
+            <p className="form-note">{t("portal.accountNote")}</p>
           </section>
           <section className="card form">
             <h2>
-              <QrIcon className="inline-icon" /> Need a plan?
+              <QrIcon className="inline-icon" /> {t("portal.needPlan")}
             </h2>
-            <p className="muted small">
-              Browse plans by destination and validity.
-            </p>
-            <Link className="button button-secondary" href="/plans">
-              Browse plans
+            <p className="muted small">{t("portal.needPlanBody")}</p>
+            <Link className="button button-secondary" href={href("/plans")}>
+              {t("portal.browsePlans")}
             </Link>
           </section>
         </aside>

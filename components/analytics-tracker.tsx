@@ -15,6 +15,7 @@ import {
 } from "@/lib/legal";
 import { browserPrivacySignalsBlockAnalytics } from "@/lib/privacy-signals";
 import { minimizedReferrer } from "@/lib/referrer";
+import { useI18n } from "@/components/i18n-provider";
 
 const CONSENT_ACTIONS = new Set<ConsentAction>([
   "accept_all",
@@ -268,6 +269,7 @@ async function sendEvents(
 }
 
 export function ConsentManager({ consentVersion }: { consentVersion: string }) {
+  const { t, href } = useI18n();
   const stored = useSyncExternalStore(subscribe, getConsentSnapshot, getServerSnapshot);
   const active = stored && consentIsCurrent(stored, consentVersion) ? stored : null;
   const dialogRef = useRef<HTMLDialogElement | null>(null);
@@ -363,21 +365,19 @@ export function ConsentManager({ consentVersion }: { consentVersion: string }) {
           aria-describedby="consent-banner-description"
         >
           <div className="consent-banner-copy">
-            <h2 id="consent-banner-title">Your privacy choices</h2>
+            <h2 id="consent-banner-title">{t("consent.title")}</h2>
             <p id="consent-banner-description">
-              We use essential storage to keep sign-in and security working. Optional
-              first-party analytics is off until you allow it. Google Analytics 4, where
-              enabled, only loads after analytics consent.{" "}
-              <a href="/legal/cookies">Cookie policy</a> ·{" "}
-              <a href="/legal/privacy">Privacy policy</a>
+              {t("consent.description")}{" "}
+              <a href={href("/legal/cookies")}>{t("consent.cookiePolicy")}</a> ·{" "}
+              <a href={href("/legal/privacy")}>{t("consent.privacyPolicy")}</a>
             </p>
           </div>
           <div className="consent-banner-actions">
             <button className="button" type="button" onClick={() => decide("reject_non_essential")}>
-              Reject non-essential
+              {t("consent.reject")}
             </button>
             <button className="button" type="button" onClick={() => decide("accept_all")}>
-              Accept all
+              {t("consent.accept")}
             </button>
             <button
               className="button button-ghost"
@@ -389,7 +389,7 @@ export function ConsentManager({ consentVersion }: { consentVersion: string }) {
                 if (!dialog.open) dialog.showModal();
               }}
             >
-              Customise
+              {t("consent.customize")}
             </button>
           </div>
         </aside>
@@ -436,6 +436,10 @@ function ConsentPreferencesDialog({
   onWithdraw: () => void;
   onClose: () => void;
 }) {
+  const { t, href } = useI18n();
+  const cookieLabel = t("consent.cookiePolicy");
+  const noteText = t("consent.note", { cookiePolicy: cookieLabel });
+  const noteIndex = noteText.indexOf(cookieLabel);
   return (
     <dialog
       ref={dialogRef}
@@ -454,44 +458,41 @@ function ConsentPreferencesDialog({
         }}
       >
         <div className="consent-dialog-head">
-          <h2 id="consent-dialog-title">Cookie and tracking preferences</h2>
+          <h2 id="consent-dialog-title">{t("consent.dialogTitle")}</h2>
           <button
             className="button button-ghost button-small"
             type="button"
             onClick={onClose}
-            aria-label="Close cookie preferences"
+            aria-label={t("consent.closeAria")}
           >
-            Close
+            {t("common.close")}
           </button>
         </div>
         <p id="consent-dialog-description" className="small muted">
-          Choices are stored on this device with a version and timestamp. A missing or outdated
-          choice is never treated as consent. You can reopen this panel from the footer at any
-          time.
+          {t("consent.dialogDescription")}
         </p>
 
         <div className="consent-category">
           <div>
-            <h3>Strictly necessary</h3>
-            <p className="small muted">
-              Sign-in sessions, cart continuity, security, and consent storage. These are
-              required for the site to work.
-            </p>
+            <h3>{t("consent.necessary")}</h3>
+            <p className="small muted">{t("consent.necessaryBody")}</p>
           </div>
           <label className="consent-switch">
-            <input type="checkbox" checked disabled readOnly aria-label="Strictly necessary storage is always active" />
-            <span>Always active</span>
+            <input
+              type="checkbox"
+              checked
+              disabled
+              readOnly
+              aria-label={t("consent.necessaryAria")}
+            />
+            <span>{t("consent.alwaysActive")}</span>
           </label>
         </div>
 
         <div className="consent-category">
           <div>
-            <h3>Analytics</h3>
-            <p className="small muted">
-              Optional first-party page and event analytics using HMAC identifiers. If GA4 is
-              configured, Google Analytics also loads only after this choice. No advertising or
-              marketing trackers are used.
-            </p>
+            <h3>{t("consent.analytics")}</h3>
+            <p className="small muted">{t("consent.analyticsBody")}</p>
           </div>
           <label className="consent-switch">
             <input
@@ -500,39 +501,42 @@ function ConsentPreferencesDialog({
               defaultChecked={analytics}
               aria-describedby="analytics-consent-help"
             />
-            <span>Allow analytics</span>
+            <span>{t("consent.allowAnalytics")}</span>
           </label>
           <span id="analytics-consent-help" className="visually-hidden">
-            Optional. The site works without analytics.
+            {t("consent.analyticsBody")}
           </span>
         </div>
 
         <div className="consent-category consent-category-muted">
           <div>
-            <h3>Marketing</h3>
-            <p className="small muted">
-              No marketing cookies, pixels, or advertising SDKs are installed. If that changes,
-              the consent manager must be updated before any marketing script is loaded.
-            </p>
+            <h3>{t("consent.marketing")}</h3>
+            <p className="small muted">{t("consent.marketingBody")}</p>
           </div>
-          <span className="badge badge-neutral">Not used</span>
+          <span className="badge badge-neutral">{t("consent.notUsed")}</span>
         </div>
 
         <div className="consent-dialog-actions">
           <button className="button" type="submit">
-            Save preferences
+            {t("consent.save")}
           </button>
           <button className="button button-ghost" type="button" onClick={onWithdraw}>
-            Withdraw optional consent
+            {t("consent.withdraw")}
           </button>
           <button className="button button-ghost" type="button" onClick={onClose}>
-            Cancel
+            {t("consent.cancel")}
           </button>
         </div>
         <p className="small muted">
-          Withdrawal stops optional analytics immediately. Essential security and sign-in
-          storage remains active. See the{" "}
-          <a href="/legal/cookies">Cookie policy</a>.
+          {noteIndex === -1 ? (
+            noteText
+          ) : (
+            <>
+              {noteText.slice(0, noteIndex)}
+              <a href={href("/legal/cookies")}>{cookieLabel}</a>
+              {noteText.slice(noteIndex + cookieLabel.length)}
+            </>
+          )}
         </p>
       </form>
     </dialog>
@@ -541,11 +545,12 @@ function ConsentPreferencesDialog({
 
 export function CookieSettingsButton({
   className = "button button-ghost button-small",
-  label = "Cookie settings",
+  label,
 }: {
   className?: string;
   label?: string;
 }) {
+  const { t } = useI18n();
   return (
     <button
       className={className}
@@ -556,7 +561,7 @@ export function CookieSettingsButton({
         }
       }}
     >
-      {label}
+      {label ?? t("consent.settings")}
     </button>
   );
 }

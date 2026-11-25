@@ -7,19 +7,24 @@ import {
   SupportChannelNotice,
 } from "@/components/legal-document";
 import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Refund policy",
-  description:
-    "Refund and cancellation policy covering eligibility, digital delivery, partially used plans, statutory rights, and how to request a refund.",
-  alternates: { canonical: "/legal/refunds" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/legal/refunds",
+    title: t("legal.refunds"),
+    description: t("legal.refundsDescription"),
+  });
+}
 
-export default function RefundsPage() {
+export default async function RefundsPage() {
+  const { t } = await getI18n();
   return (
     <div className="legal-page">
       <LegalDocumentHeader
-        title="Refund and cancellation policy"
+        title={t("legal.refunds")}
         intro="This policy explains when you can cancel or request a refund for an ESIMPROVE order, how refunds are processed, and how to raise a request. Mandatory consumer rights that apply in your country always take precedence over this policy."
       />
 

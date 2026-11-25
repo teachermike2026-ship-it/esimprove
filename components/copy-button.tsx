@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { CheckIcon, CopyIcon } from "@/components/icons";
+import { useI18n } from "@/components/i18n-provider";
 
-export function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
+export function CopyButton({ value, label }: { value: string; label?: string }) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   return (
     <div className="copy-wrap">
@@ -21,10 +23,10 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
         }}
       >
         {copied ? <CheckIcon className="inline-icon" /> : <CopyIcon className="inline-icon" />}
-        {copied ? "Copied" : label}
+        {copied ? t("copy.copied") : (label ?? t("copy.copy"))}
       </button>
       <span className="visually-hidden" role="status" aria-live="polite">
-        {copied ? "Copied to clipboard" : ""}
+        {copied ? t("copy.announce") : ""}
       </span>
     </div>
   );

@@ -151,7 +151,7 @@ export const adminRefundRejectSchema = z.object({
 
 export const profileSchema = z.object({
   name: z.string().trim().min(2, "Enter your name").max(80),
-  locale: z.enum(["en", "pt", "es"]),
+  locale: z.enum(["en", "pt", "es", "ar", "fr"]),
   marketing: z.string().optional(),
   productUpdates: z.string().optional(),
   orderUpdates: z.string().optional(),

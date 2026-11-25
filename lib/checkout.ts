@@ -21,6 +21,16 @@ import {
 import { generateOrderNumber, newId } from "@/lib/ids";
 import { recordAudit } from "@/lib/audit";
 import { appUrl, onlineCheckoutAvailable, siteUrl } from "@/lib/config";
+import {
+  createCryptoPayment,
+  cryptoPaymentUrl,
+  getCryptoPaymentByOrderId,
+} from "@/lib/payments/crypto/payment-service";
+import { loadCryptoPaymentConfig } from "@/lib/payments/crypto/config";
+import {
+  DEFAULT_CHECKOUT_PAYMENT_METHOD,
+  type CheckoutPaymentMethod,
+} from "@/lib/checkout-payment";
 
 export type CheckoutErrorCode = "empty_cart" | "price_changed" | "unavailable";
 
@@ -42,6 +52,8 @@ export interface CreateCheckoutInput {
   idempotencyKey: string;
   userId?: string | null;
   termsVersion?: string;
+  /** Card is the default; crypto requires a complete server configuration. */
+  paymentMethod?: CheckoutPaymentMethod;
 }
 
 export interface CheckoutResult {
@@ -55,6 +67,8 @@ export interface CheckoutResult {
   currency: string;
   provider: string;
   isMock: boolean;
+  paymentMethod: CheckoutPaymentMethod;
+  cryptoPaymentId?: string;
 }
 
 async function paymentForOrder(db: Database, orderId: string) {
@@ -184,10 +198,23 @@ export async function createCheckout(
   db: Database,
   input: CreateCheckoutInput,
 ): Promise<CheckoutResult> {
-  if (!onlineCheckoutAvailable()) {
+  const paymentMethod = input.paymentMethod ?? DEFAULT_CHECKOUT_PAYMENT_METHOD;
+  const cryptoConfig =
+    paymentMethod === "crypto" ? loadCryptoPaymentConfig() : null;
+
+  // Card needs the configured card provider (Whop). Crypto is independent: it
+  // only needs a complete crypto configuration, so crypto can be accepted
+  // while card payments are still being connected.
+  if (paymentMethod !== "crypto" && !onlineCheckoutAvailable()) {
     throw new CheckoutError(
       "unavailable",
       "Online checkout is not available in this deployment. No payment provider is configured and enabled.",
+    );
+  }
+  if (paymentMethod === "crypto" && !cryptoConfig) {
+    throw new CheckoutError(
+      "unavailable",
+      "Crypto payments are not configured in this deployment. Choose card payment or contact support.",
     );
   }
 
@@ -254,8 +281,27 @@ export async function createCheckout(
     .limit(1);
   const existing = existingRows[0];
   if (existing) {
-    const existingPayment = await paymentForOrder(db, existing.id);
     const accessToken = await createOrderAccessToken(db, existing.id);
+    const existingCrypto = await getCryptoPaymentByOrderId(db, existing.id);
+    if (existingCrypto) {
+      const cryptoUrl = cryptoPaymentUrl(existingCrypto.id, accessToken);
+      return {
+        orderId: existing.id,
+        orderNumber: existing.orderNumber,
+        paymentId: existingCrypto.paymentId,
+        checkoutUrl: cryptoUrl,
+        redirectUrl: cryptoUrl,
+        accessToken,
+        totalMinor: existing.totalMinor,
+        currency: existing.currency,
+        provider: "crypto",
+        isMock: false,
+        paymentMethod: "crypto",
+        cryptoPaymentId: existingCrypto.id,
+      };
+    }
+
+    const existingPayment = await paymentForOrder(db, existing.id);
     if (existingPayment) {
       return {
         orderId: existing.id,
@@ -276,6 +322,31 @@ export async function createCheckout(
         currency: existing.currency,
         provider: existingPayment.provider,
         isMock: existingPayment.provider === "mock",
+        paymentMethod: "card",
+      };
+    }
+
+    if (paymentMethod === "crypto") {
+      const createdCrypto = await createCryptoPayment(db, {
+        orderId: existing.id,
+        amountMinor: existing.totalMinor,
+        currency: existing.currency,
+        userId: existing.userId,
+      });
+      const cryptoUrl = cryptoPaymentUrl(createdCrypto.cryptoPaymentId, accessToken);
+      return {
+        orderId: existing.id,
+        orderNumber: existing.orderNumber,
+        paymentId: createdCrypto.paymentId,
+        checkoutUrl: cryptoUrl,
+        redirectUrl: cryptoUrl,
+        accessToken,
+        totalMinor: existing.totalMinor,
+        currency: existing.currency,
+        provider: "crypto",
+        isMock: false,
+        paymentMethod: "crypto",
+        cryptoPaymentId: createdCrypto.cryptoPaymentId,
       };
     }
 
@@ -308,6 +379,7 @@ export async function createCheckout(
       currency: existing.currency,
       provider: createdPayment.provider,
       isMock: createdPayment.isMock,
+      paymentMethod: "card",
     };
   }
 
@@ -356,12 +428,60 @@ export async function createCheckout(
       id: newId("orderevent"),
       orderId,
       type: "order.created",
-      message: "Order created; payment is pending.",
-      metadata: { totalMinor: totals.totalMinor, currency, idempotencyKey: input.idempotencyKey },
+      message:
+        paymentMethod === "crypto"
+          ? "Order created; crypto payment is pending."
+          : "Order created; payment is pending.",
+      metadata: {
+        totalMinor: totals.totalMinor,
+        currency,
+        idempotencyKey: input.idempotencyKey,
+        paymentMethod,
+      },
     });
   });
 
   const accessToken = await createOrderAccessToken(db, orderId);
+
+  if (paymentMethod === "crypto") {
+    const cryptoPayment = await createCryptoPayment(db, {
+      orderId,
+      amountMinor: totals.totalMinor,
+      currency,
+      userId: input.userId ?? null,
+    });
+    const cryptoUrl = cryptoPaymentUrl(cryptoPayment.cryptoPaymentId, accessToken);
+    await recordAudit(db, {
+      actorType: input.userId ? "user" : "guest",
+      actorId: input.userId ?? null,
+      action: "order.created",
+      entityType: "order",
+      entityId: orderId,
+      metadata: {
+        orderNumber,
+        totalMinor: totals.totalMinor,
+        currency,
+        isDemo: true,
+        paymentMethod: "crypto",
+        cryptoPaymentId: cryptoPayment.cryptoPaymentId,
+      },
+    });
+    return {
+      orderId,
+      orderNumber,
+      paymentId: cryptoPayment.paymentId,
+      checkoutUrl: cryptoUrl,
+      redirectUrl: cryptoUrl,
+      accessToken,
+      totalMinor: totals.totalMinor,
+      currency,
+      provider: "crypto",
+      isMock: false,
+      paymentMethod: "crypto",
+      cryptoPaymentId: cryptoPayment.cryptoPaymentId,
+    };
+  }
+
   const payment = await createPaymentForOrder(db, {
     orderId,
     orderNumber,
@@ -385,7 +505,13 @@ export async function createCheckout(
     action: "order.created",
     entityType: "order",
     entityId: orderId,
-    metadata: { orderNumber, totalMinor: totals.totalMinor, currency, isDemo: true },
+    metadata: {
+      orderNumber,
+      totalMinor: totals.totalMinor,
+      currency,
+      isDemo: true,
+      paymentMethod: "card",
+    },
   });
 
   return {
@@ -407,5 +533,6 @@ export async function createCheckout(
     currency,
     provider: payment.provider,
     isMock: payment.isMock,
+    paymentMethod: "card",
   };
 }

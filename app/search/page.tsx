@@ -5,12 +5,17 @@ import { getPlans } from "@/lib/catalog";
 import { PlanCard } from "@/components/plan-card";
 import { SearchForm } from "@/components/search-form";
 import { EmptyState } from "@/components/empty-state";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Search plans",
-  description: "Search eSIM plans by destination, region, or data amount.",
-  alternates: { canonical: "/search" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/search",
+    title: t("search.metaTitle"),
+    description: t("search.metaDescription"),
+  });
+}
 
 export default async function SearchPage({
   searchParams,
@@ -18,6 +23,7 @@ export default async function SearchPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { q } = await searchParams;
+  const { t, href } = await getI18n();
   const query = q?.trim() ?? "";
   const db = await getDb();
   const plans = query ? await getPlans(db, { q: query, limit: 40 }) : [];
@@ -26,24 +32,28 @@ export default async function SearchPage({
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Search</p>
-          <h1>Find a plan</h1>
-          <p className="lead">
-            Search the catalogue by destination, region, or plan name.
-          </p>
+          <p className="eyebrow">{t("search.eyebrow")}</p>
+          <h1>{t("search.title")}</h1>
+          <p className="lead">{t("search.lead")}</p>
         </div>
       </div>
       <SearchForm defaultValue={query} />
       <div className="section-tight">
         {query ? (
           <p className="muted" role="status">
-            {plans.length} result{plans.length === 1 ? "" : "s"} for <strong>{query}</strong>.
+            {plans.length === 1
+              ? t("search.oneResult", { query })
+              : t("search.results", { count: plans.length, query })}
           </p>
         ) : (
           <div className="pill-row">
-            <span className="muted small">Try:</span>
+            <span className="muted small">{t("search.try")}</span>
             {["Japan", "Europe", "5 GB", "United States", "Thailand"].map((term) => (
-              <Link key={term} className="badge badge-neutral" href={`/search?q=${encodeURIComponent(term)}`}>
+              <Link
+                key={term}
+                className="badge badge-neutral"
+                href={href(`/search?q=${encodeURIComponent(term)}`)}
+              >
                 {term}
               </Link>
             ))}
@@ -51,8 +61,11 @@ export default async function SearchPage({
         )}
       </div>
       {query && plans.length === 0 ? (
-        <EmptyState title="No plans found" action={{ href: "/plans", label: "Browse all plans" }}>
-          Try a country name, a region, or a data amount such as “5 GB”.
+        <EmptyState
+          title={t("search.noResultsTitle")}
+          action={{ href: href("/plans"), label: t("search.browseAll") }}
+        >
+          {t("search.noResultsBody")}
         </EmptyState>
       ) : null}
       {plans.length > 0 ? (

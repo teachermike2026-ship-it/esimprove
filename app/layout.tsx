@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { I18nProvider } from "@/components/i18n-provider";
 import {
   AnalyticsTracker,
   ConsentManager,
@@ -18,6 +19,13 @@ import {
   titleTemplateForNext,
   type SeoSettings,
 } from "@/lib/seo";
+import { getI18n } from "@/lib/i18n/server";
+import {
+  absoluteLocalizedUrl,
+  localeDescriptors,
+  localeOg,
+  locales,
+} from "@/lib/i18n/config";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +38,7 @@ const manrope = localFont({
   fallback: ["Segoe UI", "system-ui", "sans-serif"],
 });
 
-const fallbackDescription =
-  "Compare travel eSIM plans by destination. Explore data, validity, and pricing in the Esimprove storefront.";
+
 
 async function safeSettings(): Promise<SeoSettings | null> {
   try {
@@ -52,15 +59,21 @@ async function safeLegalSettings(): Promise<LegalSettingsRow> {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const settings = await safeSettings();
+  const [settings, i18n] = await Promise.all([safeSettings(), getI18n()]);
   const resolvedName = settings?.siteName || siteName;
-  const title = settings?.homepageTitle || `${resolvedName} — travel eSIMs for your next trip`;
-  const description = settings?.homepageDescription || fallbackDescription;
+  const title = settings?.homepageTitle || i18n.t("home.metaTitle");
+  const description = settings?.homepageDescription || i18n.t("home.metaDescription");
   const base = settings?.canonicalBase || siteUrl;
   const ogDescription = settings?.defaultOgDescription || description;
   const ogTitle = settings?.defaultOgTitle || title;
   const ogImage = settings?.defaultOgImage;
   const verification = settings?.gscVerificationToken;
+  const pathname = i18n.pathname || "/";
+  const languages = Object.fromEntries(
+    locales.map((code) => [code, absoluteLocalizedUrl(pathname, code, base)]),
+  );
+  languages["x-default"] = absoluteLocalizedUrl(pathname, "en", base);
+  const currentUrl = absoluteLocalizedUrl(pathname, i18n.locale, base);
 
   return {
     metadataBase: new URL(base),
@@ -70,6 +83,10 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description,
     applicationName: resolvedName,
+    alternates: {
+      canonical: currentUrl,
+      languages,
+    },
     ...(settings?.faviconUrl ? { icons: { icon: settings.faviconUrl } } : {}),
     ...(verification ? { verification: { google: verification } } : {}),
     robots: noIndex
@@ -80,9 +97,10 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title: ogTitle,
       description: ogDescription,
-      url: base,
+      url: currentUrl,
       siteName: resolvedName,
       type: "website",
+      locale: localeOg(i18n.locale),
       ...(ogImage ? { images: [{ url: ogImage, alt: resolvedName }] } : {}),
     },
     twitter: {
@@ -95,38 +113,53 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [settings, legalSettings] = await Promise.all([safeSettings(), safeLegalSettings()]);
+  const [settings, legalSettings, i18n] = await Promise.all([
+    safeSettings(),
+    safeLegalSettings(),
+    getI18n(),
+  ]);
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   const siteJsonLd = settings ? buildSiteJsonLd(settings) : null;
   const ga4 = settings?.ga4MeasurementId;
   const ga4Enabled = Boolean(ga4 && /^G-[A-Z0-9]{6,}$/i.test(ga4) && !noIndex);
   const consentVersion = legalSettings.cookieConsentVersion;
+  const descriptor = localeDescriptors[i18n.locale];
 
   return (
-    <html lang="en" className={manrope.variable}>
+    <html
+      lang={descriptor.htmlLang}
+      dir={descriptor.dir}
+      className={manrope.variable}
+    >
       <body>
-        <a className="skip-link" href="#main">
-          Skip to content
-        </a>
-        {siteJsonLd ? (
-          <script
-            type="application/ld+json"
+        <I18nProvider
+          locale={i18n.locale}
+          dir={i18n.dir}
+          dictionary={i18n.dictionary}
+        >
+          <a className="skip-link" href="#main">
+            {i18n.t("common.skipToContent")}
+          </a>
+          {siteJsonLd ? (
+            <script
+              type="application/ld+json"
+              nonce={nonce}
+              dangerouslySetInnerHTML={{ __html: siteJsonLd }}
+            />
+          ) : null}
+          <SiteHeader />
+          <main id="main" className="container page-main">
+            {children}
+          </main>
+          <SiteFooter />
+          <Ga4Loader
+            measurementId={ga4Enabled && ga4 ? ga4 : ""}
+            consentVersion={consentVersion}
             nonce={nonce}
-            dangerouslySetInnerHTML={{ __html: siteJsonLd }}
           />
-        ) : null}
-        <SiteHeader />
-        <main id="main" className="container page-main">
-          {children}
-        </main>
-        <SiteFooter />
-        <Ga4Loader
-          measurementId={ga4Enabled && ga4 ? ga4 : ""}
-          consentVersion={consentVersion}
-          nonce={nonce}
-        />
-        <AnalyticsTracker consentVersion={consentVersion} />
-        <ConsentManager consentVersion={consentVersion} />
+          <AnalyticsTracker consentVersion={consentVersion} />
+          <ConsentManager consentVersion={consentVersion} />
+        </I18nProvider>
       </body>
     </html>
   );

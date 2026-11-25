@@ -9,17 +9,22 @@ import {
   SupportChannelNotice,
 } from "@/components/legal-document";
 import { CookieSettingsButton } from "@/components/analytics-tracker";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Cookie policy",
-  description:
-    "Cookies and browser storage used by ESIMPROVE, the consent categories, the optional Google Analytics 4 integration, and how to withdraw consent.",
-  alternates: { canonical: "/legal/cookies" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/legal/cookies",
+    title: t("legal.cookies"),
+    description: t("legal.cookiesDescription"),
+  });
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function CookiesPage() {
+  const { t } = await getI18n();
   const db = await getDb();
   const seo = await loadSeoSettings(db);
   const ga4Configured = Boolean(
@@ -29,7 +34,7 @@ export default async function CookiesPage() {
   return (
     <div className="legal-page">
       <LegalDocumentHeader
-        title="Cookie policy"
+        title={t("legal.cookies")}
         intro="This policy lists the cookies and browser storage used by ESIMPROVE, the categories you can choose, the optional Google Analytics 4 integration, and how to change or withdraw a choice."
       />
 

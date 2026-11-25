@@ -7,14 +7,21 @@ import { updateCartAction, removeCartAction } from "@/app/actions/cart";
 import { formatData, formatMoney } from "@/lib/money";
 import { EmptyState } from "@/components/empty-state";
 import { ArrowRight, CartIcon, TrashIcon } from "@/components/icons";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
 
-export const metadata: Metadata = {
-  title: "Cart",
-  description: "Review eSIM plans in your cart.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/cart",
+    title: t("cart.metaTitle"),
+    description: t("cart.metaDescription"),
+    robots: { index: false, follow: false },
+  });
+}
 
 export default async function CartPage() {
+  const { t, href } = await getI18n();
   const token = await readCartToken();
   const db = await getDb();
   const cart = token ? await getCartView(db, token) : null;
@@ -24,12 +31,15 @@ export default async function CartPage() {
       <>
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Cart</p>
-            <h1>Your cart</h1>
+            <p className="eyebrow">{t("cart.eyebrow")}</p>
+            <h1>{t("cart.title")}</h1>
           </div>
         </div>
-        <EmptyState title="Your cart is empty" action={{ href: "/plans", label: "Browse plans" }}>
-          Browse eSIM plans by destination and add them to your cart.
+        <EmptyState
+          title={t("cart.emptyTitle")}
+          action={{ href: href("/plans"), label: t("common.browsePlans") }}
+        >
+          {t("cart.emptyBody")}
         </EmptyState>
       </>
     );
@@ -39,16 +49,14 @@ export default async function CartPage() {
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Cart</p>
-          <h1>Your cart</h1>
-          <p className="muted">
-            Prices, taxes, and available plans are confirmed at checkout.
-          </p>
+          <p className="eyebrow">{t("cart.eyebrow")}</p>
+          <h1>{t("cart.title")}</h1>
+          <p className="muted">{t("cart.pricesNote")}</p>
         </div>
       </div>
 
       <div className="checkout-layout">
-        <section className="stack" aria-label="Cart items">
+        <section className="stack" aria-label={t("cart.itemsAria")}>
           {cart.lines.map((line) => (
             <article key={line.id} className="card form cart-line">
               <div className="cart-line-head">
@@ -57,10 +65,10 @@ export default async function CartPage() {
                     {line.destinationName} · {formatData(line.dataMb)}
                   </p>
                   <h2>
-                    <Link href={`/plans/${line.planSlug}`}>{line.planName}</Link>
+                    <Link href={href(`/plans/${line.planSlug}`)}>{line.planName}</Link>
                   </h2>
                   <p className="muted small">
-                    {line.validityDays} days validity
+                    {t("cart.daysValidity", { count: line.validityDays })}
                   </p>
                 </div>
                 <span className="price">{formatMoney(line.unitPriceMinor, line.currency)}</span>
@@ -69,7 +77,7 @@ export default async function CartPage() {
                 <form action={updateCartAction} className="quantity-form">
                   <input type="hidden" name="itemId" value={line.id} />
                   <label className="visually-hidden" htmlFor={`qty-${line.id}`}>
-                    Quantity for {line.planName}
+                    {t("cart.quantityFor", { plan: line.planName })}
                   </label>
                   <input
                     id={`qty-${line.id}`}
@@ -80,13 +88,13 @@ export default async function CartPage() {
                     defaultValue={line.quantity}
                   />
                   <button className="button button-secondary button-small" type="submit">
-                    Update
+                    {t("cart.update")}
                   </button>
                 </form>
                 <form action={removeCartAction}>
                   <input type="hidden" name="itemId" value={line.id} />
                   <button className="button button-ghost button-small" type="submit">
-                    <TrashIcon className="inline-icon" /> Remove
+                    <TrashIcon className="inline-icon" /> {t("cart.remove")}
                   </button>
                 </form>
                 <span className="cart-line-total">
@@ -97,28 +105,32 @@ export default async function CartPage() {
           ))}
         </section>
 
-        <aside className="checkout-sidebar" aria-label="Cart summary">
+        <aside className="checkout-sidebar" aria-label={t("cart.summaryAria")}>
           <section className="card summary-card">
             <h2>
-              <CartIcon className="inline-icon" /> Summary
+              <CartIcon className="inline-icon" /> {t("cart.summary")}
             </h2>
             <div className="summary-row">
-              <span>{cart.count} item{cart.count === 1 ? "" : "s"}</span>
+              <span>
+                {t(cart.count === 1 ? "cart.itemCount" : "cart.itemsCount", {
+                  count: cart.count,
+                })}
+              </span>
               <span>{formatMoney(cart.subtotalMinor, cart.currency)}</span>
             </div>
             <div className="summary-row">
-              <span>Tax (estimate)</span>
+              <span>{t("cart.taxEstimate")}</span>
               <span>{formatMoney(cart.taxMinor, cart.currency)}</span>
             </div>
             <div className="summary-total">
-              <span>Total</span>
+              <span>{t("cart.total")}</span>
               <span>{formatMoney(cart.totalMinor, cart.currency)}</span>
             </div>
-            <Link className="button button-wide" href="/checkout">
-              Continue to checkout <ArrowRight className="inline-icon" />
+            <Link className="button button-wide" href={href("/checkout")}>
+              {t("cart.continue")} <ArrowRight className="inline-icon" />
             </Link>
-            <Link className="button button-ghost button-wide" href="/plans">
-              Keep browsing
+            <Link className="button button-ghost button-wide" href={href("/plans")}>
+              {t("cart.keepBrowsing")}
             </Link>
           </section>
         </aside>

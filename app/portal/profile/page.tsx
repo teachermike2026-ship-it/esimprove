@@ -14,17 +14,25 @@ import {
   ShieldIcon,
   UserIcon,
 } from "@/components/icons";
+import { getI18n } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/i18n/metadata";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/legal-profile";
 
-export const metadata: Metadata = {
-  title: "Profile and preferences",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return localizedMetadata({
+    path: "/portal/profile",
+    title: t("profile.metaTitle"),
+    robots: { index: false, follow: false },
+  });
+}
 
 export default async function PortalProfilePage({
   searchParams,
 }: {
   searchParams: Promise<{ verified?: string; verification?: string }>;
 }) {
+  const { t, href } = await getI18n();
   const user = await requireUser("/portal/profile");
   const { verified, verification } = await searchParams;
   const db = await getDb();
@@ -36,52 +44,45 @@ export default async function PortalProfilePage({
       <nav aria-label="Breadcrumb">
         <ol className="breadcrumbs">
           <li>
-            <Link href="/portal">Portal</Link>
+            <Link href={href("/portal")}>{t("profile.breadcrumbPortal")}</Link>
           </li>
-          <li aria-current="page">Profile</li>
+          <li aria-current="page">{t("profile.breadcrumbProfile")}</li>
         </ol>
       </nav>
 
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Account</p>
-          <h1>Profile and preferences</h1>
-          <p className="muted">
-            Manage your display name, communication preferences, email verification, and password.
-          </p>
+          <p className="eyebrow">{t("profile.eyebrow")}</p>
+          <h1>{t("profile.title")}</h1>
+          <p className="muted">{t("profile.lead")}</p>
         </div>
         <span className={isVerified ? "badge" : "badge badge-warning"}>
-          {isVerified ? "Email verified" : "Email not verified"}
+          {isVerified ? t("profile.emailVerified") : t("profile.emailNotVerified")}
         </span>
       </div>
 
       {verification === "sent" ? (
         <div className="callout callout-success section-tight" role="status">
           <CheckIcon className="inline-icon" />
-          <p>
-            Account created. You can manage your profile and preferences here.
-          </p>
+          <p>{t("profile.accountCreated")}</p>
         </div>
       ) : null}
       {verified === "1" ? (
         <div className="callout callout-success section-tight" role="status">
           <CheckIcon className="inline-icon" />
-          <p>Email address verified.</p>
+          <p>{t("profile.emailVerifiedMsg")}</p>
         </div>
       ) : null}
       {verified === "invalid" ? (
         <div className="form-error section-tight" role="alert">
           <AlertIcon className="inline-icon" />
-          <p>
-            That verification link is invalid or has expired. Request a new verification email
-            below.
-          </p>
+          <p>{t("profile.invalidVerification")}</p>
         </div>
       ) : null}
 
       <div className="split">
         <section className="stack" aria-labelledby="profile-settings">
-          <h2 id="profile-settings">Settings</h2>
+          <h2 id="profile-settings">{t("profile.settings")}</h2>
           <ProfileForm
             name={user.name}
             locale={preferences.locale}
@@ -95,68 +96,68 @@ export default async function PortalProfilePage({
         <aside className="checkout-sidebar">
           <section className="card form">
             <h2>
-              <UserIcon className="inline-icon" /> Account details
+              <UserIcon className="inline-icon" /> {t("profile.accountDetails")}
             </h2>
             <dl className="meta-list">
               <div>
-                <dt>Name</dt>
+                <dt>{t("portal.name")}</dt>
                 <dd>{user.name}</dd>
               </div>
               <div>
-                <dt>Email</dt>
+                <dt>{t("portal.email")}</dt>
                 <dd>{user.email}</dd>
               </div>
               <div>
-                <dt>Role</dt>
+                <dt>{t("profile.role")}</dt>
                 <dd>{user.role}</dd>
               </div>
               <div>
-                <dt>Verified</dt>
+                <dt>{t("profile.verified")}</dt>
                 <dd>
-                  {user.emailVerifiedAt ? formatDate(user.emailVerifiedAt) : "Not verified"}
+                  {user.emailVerifiedAt
+                    ? formatDate(user.emailVerifiedAt)
+                    : t("portal.notVerified")}
                 </dd>
               </div>
             </dl>
             <p className="form-note">
-              To change your sign-in email, contact us from the account email you want to keep at{" "}
-              <a href="mailto:contact@esimprove.com">contact@esimprove.com</a>.
+              {t("profile.changeEmailNote")}{" "}
+              <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>.
             </p>
           </section>
 
           <section className="card form">
             <h2>
-              <ShieldIcon className="inline-icon" /> Email verification
+              <ShieldIcon className="inline-icon" /> {t("profile.emailVerification")}
             </h2>
             <RequestVerificationButton verified={isVerified} email={user.email} />
           </section>
 
           <section className="card form">
             <h2>
-              <HeadsetIcon className="inline-icon" /> Help and privacy
+              <HeadsetIcon className="inline-icon" /> {t("profile.helpPrivacy")}
             </h2>
             <div className="stack-sm">
-              <Link className="button button-secondary" href="/portal/support">
-                Support conversations
+              <Link className="button button-secondary" href={href("/portal/support")}>
+                {t("profile.support")}
               </Link>
-              <Link className="button button-ghost" href="/portal">
-                Orders and eSIMs
+              <Link className="button button-ghost" href={href("/portal")}>
+                {t("profile.ordersEsims")}
               </Link>
-              <Link className="button button-ghost" href="/legal/privacy">
-                Privacy policy
+              <Link className="button button-ghost" href={href("/legal/privacy")}>
+                {t("profile.privacyPolicyLink")}
               </Link>
-              <Link className="button button-ghost" href="/legal/terms">
-                Terms of service
+              <Link className="button button-ghost" href={href("/legal/terms")}>
+                {t("profile.terms")}
               </Link>
             </div>
           </section>
 
           <section className="card form">
             <h2>
-              <LockIcon className="inline-icon" /> Session security
+              <LockIcon className="inline-icon" /> {t("profile.sessionSecurity")}
             </h2>
-            <p className="muted small">
-              Changing your password signs out all other sessions. Sessions expire automatically.
-            </p>
+            <p className="muted small">{t("profile.sessionSecurityBody")}</p>
           </section>
         </aside>
       </div>

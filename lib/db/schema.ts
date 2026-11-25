@@ -4,6 +4,7 @@
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   primaryKey,
   text,
@@ -240,6 +241,63 @@ export const payments = pgTable(
   (table) => [
     uniqueIndex("payments_provider_payment_unique").on(table.provider, table.providerPaymentId),
     index("payments_order_id_idx").on(table.orderId),
+  ],
+);
+
+/**
+ * Crypto payment requests. One row per customer order paid in Binance-Peg
+ * USDT on BNB Smart Chain.
+ *
+ * `amountRaw` is the exact base-unit token amount (18 decimals) and is stored
+ * as NUMERIC(78,0) so it can be compared without JavaScript floating point.
+ * The unique index on `amountRaw` is the concurrency-safe amount reservation:
+ * two pending orders can never share the same payable amount.
+ */
+export const cryptoPayments = pgTable(
+  "crypto_payments",
+  {
+    id: text("id").primaryKey(),
+    paymentId: text("payment_id")
+      .notNull()
+      .references(() => payments.id, { onDelete: "cascade" }),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    reference: text("reference").notNull(),
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    paymentMethod: text("payment_method").notNull().default("crypto"),
+    paymentAsset: text("payment_asset").notNull().default("Binance-Peg USDT (BEP-20)"),
+    chainId: integer("chain_id").notNull(),
+    tokenContract: text("token_contract").notNull(),
+    receivingAddress: text("receiving_address").notNull(),
+    amountRaw: numeric("amount_raw", { precision: 78, scale: 0 }).notNull(),
+    amountUsdt: text("amount_usdt").notNull(),
+    originalAmountMinor: bigint("original_amount_minor", { mode: "number" }).notNull(),
+    originalCurrency: text("original_currency").notNull(),
+    status: text("status").notNull().default("pending"),
+    txHash: text("tx_hash"),
+    fromAddress: text("from_address"),
+    blockNumber: bigint("block_number", { mode: "number" }),
+    confirmations: integer("confirmations").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    detectedAt: timestamp("detected_at", { withTimezone: true }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+    verificationLeaseUntil: timestamp("verification_lease_until", { withTimezone: true }),
+    verificationAttempts: integer("verification_attempts").notNull().default(0),
+    lastError: text("last_error"),
+    metadata: jsonb("metadata").$type<AuditMetadata>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("crypto_payments_payment_id_unique").on(table.paymentId),
+    uniqueIndex("crypto_payments_reference_unique").on(table.reference),
+    uniqueIndex("crypto_payments_amount_raw_unique").on(table.amountRaw),
+    uniqueIndex("crypto_payments_tx_hash_unique").on(table.txHash),
+    uniqueIndex("crypto_payments_order_id_unique").on(table.orderId),
+    index("crypto_payments_status_expires_idx").on(table.status, table.expiresAt),
+    index("crypto_payments_last_verified_idx").on(table.lastVerifiedAt),
   ],
 );
 
