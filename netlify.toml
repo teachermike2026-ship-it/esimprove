@@ -28,8 +28,10 @@
   # ordinary configuration values, not credentials. They are marked secret on
   # Netlify, so scanning would otherwise flag every occurrence of those common
   # words in the repository. Omit only these three keys; all real secrets
-  # remain scanned.
-  SECRETS_SCAN_OMIT_KEYS = "APP_ENV,DATABASE_ENV,DATABASE_SSL"
+  # remain scanned. The public site URL and the boolean/numeric feature flags
+  # below are likewise configuration, not credentials ("true", "false", "1",
+  # https://esimprove.com appear throughout the code and build output).
+  SECRETS_SCAN_OMIT_KEYS = "APP_ENV,DATABASE_ENV,DATABASE_SSL,SITE_URL,PAYMENTS_LIVE_ENABLED,SUPPLIER_LIVE_ENABLED,EMAIL_LIVE_ENABLED,DEMO_MODE,SEED_DEMO_DATA,STAGING_ACCESS_ENABLED,ANALYTICS_ENABLED,CATALOGUE_SYNC_ENABLED,ADMIN_2FA_REQUIRED,DATABASE_POOL_MAX,ACTIVATION_KEK_ACTIVE_VERSION,NEXT_PUBLIC_ANALYTICS_DISABLED,SUPPLIER_CREDENTIAL_ALLOW_ACTIVATION_KEK_FALLBACK"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
