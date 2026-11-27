@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { SiteChrome } from "@/components/site-chrome";
 import { I18nProvider } from "@/components/i18n-provider";
 import {
   AnalyticsTracker,
@@ -159,11 +160,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               dangerouslySetInnerHTML={{ __html: siteJsonLd }}
             />
           ) : null}
-          <SiteHeader />
-          <main id="main" className="container page-main">
+          <SiteChrome header={<SiteHeader />} footer={<SiteFooter />}>
             {children}
-          </main>
-          <SiteFooter />
+          </SiteChrome>
           <Ga4Loader
             measurementId={ga4Enabled && ga4 ? ga4 : ""}
             consentVersion={consentVersion}

@@ -105,7 +105,7 @@ export default async function AdminDashboardPage({
   const rangeQuery = `range=${dash.range.key}`;
   const statusRows = [
     { key: "delivered", label: "Delivered", value: dash.status.delivered },
-    { key: "processing", label: "Paid (processing)", value: dash.status.processing },
+    { key: "processing", label: "Processing", value: dash.status.processing },
     { key: "pending", label: "Pending", value: dash.status.pending },
     { key: "failed", label: "Failed", value: dash.status.failed },
     { key: "refunded", label: "Refunded", value: dash.status.refunded },
@@ -193,12 +193,16 @@ export default async function AdminDashboardPage({
             <div className="ov-card-head">
               <h2>Revenue &amp; Orders</h2>
               <nav className="ov-seg" aria-label="Series">
-                <Link className={series !== "orders" ? "is-active" : ""} href={`/admin?${rangeQuery}&series=revenue`}>
-                  Revenue
-                </Link>
-                <Link className={series !== "revenue" ? "is-active" : ""} href={`/admin?${rangeQuery}&series=orders`}>
-                  Orders
-                </Link>
+                {(["both", "revenue", "orders"] as const).map((key) => (
+                  <Link
+                    key={key}
+                    className={series === key ? "is-active" : ""}
+                    aria-current={series === key ? "true" : undefined}
+                    href={key === "both" ? `/admin?${rangeQuery}` : `/admin?${rangeQuery}&series=${key}`}
+                  >
+                    {key === "both" ? "Both" : key === "revenue" ? "Revenue" : "Orders"}
+                  </Link>
+                ))}
               </nav>
             </div>
             <RevenueOrdersChart
@@ -268,7 +272,7 @@ export default async function AdminDashboardPage({
                         <strong>{r.value}</strong>
                       </td>
                       <td className="num muted">
-                        {dash.createdOrders ? `${Math.round((r.value / dash.createdOrders) * 1000) / 10}%` : "—"}
+                        {dash.createdOrders ? `${Math.round((r.value / dash.createdOrders) * 100)}%` : "—"}
                       </td>
                     </tr>
                   ))}
@@ -369,7 +373,7 @@ export default async function AdminDashboardPage({
           <section className="ov-card">
             <div className="ov-card-head">
               <h2>
-                <AdminIcon name="server" size={20} /> Supplier <span className="muted small">(eSIM Access)</span>
+                <AdminIcon name="server" size={20} /> Supplier <span className="ov-head-sub">eSIM Access</span>
               </h2>
               <span
                 className={`ov-status-pill is-${supplier.apiStatus === "ok" ? "ok" : supplier.apiStatus === "never-checked" ? "unknown" : "error"}`}
@@ -398,7 +402,7 @@ export default async function AdminDashboardPage({
           <section className="ov-card">
             <div className="ov-card-head">
               <h2>
-                <AdminIcon name="send" size={20} /> Email <span className="muted small">(Resend)</span>
+                <AdminIcon name="send" size={20} /> Email <span className="ov-head-sub">Resend</span>
               </h2>
               <span
                 className={`ov-status-pill is-${email.resend.status === "ok" ? "ok" : email.resend.status === "not-configured" ? "unknown" : "error"}`}

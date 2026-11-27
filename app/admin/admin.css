@@ -37,7 +37,7 @@
   --a-radius: 14px;
   --a-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 14px rgba(15, 23, 42, 0.04);
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: 262px minmax(0, 1fr);
   min-height: 100vh;
   background: var(--a-bg);
   color: var(--a-text);
@@ -1140,4 +1140,53 @@
   .as-nav-link {
     transition: none;
   }
+}
+
+/* The admin renders outside the storefront container (see SiteChrome). */
+.admin-root {
+  min-height: 100vh;
+}
+.ov-kpi-value {
+  white-space: nowrap;
+}
+@media (max-width: 1480px) and (min-width: 1281px) {
+  .ov-kpi {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+.as-sidebar .as-close {
+  display: none;
+}
+@media (max-width: 1023px) {
+  .admin-shell.is-nav-open .as-sidebar .as-close {
+    display: inline-grid;
+  }
+}
+.as-profile-text strong,
+.as-profile-text span {
+  white-space: nowrap;
+}
+.ov-status {
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 12px;
+}
+.ov-status .ac-donut {
+  max-width: 128px;
+}
+.ov-legend-table {
+  width: 100%;
+  font-size: 0.88rem;
+}
+.ov-legend-table td {
+  padding: 5px 4px;
+  white-space: nowrap;
+}
+.ov-head-sub {
+  margin-left: 4px;
+  color: var(--a-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
 }

@@ -9212,3 +9212,163 @@ a.kpi-card:hover {
   padding-left: 0;
   padding-right: 22px;
 }
+
+/* ==========================================================================
+   Brand system (official "e" mark): green-to-blue gradient.
+   Blue = actions, links, focus. Green = success, checks, selection, accents.
+   Neutral cool surfaces replace the old green tints.
+   ========================================================================== */
+:root {
+  --brand-green: #22b45f;
+  --brand-green-ink: #178a4a;
+  --brand-blue: #1d63ed;
+  --brand-blue-dark: #1450cc;
+  --brand-blue-ink: #123e9c;
+  --brand-blue-soft: #eaf1ff;
+  --brand-gradient: linear-gradient(120deg, #22b45f 0%, #1ea98a 42%, #1d63ed 100%);
+  --teal-800: var(--brand-blue-ink);
+  --teal-700: var(--brand-blue-dark);
+  --teal-600: var(--brand-blue);
+  --teal-500: var(--brand-green);
+  --teal-100: #eef3fb;
+  --surface-soft: #f2f6fc;
+  --paper: #f6f8fb;
+  --line: #e4e8ef;
+  --line-strong: #d3dae5;
+  --es-green: var(--brand-green);
+  --es-green-ink: var(--brand-green-ink);
+  --es-line: #e4e8ef;
+  --es-soft: #f6f8fb;
+  --es-cta: var(--brand-blue);
+  --es-cta-dark: var(--brand-blue-dark);
+}
+:focus-visible {
+  outline-color: rgba(29, 99, 237, 0.55);
+}
+.button {
+  box-shadow: 0 8px 20px rgba(29, 99, 237, 0.2);
+}
+.button:hover {
+  box-shadow: 0 12px 28px rgba(29, 99, 237, 0.26);
+}
+.button-secondary {
+  color: var(--ink);
+  box-shadow: none;
+}
+.button-secondary:hover {
+  background: var(--brand-blue-soft);
+  border-color: var(--brand-blue);
+  color: var(--brand-blue-dark);
+}
+
+/* Logo: official mark + wordmark with the brand gradient on "prove". */
+.es-brand-mark,
+.es-brand-mark:where(*) {
+  overflow: visible;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.es-brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.es-brand-word span,
+.es-footer-brand .es-brand-word span {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.es-brand-light .es-brand-word span,
+.es-footer-brand .es-brand-word span {
+  background: linear-gradient(120deg, #4fd585 0%, #46c9b0 45%, #6f9dff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.es-brand-light .es-brand-mark,
+.es-footer-brand .es-brand-mark {
+  padding: 3px;
+  border-radius: 11px;
+  background: #fff;
+}
+
+/* Hero accent echoes the logo gradient. */
+.es-hero-title .es-hero-accent {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.crypto-amount-hero,
+.preview-card-art {
+  background: linear-gradient(135deg, #0d1631 0%, #13357e 58%, #1d63ed 100%);
+  color: #f4f8ff;
+}
+.es-hero-map {
+  color: #1d63ed;
+  opacity: 0.12;
+}
+.es-map-route-soft {
+  stroke: #1d63ed;
+}
+.es-intro-heading span {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.es-nav a:hover,
+body:has(.es-home) .es-nav-home {
+  background: var(--brand-blue-soft);
+  color: var(--brand-blue-dark);
+}
+.es-green {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.es-explorer-tabs button.is-active {
+  background: var(--brand-blue);
+  border-color: var(--brand-blue);
+  color: #fff;
+}
+.es-button-yellow {
+  background: var(--brand-blue);
+  border-color: var(--brand-blue);
+  color: #fff;
+}
+.es-button-yellow:hover {
+  background: var(--brand-blue-dark);
+  border-color: var(--brand-blue-dark);
+  color: #fff;
+}
+.es-destination-card:hover .es-destination-arrow {
+  border-color: var(--brand-blue);
+  background: var(--brand-blue);
+  color: #fff;
+}
+.es-video-pill,
+.es-video-play {
+  background: var(--brand-blue);
+  color: #fff;
+}
+.es-footer-legal a {
+  color: #9dbcff;
+}
+.es-footer-legal a:hover {
+  color: #fff;
+}
+.es-footer-badge {
+  border-color: rgba(157, 188, 255, 0.4);
+  color: #c9dbff;
+}
+.plan-card::before {
+  background: var(--brand-gradient);
+}
+.plan-detail::before {
+  background: var(--brand-gradient);
+}
