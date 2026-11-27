@@ -3,6 +3,7 @@ import { getDbHandle } from "@/lib/db/client";
 import { listPendingMigrations } from "@/lib/db/migrate";
 import { plans } from "@/lib/db/schema";
 import { safeEqual } from "@/lib/crypto";
+import { paymentReadiness } from "@/lib/payment-readiness";
 import {
   appEnv,
   demoMode,
@@ -82,6 +83,7 @@ export async function GET(request: NextRequest) {
                     migrations!.checked && migrations!.pending.length === 0,
                 },
                 integrations: integrationModes,
+                readiness: paymentReadiness(),
                 liveFlags: {
                   payments: flags.paymentsLive,
                   supplier: flags.supplierLive,

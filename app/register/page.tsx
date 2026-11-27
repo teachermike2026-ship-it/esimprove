@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { RegisterForm } from "@/components/auth-forms";
+import { safeNextPath } from "@/lib/validation";
 import { UserIcon } from "@/components/icons";
 import { getI18n } from "@/lib/i18n/server";
 import { localizedMetadata } from "@/lib/i18n/metadata";
@@ -16,10 +16,17 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-export default async function RegisterPage() {
-  const { t, href } = await getI18n();
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { t } = await getI18n();
+  const { next } = await searchParams;
+  // Where to return after signing up (for example back to checkout).
+  const nextPath = safeNextPath(next, "");
   const user = await getCurrentUser();
-  if (user) redirect("/portal");
+  if (user) redirect(nextPath || "/portal");
 
   return (
     <div className="auth-layout">
@@ -40,10 +47,7 @@ export default async function RegisterPage() {
         </ul>
       </section>
       <section className="auth-form">
-        <RegisterForm />
-        <p className="form-note" style={{ textAlign: "center" }}>
-          {t("auth.alreadyHave")} <Link href={href("/login")}>{t("auth.signInLink")}</Link>.
-        </p>
+        <RegisterForm next={nextPath} />
       </section>
     </div>
   );

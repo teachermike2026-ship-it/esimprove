@@ -44,3 +44,30 @@ describe("Apple Pay domain association file", () => {
     expect(await response.text()).toBe("7B2270737049...");
   });
 });
+
+describe("health readiness summary", () => {
+  it("reports payment, wallet, email and supplier readiness without any secret value", async () => {
+    const saved = { ...process.env };
+    try {
+      process.env.PAYMENT_PROVIDER = "whop";
+      process.env.WHOP_SANDBOX = "true";
+      process.env.WHOP_SANDBOX_API_KEY = "apik_secret_value_should_not_leak";
+      process.env.WHOP_SANDBOX_WEBHOOK_SECRET = "ws_secret_value_should_not_leak";
+      process.env.EMAIL_LIVE_ENABLED = "true";
+      process.env.RESEND_API_KEY = "re_secret_value_should_not_leak";
+      const { paymentReadiness } = await import("@/lib/payment-readiness");
+      const report = paymentReadiness();
+      const json = JSON.stringify(report);
+      expect(json).not.toMatch(/should_not_leak/);
+      expect(report.webhook.secretConfigured).toBe(true);
+      expect(report.applePay.requestedFromWhop).toBe(true);
+      expect(report.googlePay.requestedFromWhop).toBe(true);
+      // Feature flags are read once at module load, so only the shape is checked here.
+      expect(report).toHaveProperty("email");
+      expect(report).toHaveProperty("supplier");
+      expect(report).toHaveProperty("usdt");
+    } finally {
+      process.env = saved;
+    }
+  });
+});

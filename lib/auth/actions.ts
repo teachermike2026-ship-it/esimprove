@@ -290,7 +290,10 @@ export async function registerAction(_prev: AuthState, formData: FormData): Prom
     entityId: userId,
     metadata: {},
   });
-  redirect("/portal/profile?verification=sent");
+  // Back to where the customer came from (for example checkout), otherwise
+  // the profile page that explains email verification.
+  const nextPath = safeNextPath(formString(formData, "next"), "");
+  redirect(nextPath || "/portal/profile?verification=sent");
 }
 
 export async function logoutAction(): Promise<void> {

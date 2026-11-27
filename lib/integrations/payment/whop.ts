@@ -481,3 +481,100 @@ export function validateWebhookSignature(
   void secret;
   return false;
 }
+
+// ---------------------------------------------------------------------------
+// Refund reconciliation: Whop's own view of a payment (read-only)
+
+/** Exact conversion of Whop's `Money` ({ amount: "4.71", decimals: 2 }) to minor units. */
+export function whopMoneyToMinor(money: { amount: string; decimals?: number } | null | undefined): number | null {
+  if (!money || typeof money.amount !== "string") return null;
+  const decimals = Number.isInteger(money.decimals) ? (money.decimals as number) : 2;
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(money.amount.trim());
+  if (!match) return null;
+  const [, sign, whole, fraction = ""] = match;
+  if (fraction.length > decimals && /[1-9]/.test(fraction.slice(decimals))) return null;
+  const minor = Number(`${whole}${fraction.padEnd(decimals, "0").slice(0, decimals)}`);
+  if (!Number.isSafeInteger(minor)) return null;
+  return sign === "-" ? -minor : minor;
+}
+
+export interface WhopPaymentLedger {
+  providerPaymentId: string;
+  /** Settlement currency (upper case), e.g. USD. */
+  currency: string;
+  /** Price before tax and fees, in the settlement currency (our order price). */
+  subtotalMinor: number | null;
+  /** Account-facing total actually charged, in the settlement currency. */
+  totalMinor: number | null;
+  /** Refunded so far, as settled (converted at each refund's own rate). */
+  refundedMinor: number | null;
+  /** Total and refunded amounts in the buyer's presentment currency (no FX drift). */
+  presentmentCurrency: string | null;
+  presentmentTotalMinor: number | null;
+  presentmentRefundedMinor: number | null;
+  /** Whop's dashboard reading, e.g. "refunded", "partially_refunded". */
+  substatus: string | null;
+  /** ESIMPROVE order ID from the payment's metadata, when present. */
+  metadataOrderId: string | null;
+}
+
+type LedgerFetcher = (providerPaymentId: string) => Promise<WhopPaymentLedger | null>;
+let ledgerOverride: LedgerFetcher | null = null;
+
+/** Test hook: replace the Whop lookup (pass null to restore). */
+export function setWhopPaymentLedgerOverride(fetcher: LedgerFetcher | null): void {
+  ledgerOverride = fetcher;
+}
+
+/**
+ * Reads the payment from Whop (payment:basic:read). Returns null when the
+ * lookup is not possible or fails; callers then fall back to conservative
+ * rules. Never moves money and never logs credentials.
+ */
+export async function fetchWhopPaymentLedger(providerPaymentId: string): Promise<WhopPaymentLedger | null> {
+  if (ledgerOverride) return ledgerOverride(providerPaymentId);
+  // Escape hatch (used by the test suite): never call Whop.
+  if (process.env.WHOP_PAYMENT_LOOKUP?.trim().toLowerCase() === "off") return null;
+  if (!/^pay_[A-Za-z0-9]+$/.test(providerPaymentId)) return null;
+  const config = getWhopRuntimeConfig();
+  if (!config.apiKey || config.sandbox === null) return null;
+  try {
+    const client = getWhopClient(config.apiKey, config.sandbox) as unknown as {
+      payments: { retrieve: (input: { id: string }) => Promise<Record<string, unknown>> };
+    };
+    type MoneyLike = { amount: string; currency?: string; decimals?: number } | null | undefined;
+    const p = (await client.payments.retrieve({ id: providerPaymentId })) as {
+      currency?: string;
+      substatus?: string;
+      metadata?: Record<string, unknown> | null;
+      subtotal?: MoneyLike;
+      total?: MoneyLike;
+      refunded_amount?: MoneyLike;
+      presentment_total?: MoneyLike;
+      presentment_refunded_amount?: MoneyLike;
+    };
+    const upper = (value: unknown) => (typeof value === "string" ? value.toUpperCase() : null);
+    const metadata = (p.metadata ?? {}) as Record<string, unknown>;
+    const metadataOrderId =
+      typeof metadata.orderId === "string"
+        ? metadata.orderId
+        : typeof metadata.esimprove_order_id === "string"
+          ? metadata.esimprove_order_id
+          : null;
+    return {
+      providerPaymentId,
+      currency: upper(p.currency) ?? upper(p.total?.currency) ?? "",
+      subtotalMinor: whopMoneyToMinor(p.subtotal),
+      totalMinor: whopMoneyToMinor(p.total),
+      refundedMinor: whopMoneyToMinor(p.refunded_amount) ?? 0,
+      presentmentCurrency: upper(p.presentment_total?.currency),
+      presentmentTotalMinor: whopMoneyToMinor(p.presentment_total),
+      presentmentRefundedMinor: whopMoneyToMinor(p.presentment_refunded_amount),
+      substatus: typeof p.substatus === "string" ? p.substatus : null,
+      metadataOrderId,
+    };
+  } catch (error) {
+    console.warn(`Whop payment lookup failed for refund reconciliation (${error instanceof Error ? error.name : "error"})`);
+    return null;
+  }
+}

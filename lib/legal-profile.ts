@@ -40,13 +40,17 @@ export const LEGAL_PLATFORM_LINE =
 /**
  * 2.0 (2026-11-26): full rewrite in four languages; separate eSIM service,
  * payment and legal-notice documents; immediate-supply acknowledgement.
+ * 2.1 (2026-11-27): Privacy/Cookie updates: Whop card form data (email and
+ * billing details), Apple Pay / Google Pay, optional Google/Apple sign-in,
+ * Resend email, guest-order and sign-in cookies. Set the effective date to
+ * the actual deployment day before publishing.
  */
-export const LEGAL_DOCUMENT_VERSION = "2.0";
+export const LEGAL_DOCUMENT_VERSION = "2.1";
 
-export const LEGAL_EFFECTIVE_DATE = "2026-11-26";
+export const LEGAL_EFFECTIVE_DATE = "2026-11-27";
 
 /** Display form of LEGAL_EFFECTIVE_DATE. */
-export const LEGAL_EFFECTIVE_DATE_LABEL = "26 November 2026";
+export const LEGAL_EFFECTIVE_DATE_LABEL = "27 November 2026";
 
 export const LEGAL_NOT_A_REGISTERED_ENTITY =
   "ESIMPROVE is an online platform and brand. It is not a registered company and does not hold or claim a company registration number or VAT number.";

@@ -75,7 +75,7 @@ export const en: LegalLanguagePack = {
           id: "prices",
           heading: "5. Prices",
           blocks: [
-            "Prices are shown in US dollars (USD). The total at checkout is the total you pay ESIMPROVE. We do not add charges after you order, and we do not add a surcharge for the payment method you choose.",
+            "Prices are shown in US dollars (USD). The total at checkout is the total you pay ESIMPROVE. We do not add charges after you order, and we do not add a surcharge for the payment method you choose. For card, Apple Pay and Google Pay payments, our payment provider (Whop) may add the sales tax or VAT that applies in your country; it is shown in the payment form before you pay.",
             "For USDT payments, the order total is converted at 1 USDT = 1 USD. To identify your transfer, a unique amount of at most 0.0099 USDT (less than one US cent) is added. See the [payment terms](/legal/payments).",
             "Your bank, card issuer, wallet or exchange may charge its own fees, such as currency conversion or blockchain network (gas) fees. Those fees are between you and that provider.",
             "If an obvious pricing error happens, we will tell you before the eSIM is delivered. You can then confirm the order at the correct price or cancel it for a full refund.",

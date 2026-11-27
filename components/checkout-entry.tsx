@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { getI18n } from "@/lib/i18n/server";
 import { OAuthButtons, OAuthLegalNote } from "@/components/oauth-buttons";
-import { oauthAvailability } from "@/lib/auth/oauth";
-import { ArrowRight, CheckIcon, LockIcon, UserIcon } from "@/components/icons";
+import { ArrowRight, CheckIcon, LockIcon, MailIcon, UserIcon } from "@/components/icons";
 
 /**
- * First checkout step for visitors who are not signed in: continue with an
- * account (Google / Apple, or email and password), or as a guest with no
- * personal details at all.
+ * First checkout step for visitors who are not signed in. Exactly two choices:
+ *
+ * 1. Create an ESIMPROVE account: Continue with Google (shown once Google
+ *    credentials are configured) or Sign up with email. Existing customers
+ *    sign in instead. All return to checkout afterwards.
+ * 2. Continue as guest: no email, name, country, password or account.
  */
 export async function CheckoutEntry({
   totalLabel,
@@ -19,9 +21,7 @@ export async function CheckoutEntry({
   const { t, href } = await getI18n();
   const checkoutPath = href("/checkout");
   const guestPath = `${checkoutPath}?as=guest`;
-  const loginPath = `${href("/login")}?next=${encodeURIComponent(checkoutPath)}`;
-  const oauth = oauthAvailability();
-  const hasOAuth = oauth.google || oauth.apple;
+  const back = `?next=${encodeURIComponent(checkoutPath)}`;
 
   return (
     <section className="checkout-entry" aria-labelledby="checkout-entry-title">
@@ -39,16 +39,13 @@ export async function CheckoutEntry({
           <h2>{t("checkoutEntry.accountTitle")}</h2>
           <p className="muted">{t("checkoutEntry.accountLead")}</p>
           <OAuthButtons next={checkoutPath} />
+          <Link className="button button-secondary button-wide" href={`${href("/register")}${back}`}>
+            <MailIcon className="inline-icon" /> {t("checkoutEntry.signUpEmail")}
+          </Link>
           <OAuthLegalNote />
-          {hasOAuth ? (
-            <p className="checkout-entry-alt">
-              <Link href={loginPath}>{t("checkoutEntry.emailSignIn")}</Link>
-            </p>
-          ) : (
-            <Link className="button button-secondary button-wide" href={loginPath}>
-              {t("auth.signIn")} <ArrowRight className="inline-icon" />
-            </Link>
-          )}
+          <p className="checkout-entry-alt">
+            {t("auth.alreadyHaveLink")} <Link href={`${href("/login")}${back}`}>{t("auth.signInLink")}</Link>
+          </p>
         </article>
 
         <article className="card checkout-entry-card checkout-entry-guest">

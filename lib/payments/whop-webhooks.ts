@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db/client";
 import {
   esims,
@@ -25,7 +25,8 @@ import {
   type WhopCaseEvent,
 } from "@/lib/integrations/payment/whop-webhook";
 import { canTransitionPayment, type PaymentStatus } from "@/lib/state";
-import { getWhopRuntimeConfig } from "@/lib/integrations/payment/whop";
+import { fetchWhopPaymentLedger, getWhopRuntimeConfig } from "@/lib/integrations/payment/whop";
+import { reconcileRefund, type RefundDecision } from "@/lib/payments/refund-reconciliation";
 
 const PROVIDER = "whop";
 
@@ -39,8 +40,6 @@ export interface WhopWebhookResult extends Partial<WebhookResult> {
 
 class DuplicateWebhookError extends Error {}
 
-/** Refund statuses (Whop `RefundStatuses`) that mean money has been returned. */
-const REFUND_SETTLED = new Set(["succeeded"]);
 /** Dispute statuses after which the dispute is closed in the merchant's favour. */
 const DISPUTE_WON = new Set(["won"]);
 
@@ -177,18 +176,54 @@ async function applyCaseEvent(
 
   const amountMinor = decimalNumberToMinor(caseEvent.amount, caseEvent.currency);
   let reviewReason: string | null = null;
-  let excessNote = "";
-  if (amountMinor === null) {
+  let refundDecision: RefundDecision | null = null;
+  if (caseEvent.kind === "refund") {
+    // Refunds: reconcile against verified amounts (see refund-reconciliation.ts).
+    const existingCase = (
+      await db
+        .select({ providerStatus: paymentProviderCases.providerStatus })
+        .from(paymentProviderCases)
+        .where(
+          and(
+            eq(paymentProviderCases.provider, PROVIDER),
+            eq(paymentProviderCases.kind, "refund"),
+            eq(paymentProviderCases.providerCaseId, caseEvent.providerCaseId),
+          ),
+        )
+        .limit(1)
+    )[0];
+    const others = await db
+      .select({ total: sql<string>`coalesce(sum(${paymentProviderCases.amountMinor}), 0)` })
+      .from(paymentProviderCases)
+      .where(
+        and(
+          eq(paymentProviderCases.paymentId, payment.id),
+          eq(paymentProviderCases.kind, "refund"),
+          eq(paymentProviderCases.providerStatus, "succeeded"),
+          eq(paymentProviderCases.needsReview, false),
+          ne(paymentProviderCases.providerCaseId, caseEvent.providerCaseId),
+        ),
+      );
+    const ledger =
+      caseEvent.status === "succeeded" && caseEvent.providerPaymentId
+        ? await fetchWhopPaymentLedger(caseEvent.providerPaymentId)
+        : null;
+    refundDecision = reconcileRefund({
+      payment: { amountMinor: payment.amountMinor, currency: payment.currency, orderId: payment.orderId },
+      caseAmountMinor: amountMinor,
+      caseCurrency: caseEvent.currency,
+      caseStatus: caseEvent.status,
+      previousCaseStatus: existingCase?.providerStatus ?? null,
+      otherSucceededMinor: Number(others[0]?.total ?? 0),
+      ledger,
+    });
+    if (refundDecision.kind === "review") reviewReason = refundDecision.reason;
+  } else if (amountMinor === null) {
     reviewReason = "Case amount is not an exact amount in its currency";
   } else if (caseEvent.currency !== payment.currency.toUpperCase()) {
     reviewReason = "Case currency differs from the payment currency";
-  } else if (amountMinor > payment.amountMinor * 2) {
-    reviewReason = "Case amount is more than twice the payment amount";
   } else if (amountMinor > payment.amountMinor) {
-    // Whop refunds what the buyer was charged in their own currency, which
-    // can convert back to slightly more than our USD price (sandbox: $4.71
-    // for a $4.28 order). That is a full refund, not a reason to hold it.
-    excessNote = ` Whop reported ${amountMinor} minor units for a ${payment.amountMinor} payment (buyer currency conversion); treated as a full refund.`;
+    reviewReason = "Case amount is higher than the payment amount";
   }
 
   let caseId = "";
@@ -261,23 +296,15 @@ async function applyCaseEvent(
       if (reviewReason) {
         message = `Provider ${caseEvent.kind} ${caseEvent.providerCaseId} needs manual review: ${reviewReason}.`;
       } else if (caseEvent.kind === "refund") {
-        if (REFUND_SETTLED.has(caseEvent.status)) {
-          const refunded = await tx
-            .select({ total: sql<string>`coalesce(sum(${paymentProviderCases.amountMinor}), 0)` })
-            .from(paymentProviderCases)
-            .where(
-              and(
-                eq(paymentProviderCases.paymentId, payment.id),
-                eq(paymentProviderCases.kind, "refund"),
-                eq(paymentProviderCases.providerStatus, "succeeded"),
-                eq(paymentProviderCases.needsReview, false),
-              ),
-            );
-          const refundedMinor = Number(refunded[0]?.total ?? 0);
-          nextStatus = refundedMinor >= payment.amountMinor ? "refunded" : "partially_refunded";
-          message = `Whop refund ${caseEvent.providerCaseId} succeeded (${refundedMinor} of ${payment.amountMinor} minor units refunded).${excessNote}`;
+        const decision = refundDecision!;
+        if (decision.kind === "full") {
+          nextStatus = "refunded";
+          message = `Whop refund ${caseEvent.providerCaseId} succeeded: full refund. ${decision.note}`;
+        } else if (decision.kind === "partial") {
+          nextStatus = "partially_refunded";
+          message = `Whop refund ${caseEvent.providerCaseId} succeeded: partial refund. ${decision.note}`;
         } else {
-          message = `Whop refund ${caseEvent.providerCaseId} is ${caseEvent.status}. Payment status unchanged until it succeeds.`;
+          message = `Whop refund ${caseEvent.providerCaseId}: ${decision.kind === "none" ? decision.note : ""}`;
         }
       } else if (DISPUTE_WON.has(caseEvent.status)) {
         message = `Whop dispute ${caseEvent.providerCaseId} was won. Payment stays disputed until reviewed manually.`;
@@ -306,9 +333,10 @@ async function applyCaseEvent(
           applied = true;
           if (nextStatus === "disputed") {
             alert = { kind: "payment.disputed", summary: message };
-          } else if (nextStatus === "refunded" || nextStatus === "partially_refunded") {
-            // The customer has their money back: flag every eSIM of the order
-            // so support does not treat it as an active, paid line.
+          } else if (nextStatus === "refunded") {
+            // Full refund: flag every eSIM of the order so support does not
+            // treat it as an active, paid line. This does NOT cancel the eSIM
+            // at the supplier; an administrator must do that separately.
             const items = await tx
               .select({ id: orderItems.id })
               .from(orderItems)
@@ -321,7 +349,14 @@ async function applyCaseEvent(
             }
             alert = {
               kind: "payment.refunded",
-              summary: `${message} Any eSIM issued for this order is flagged as refunded.`,
+              summary: `${message} Any eSIM issued for this order is flagged as refunded. It is still active at the supplier: cancel it in eSIM Access if required.`,
+            };
+          } else if (nextStatus === "partially_refunded") {
+            // Partial refund: the eSIM may legitimately stay in use, so its
+            // status is left unchanged and an administrator decides.
+            alert = {
+              kind: "payment.refunded",
+              summary: `${message} The eSIM status was not changed; decide whether it should be cancelled at the supplier.`,
             };
           }
         } else {

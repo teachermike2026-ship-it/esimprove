@@ -72,7 +72,7 @@ export const es: LegalLanguagePack = {
           id: "prices",
           heading: "5. Precios",
           blocks: [
-            "Los precios se muestran en dólares estadounidenses (USD). El total que aparece al pagar es el total que usted paga a ESIMPROVE. No añadimos cargos después del pedido ni recargos por el método de pago elegido.",
+            "Los precios se muestran en dólares estadounidenses (USD). El total que aparece al pagar es el total que usted paga a ESIMPROVE. No añadimos cargos después del pedido ni recargos por el método de pago elegido. En los pagos con tarjeta, Apple Pay y Google Pay, nuestro proveedor de pagos (Whop) puede añadir el impuesto sobre las ventas o IVA aplicable en su país; se muestra en el formulario de pago antes de pagar.",
             "En los pagos con USDT, el total se convierte a razón de 1 USDT = 1 USD. Para identificar su transferencia se añade un importe único de como máximo 0,0099 USDT (menos de un centavo de dólar). Consulte las [condiciones de pago](/legal/payments).",
             "Su banco, el emisor de su tarjeta, su monedero o su plataforma de intercambio pueden cobrar sus propias comisiones, por ejemplo de cambio de divisa o de red blockchain (gas). Esas comisiones son una cuestión entre usted y ese proveedor.",
             "Si se produce un error de precio evidente, se lo comunicaremos antes de entregar la eSIM. Podrá confirmar el pedido al precio correcto o cancelarlo con reembolso íntegro.",

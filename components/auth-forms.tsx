@@ -64,7 +64,10 @@ export function LoginForm({ next = "" }: { next?: string }) {
       </button>
       <p className="form-note">
         {t("auth.newHere")}{" "}
-        <Link href={href("/register")}>{t("auth.createCustomerAccount")}</Link>.{" "}
+        <Link href={next ? `${href("/register")}?next=${encodeURIComponent(next)}` : href("/register")}>
+          {t("auth.createCustomerAccount")}
+        </Link>
+        .{" "}
         {t("auth.adminTotpNote")}
       </p>
     </form>
@@ -106,12 +109,13 @@ export function TwoFactorForm({ next = "/admin" }: { next?: string }) {
   );
 }
 
-export function RegisterForm() {
+export function RegisterForm({ next = "" }: { next?: string }) {
   const { t, href } = useI18n();
   const [state, formAction, pending] = useActionState<AuthState, FormData>(registerAction, {});
   return (
     <form className="form card" action={formAction}>
       <ErrorMessage error={state.error} />
+      <input type="hidden" name="next" value={next} />
       <input type="hidden" name="termsVersion" value={LEGAL_DOCUMENT_VERSION} />
       <input type="hidden" name="privacyVersion" value={LEGAL_DOCUMENT_VERSION} />
       <div className="field">
@@ -201,7 +205,11 @@ export function RegisterForm() {
         {pending ? t("auth.creatingAccount") : t("auth.createAccount")}
       </button>
       <p className="form-note">
-        {t("auth.alreadyHaveLink")} <Link href={href("/login")}>{t("auth.signInLink")}</Link>.
+        {t("auth.alreadyHaveLink")}{" "}
+        <Link href={next ? `${href("/login")}?next=${encodeURIComponent(next)}` : href("/login")}>
+          {t("auth.signInLink")}
+        </Link>
+        .
       </p>
     </form>
   );

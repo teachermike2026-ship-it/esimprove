@@ -6,8 +6,7 @@ import { LoginForm } from "@/components/auth-forms";
 import { safeNextPath } from "@/lib/validation";
 import { isAdminRole } from "@/lib/auth/roles";
 import { AlertIcon, CheckIcon, LockIcon } from "@/components/icons";
-import { OAuthButtons, OAuthLegalNote } from "@/components/oauth-buttons";
-import { oauthAvailability } from "@/lib/auth/oauth";
+import { OAuthButtons, OAuthLegalNote, oauthOffered } from "@/components/oauth-buttons";
 import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 import { getI18n } from "@/lib/i18n/server";
 import { localizedMetadata } from "@/lib/i18n/metadata";
@@ -74,7 +73,7 @@ export default async function LoginPage({
             <span>{t(OAUTH_ERROR_KEYS[oauthError] ?? "oauth.error.failed")}</span>
           </div>
         ) : null}
-        {oauthAvailability().google || oauthAvailability().apple ? (
+        {oauthOffered() ? (
           <>
             <OAuthButtons next={nextPath} />
             <OAuthLegalNote />
@@ -86,7 +85,10 @@ export default async function LoginPage({
         <LoginForm next={nextPath} />
         <p className="form-note" style={{ textAlign: "center" }}>
           {t("auth.noAccount")}{" "}
-          <Link href={href("/register")}>{t("auth.createCustomerAccount")}</Link>.{" "}
+          <Link href={`${href("/register")}?next=${encodeURIComponent(nextPath)}`}>
+            {t("auth.createCustomerAccount")}
+          </Link>
+          .{" "}
           <Link href={href("/login/forgot")}>{t("auth.forgotPassword")}</Link>
         </p>
       </section>

@@ -12,7 +12,9 @@ import { and, eq } from "drizzle-orm";
 import { WebhookVerificationError } from "@whop/sdk/helpers";
 import type { DatabaseHandle } from "@/lib/db/client";
 import {
+  esims,
   orderEvents,
+  orderItems,
   orders,
   outboxEvents,
   paymentProviderCases,
@@ -22,6 +24,7 @@ import { addCartItem, getOrCreateCart } from "@/lib/cart";
 import { createCheckout } from "@/lib/checkout";
 import { newId } from "@/lib/ids";
 import { handleWhopWebhook } from "@/lib/payments/whop-webhooks";
+import { setWhopPaymentLedgerOverride } from "@/lib/integrations/payment/whop";
 import { runOutboxAndJobs } from "@/lib/fulfillment";
 import { fulfillmentJobs } from "@/lib/db/schema";
 import {
@@ -358,7 +361,7 @@ describe("Whop webhooks (synthetic payloads)", () => {
     expect(await fulfillmentRequests(order.orderId)).toHaveLength(1);
   });
 
-  it("flags refunds with an implausible excess amount for review", async () => {
+  it("flags refunds above the payment for review when Whop cannot confirm them", async () => {
     const order = await makeWhopOrder("whop-refund-review");
     await deliver("payment.succeeded", paymentData(order));
     await deliver("refund.created", {
@@ -398,25 +401,55 @@ describe("Whop webhooks (synthetic payloads)", () => {
     expect((await orderRow(order.orderId)).paymentStatus).toBe("paid");
   });
 
-  it("treats a slightly larger same-currency refund (buyer FX) as a full refund", async () => {
+  it("treats an above-price USD refund as full when Whop confirms the buyer-currency refund", async () => {
     const order = await makeWhopOrder("whop-refund-fx");
     await deliver("payment.succeeded", paymentData(order));
-    // Sandbox case: $4.71 refunded for a $4.28 order (about 10% more).
+    // Real sandbox case: $4.28 order, Whop total $4.71, refunded 124092/124092 VND.
+    setWhopPaymentLedgerOverride(async (id) => ({
+      providerPaymentId: id,
+      currency: "USD",
+      subtotalMinor: order.amountMinor,
+      totalMinor: order.amountMinor + 43,
+      refundedMinor: order.amountMinor + 43,
+      presentmentCurrency: "VND",
+      presentmentTotalMinor: 124092,
+      presentmentRefundedMinor: 124092,
+      substatus: "refunded",
+      metadataOrderId: order.orderId,
+    }));
+    try {
+      await deliver("refund.created", {
+        id: "rf_fx1",
+        amount: (order.amountMinor + 43) / 100,
+        currency: "usd",
+        status: "succeeded",
+        payment: { id: order.providerPaymentId },
+      });
+    } finally {
+      setWhopPaymentLedgerOverride(async () => null);
+    }
+    const row = (
+      await handle.db.select().from(paymentProviderCases).where(eq(paymentProviderCases.providerCaseId, "rf_fx1"))
+    )[0]!;
+    expect(row.needsReview).toBe(false);
+    expect((await orderRow(order.orderId)).paymentStatus).toBe("refunded");
+  });
+
+  it("keeps an above-price refund on review when Whop cannot confirm it", async () => {
+    const order = await makeWhopOrder("whop-refund-fx-unconfirmed");
+    await deliver("payment.succeeded", paymentData(order));
     await deliver("refund.created", {
-      id: "rf_fx1",
-      amount: Math.round(order.amountMinor * 1.1) / 100,
+      id: "rf_fx2",
+      amount: (order.amountMinor + 43) / 100,
       currency: "usd",
       status: "succeeded",
       payment: { id: order.providerPaymentId },
     });
     const row = (
-      await handle.db
-        .select()
-        .from(paymentProviderCases)
-        .where(eq(paymentProviderCases.providerCaseId, "rf_fx1"))
+      await handle.db.select().from(paymentProviderCases).where(eq(paymentProviderCases.providerCaseId, "rf_fx2"))
     )[0]!;
-    expect(row.needsReview).toBe(false);
-    expect((await orderRow(order.orderId)).paymentStatus).toBe("refunded");
+    expect(row.needsReview).toBe(true);
+    expect((await orderRow(order.orderId)).paymentStatus).toBe("paid");
   });
 
   it("records disputes as a risk status without new fulfillment", async () => {
@@ -446,6 +479,114 @@ describe("Whop webhooks (synthetic payloads)", () => {
     )[0]!;
     expect(row.providerStatus).toBe("won");
     expect(await fulfillmentRequests(order.orderId)).toHaveLength(1);
+  });
+
+  describe("refund reconciliation", () => {
+    function refund(order: WhopOrder, id: string, amountMinor: number, status = "succeeded", currency = "usd") {
+      return { id, amount: amountMinor / 100, currency, status, payment: { id: order.providerPaymentId } };
+    }
+    async function caseRow(id: string) {
+      return (await handle.db.select().from(paymentProviderCases).where(eq(paymentProviderCases.providerCaseId, id)))[0]!;
+    }
+    function ledgerFor(order: WhopOrder, presentmentRefunded: number, extra: Record<string, unknown> = {}) {
+      return async (id: string) => ({
+        providerPaymentId: id,
+        currency: "USD",
+        subtotalMinor: order.amountMinor,
+        totalMinor: order.amountMinor,
+        refundedMinor: presentmentRefunded === 0 ? 0 : Math.round((order.amountMinor * presentmentRefunded) / 100000),
+        presentmentCurrency: "EUR",
+        presentmentTotalMinor: 100000,
+        presentmentRefundedMinor: presentmentRefunded,
+        substatus: presentmentRefunded >= 100000 ? "refunded" : "partially_refunded",
+        metadataOrderId: order.orderId,
+        ...extra,
+      });
+    }
+
+    it("does not double count the same refund re-sent under a new webhook ID", async () => {
+      const order = await makeWhopOrder("rr-same-case");
+      await deliver("payment.succeeded", paymentData(order));
+      await deliver("refund.created", refund(order, "rf_same1", 100));
+      await deliver("refund.updated", refund(order, "rf_same1", 100));
+      expect((await orderRow(order.orderId)).paymentStatus).toBe("partially_refunded");
+      const cases = await handle.db.select().from(paymentProviderCases).where(eq(paymentProviderCases.orderId, order.orderId));
+      expect(cases).toHaveLength(1);
+    });
+
+    it("detects a cumulative over-refund across several refunds and keeps it on review", async () => {
+      const order = await makeWhopOrder("rr-cumulative");
+      await deliver("payment.succeeded", paymentData(order));
+      await deliver("refund.created", refund(order, "rf_cum1", order.amountMinor - 50));
+      expect((await orderRow(order.orderId)).paymentStatus).toBe("partially_refunded");
+      await deliver("refund.created", refund(order, "rf_cum2", 100));
+      expect((await caseRow("rf_cum2")).needsReview).toBe(true);
+      expect((await orderRow(order.orderId)).paymentStatus).toBe("partially_refunded");
+    });
+
+    it("puts a confirmed refund that is later reported failed into manual review", async () => {
+      const order = await makeWhopOrder("rr-reversed");
+      await deliver("payment.succeeded", paymentData(order));
+      await deliver("refund.created", refund(order, "rf_rev1", order.amountMinor));
+      expect((await orderRow(order.orderId)).paymentStatus).toBe("refunded");
+      await deliver("refund.updated", refund(order, "rf_rev1", order.amountMinor, "failed"));
+      const row = await caseRow("rf_rev1");
+      expect(row.needsReview).toBe(true);
+      expect(row.reviewReason).toMatch(/now reported as "failed"/);
+      // Status never moves backwards automatically.
+      expect((await orderRow(order.orderId)).paymentStatus).toBe("refunded");
+    });
+
+    it("records a refund that simply failed without changing anything", async () => {
+      const order = await makeWhopOrder("rr-failed");
+      await deliver("payment.succeeded", paymentData(order));
+      await deliver("refund.created", refund(order, "rf_fail1", order.amountMinor, "failed"));
+      const row = await caseRow("rf_fail1");
+      expect(row.needsReview).toBe(false);
+      expect((await orderRow(order.orderId)).paymentStatus).toBe("paid");
+    });
+
+    it("uses Whop's buyer-currency totals: partial first, then full, flagging eSIMs only on full", async () => {
+      const order = await makeWhopOrder("rr-ledger");
+      await deliver("payment.succeeded", paymentData(order));
+      await runOutboxAndJobs(handle.db);
+      const esimStatuses = async () =>
+        (
+          await handle.db
+            .select({ status: esims.status })
+            .from(esims)
+            .innerJoin(orderItems, eq(orderItems.id, esims.orderItemId))
+            .where(eq(orderItems.orderId, order.orderId))
+        ).map((row) => row.status);
+      const before = await esimStatuses();
+      try {
+        setWhopPaymentLedgerOverride(ledgerFor(order, 40000));
+        await deliver("refund.created", refund(order, "rf_led1", Math.round(order.amountMinor * 0.4)));
+        expect((await orderRow(order.orderId)).paymentStatus).toBe("partially_refunded");
+        expect(await esimStatuses()).toEqual(before);
+
+        setWhopPaymentLedgerOverride(ledgerFor(order, 100000));
+        await deliver("refund.created", refund(order, "rf_led2", order.amountMinor - Math.round(order.amountMinor * 0.4) + 3));
+        expect((await orderRow(order.orderId)).paymentStatus).toBe("refunded");
+        expect((await caseRow("rf_led2")).needsReview).toBe(false);
+        expect((await esimStatuses()).every((status) => status === "refund_flagged")).toBe(true);
+      } finally {
+        setWhopPaymentLedgerOverride(async () => null);
+      }
+    });
+
+    it("sends a refund to review when Whop's payment points to a different order", async () => {
+      const order = await makeWhopOrder("rr-mismatch");
+      await deliver("payment.succeeded", paymentData(order));
+      try {
+        setWhopPaymentLedgerOverride(ledgerFor(order, 100000, { metadataOrderId: "order_someone_else" }));
+        await deliver("refund.created", refund(order, "rf_mis1", order.amountMinor));
+      } finally {
+        setWhopPaymentLedgerOverride(async () => null);
+      }
+      expect((await caseRow("rf_mis1")).needsReview).toBe(true);
+      expect((await orderRow(order.orderId)).paymentStatus).toBe("paid");
+    });
   });
 
   it("acknowledges refunds and disputes for payments ESIMPROVE does not know", async () => {

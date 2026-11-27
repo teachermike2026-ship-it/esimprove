@@ -15,3 +15,7 @@ process.env.DEMO_ADMIN_EMAIL = "admin@demo.local";
 process.env.DEMO_ADMIN_PASSWORD = "DemoAdmin!2345";
 process.env.DEMO_ADMIN_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
 process.env.MOCK_SUPPLIER_FAIL_ONCE = "false";
+
+// Refund reconciliation reads Whop's payment record. Tests never reach Whop:
+// the lookup is switched off unless a test installs its own fake.
+process.env.WHOP_PAYMENT_LOOKUP = "off";
