@@ -111,6 +111,11 @@ export async function SiteHeader() {
             </Link>
           )}
 
+          <Link className="es-get-esim" href={href("/plans")}>
+            <CartIcon />
+            <span>{t("nav.getEsim")}</span>
+          </Link>
+
           <details className="es-mobile-nav">
             <summary className="es-menu-toggle" aria-label={t("header.menuAria")}>
               <MenuIcon />

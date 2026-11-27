@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
 import { listAdminPayments, listAdminWebhookEvents } from "@/lib/admin";
-import { getReconciliation, listUsdtPayments } from "@/lib/admin-ops";
+import { listUsdtPayments } from "@/lib/admin-ops";
 import { formatDate, formatMoney } from "@/lib/money";
 import { StatusBadge } from "@/components/status-badge";
 
@@ -15,11 +15,10 @@ export const metadata: Metadata = {
 export default async function AdminPaymentsPage() {
   await requireStaff("/admin/payments", "payments");
   const db = await getDb();
-  const [payments, webhookLog, usdt, reconciliation] = await Promise.all([
+  const [payments, webhookLog, usdt] = await Promise.all([
     listAdminPayments(db, 200),
     listAdminWebhookEvents(db, 100),
     listUsdtPayments(db, 100),
-    getReconciliation(db, 14),
   ]);
 
   return (
@@ -191,49 +190,10 @@ export default async function AdminPaymentsPage() {
         </p>
       </section>
 
-      <section className="card form section-tight" aria-labelledby="reconciliation-title">
-        <h2 id="reconciliation-title">Daily reconciliation (last 14 days, UTC)</h2>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>Paid orders</th>
-                <th>Whop verified</th>
-                <th>USDT confirmed</th>
-                <th>Confirmed refunds</th>
-                <th>In review</th>
-                <th>Unmatched</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reconciliation.map((day) => (
-                <tr key={day.day}>
-                  <td className="small">{day.day}</td>
-                  <td>
-                    {day.paidOrders} · {formatMoney(day.paidOrdersMinor, "USD")}
-                  </td>
-                  <td>
-                    {day.whopPaid} · {formatMoney(day.whopPaidMinor, "USD")}
-                  </td>
-                  <td>
-                    {day.usdtPaid} · {formatMoney(day.usdtPaidMinor, "USD")}
-                  </td>
-                  <td>
-                    {day.confirmedRefunds} · {formatMoney(day.confirmedRefundsMinor, "USD")}
-                  </td>
-                  <td>{day.casesInReview}</td>
-                  <td>{day.unmatchedOrders === 0 ? "0" : <strong>{day.unmatchedOrders}</strong>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="form-note">
-          “Unmatched” counts paid orders with no verified provider payment that day. It should always be 0; anything
-          else also appears on Needs attention. Refunds use provider-settled amounts.
-        </p>
-      </section>
+      <p className="form-note section-tight">
+        Daily totals of paid orders against verified Whop and USDT payments are on{" "}
+        <a href="/admin/reconciliation">Reconciliation</a>.
+      </p>
     </>
   );
 }

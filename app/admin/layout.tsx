@@ -1,17 +1,29 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { and, desc, eq, inArray, like, notInArray, sql } from "drizzle-orm";
 import { requireStaff } from "@/lib/auth/guards";
 import { getCurrentSession } from "@/lib/auth/session";
 import { isStaffRole } from "@/lib/auth/roles";
-import { ADMIN_NAV_GROUPS, canAccessAdminSection } from "@/lib/auth/admin-access";
-import { demoMode, integrationModes } from "@/lib/config";
-import { ShieldIcon } from "@/components/icons";
+import { ADMIN_NAV_GROUPS, canAccessAdminSection, type AdminNavBadge } from "@/lib/auth/admin-access";
+import { flags } from "@/lib/config";
+import { getDb } from "@/lib/db/client";
+import { apiHealthChecks, orders, supportTickets } from "@/lib/db/schema";
+import { attentionCountsBySeverity, getNeedsAttention, listAdminAlerts } from "@/lib/admin-ops";
+import { whopMode } from "@/lib/integrations/payment/whop";
+import { AdminShell, type ShellNavGroup } from "@/components/admin/admin-shell";
+import "./admin.css";
 
 export const metadata: Metadata = {
   title: "Admin console",
   robots: { index: false, follow: false },
+};
+
+const ROLE_LABEL: Record<string, string> = {
+  super_admin: "Super administrator",
+  admin: "Administrator",
+  support: "Support",
+  finance: "Finance",
 };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -25,53 +37,82 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return <main className="admin-main">{children}</main>;
   }
   const staff = await requireStaff("/admin");
-  // Only render links the current role can actually open. Page-level guards
-  // enforce the same matrix server-side, so hiding a link is never the control.
-  const groups = ADMIN_NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => canAccessAdminSection(staff.role, item.section)),
+  const can = (section: Parameters<typeof canAccessAdminSection>[1]) => canAccessAdminSection(staff.role, section);
+  const db = await getDb();
+
+  // Live counts for the sidebar, only for sections this role can open.
+  const [processing, attention, openTickets, alerts, supplierCheck] = await Promise.all([
+    can("orders")
+      ? db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(orders)
+          .where(and(eq(orders.paymentStatus, "paid"), notInArray(orders.fulfillmentStatus, ["delivered", "cancelled"])))
+      : Promise.resolve([{ n: 0 }]),
+    can("attention") ? getNeedsAttention(db) : Promise.resolve([]),
+    can("support")
+      ? db.select({ n: sql<number>`count(*)::int` }).from(supportTickets).where(inArray(supportTickets.status, ["open", "pending_staff"]))
+      : Promise.resolve([{ n: 0 }]),
+    can("alerts") ? listAdminAlerts(db, 200) : Promise.resolve([]),
+    can("provider")
+      ? db.select().from(apiHealthChecks).where(like(apiHealthChecks.target, "esimaccess%")).orderBy(desc(apiHealthChecks.checkedAt)).limit(1)
+      : Promise.resolve([]),
+  ]);
+  const unresolvedAlerts = alerts.filter((a) => !a.resolvedAt).length;
+  const severity = attentionCountsBySeverity(attention);
+  const badgeFor: Record<AdminNavBadge, { count: number; tone: "neutral" | "danger" }> = {
+    processing: { count: Number(processing[0]?.n ?? 0), tone: "neutral" },
+    attention: { count: attention.length, tone: "danger" },
+    support: { count: Number(openTickets[0]?.n ?? 0), tone: "neutral" },
+    alerts: { count: unresolvedAlerts, tone: "danger" },
+  };
+  const supplierStatus: "ok" | "error" | "unknown" = supplierCheck[0]
+    ? supplierCheck[0].status === "ok"
+      ? "ok"
+      : "error"
+    : "unknown";
+
+  const groups: ShellNavGroup[] = ADMIN_NAV_GROUPS.map((group) => ({
+    label: group.label,
+    items: group.items
+      .filter((item) => canAccessAdminSection(staff.role, item.section))
+      .map((item) => ({
+        href: item.href,
+        label: item.label,
+        icon: item.icon,
+        badgeCount: item.badge ? badgeFor[item.badge].count : undefined,
+        badgeTone: item.badge ? badgeFor[item.badge].tone : undefined,
+        statusDot: item.statusDot ? supplierStatus : undefined,
+      })),
   })).filter((group) => group.items.length > 0);
 
+  const mode = whopMode();
+  const environment =
+    mode === "live" && flags.paymentsLive
+      ? { label: "Live", tone: "live" as const, detail: "Live card payments are enabled" }
+      : mode === "sandbox"
+        ? { label: "Sandbox", tone: "sandbox" as const, detail: "Whop sandbox: test payments only" }
+        : { label: "Local", tone: "local" as const, detail: "Card payments are not live on this server" };
+
+  // System status states only what is known. It never claims "operational"
+  // without a successful supplier check.
+  const systemStatus =
+    severity.critical > 0
+      ? { tone: "error" as const, title: "Action needed", detail: `${severity.critical} critical item(s)`, href: "/admin/attention" }
+      : supplierStatus === "error"
+        ? { tone: "error" as const, title: "Supplier check failed", detail: "See Supplier for details", href: "/admin/provider" }
+        : supplierStatus === "unknown"
+          ? { tone: "warn" as const, title: "System status", detail: "Supplier not checked yet", href: "/admin/provider" }
+          : { tone: "ok" as const, title: "System status", detail: "No critical issues", href: "/admin/monitoring" };
+
   return (
-    <div className="admin-layout">
-      <aside className="admin-nav" aria-label="Admin navigation">
-        <div className="admin-nav-head">
-          <span className="badge badge-demo">Operator</span>
-          <p className="small muted">{staff.email}</p>
-        </div>
-        {groups.map((group) => (
-          <div className="admin-nav-group" key={group.label}>
-            <p className="admin-nav-group-label">{group.label}</p>
-            {group.items.map((item) =>
-              item.comingLater ? (
-                <span key={item.href} className="admin-nav-disabled" aria-disabled="true">
-                  {item.label} <span className="badge badge-neutral">Coming later</span>
-                </span>
-              ) : (
-                <Link key={item.href} href={item.href}>
-                  {item.label}
-                </Link>
-              ),
-            )}
-          </div>
-        ))}
-        <Link href="/">View storefront</Link>
-      </aside>
-      <section className="admin-main">
-        <div className="admin-toolbar">
-          <div>
-            <p className="eyebrow">Operator console</p>
-            <p className="small muted">
-              {demoMode ? "Local mode" : "Live mode"} · supplier {integrationModes.supplier} ·
-              payments {integrationModes.payments} · email {integrationModes.email}
-            </p>
-          </div>
-          <span className="badge badge-warning">
-            <ShieldIcon className="inline-icon" /> No live integrations
-          </span>
-        </div>
-        {children}
-      </section>
-    </div>
+    <AdminShell
+      groups={groups}
+      environment={environment}
+      systemStatus={systemStatus}
+      alertsCount={unresolvedAlerts}
+      admin={{ name: staff.name || staff.email, email: staff.email, role: ROLE_LABEL[staff.role] ?? staff.role }}
+    >
+      {children}
+    </AdminShell>
   );
 }

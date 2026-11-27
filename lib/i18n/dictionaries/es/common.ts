@@ -86,6 +86,7 @@ export const common = {
   "nav.support": "Soporte",
   "nav.cart": "Carrito",
   "nav.account": "Cuenta",
+  "nav.getEsim": "Obtener eSIM",
   "nav.signIn": "Iniciar sesión",
   "nav.signOut": "Cerrar sesión",
   "nav.admin": "Área de administración",

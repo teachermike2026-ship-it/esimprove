@@ -38,9 +38,9 @@ export async function DestinationSearch({
           <option key={suggestion} value={suggestion} />
         ))}
       </datalist>
-      <button className="es-search-button" type="submit" aria-label={t("common.search")}>
+      <button className="es-search-button" type="submit" aria-label={t("home.hero.searchButton")}>
         <SearchIcon />
-        <span>{t("common.search")}</span>
+        <span>{t("home.hero.searchButton")}</span>
       </button>
     </form>
   );

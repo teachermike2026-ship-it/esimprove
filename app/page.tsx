@@ -34,6 +34,8 @@ import {
   ShieldIcon,
   SignalIcon,
   StarIcon,
+  PlaneIcon,
+  HeadsetIcon,
 } from "@/components/icons";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -225,10 +227,16 @@ export default async function HomePage() {
 
         <div className="es-shell es-hero-grid">
           <div className="es-hero-copy">
+            <p className="es-hero-badge">
+              <PlaneIcon />
+              {t("home.hero.badge")}
+            </p>
             <h1 id="hero-title" className="es-hero-title">
               <span>{t("home.hero.title1")}</span>
               <span>{t("home.hero.title2")}</span>
-              <span className="es-hero-accent">{t("home.hero.title3")}</span>
+              <span>
+                {t("home.hero.title3")} <span className="es-hero-accent">{t("home.hero.title3Accent")}</span>
+              </span>
             </h1>
             <p className="es-hero-lead">
               {t("home.hero.lead", {
@@ -236,8 +244,13 @@ export default async function HomePage() {
                 regions: regionCount,
               })}
             </p>
-            <DestinationSearch id="hero-search" suggestions={searchSuggestions} />
             <ul className="es-hero-checks">
+              <li>
+                <span className="es-check-mark">
+                  <CheckIcon />
+                </span>
+                {t("home.hero.benefitInstant")}
+              </li>
               <li>
                 <span className="es-check-mark">
                   <CheckIcon />
@@ -248,15 +261,10 @@ export default async function HomePage() {
                 <span className="es-check-mark">
                   <CheckIcon />
                 </span>
-                {regionCount} {t("common.regions")}
-              </li>
-              <li>
-                <span className="es-check-mark">
-                  <CheckIcon />
-                </span>
                 {t("home.explorer.planOptions", { count: planCount })}
               </li>
             </ul>
+            <DestinationSearch id="hero-search" suggestions={searchSuggestions} />
           </div>
 
           <div className="es-hero-visual">
@@ -297,29 +305,42 @@ export default async function HomePage() {
 
       <section className="es-trust" aria-label={t("home.trust.label")}>
         <div className="es-shell">
-          <p className="es-trust-title">{t("home.trust.title")}</p>
-          <ul className="es-trust-list">
+          <h2 className="sr-only">{t("home.trust.title")}</h2>
+          <ul className="es-trust-list es-trust-cards">
+            <li>
+              <QrIcon />
+              <span>
+                <strong>{t("home.trust.setupTitle")}</strong>
+                <small>{t("home.trust.setupText")}</small>
+              </span>
+            </li>
             <li>
               <GlobeIcon />
-              <span>{t("home.explorer.destinationsCount", { count: destinationCount })}</span>
+              <span>
+                <strong>{t("home.explorer.destinationsCount", { count: destinationCount })}</strong>
+                <small>{t("home.trust.coverageText", { regions: regionCount })}</small>
+              </span>
+            </li>
+            <li>
+              <ShieldIcon />
+              <span>
+                <strong>{t("home.trust.paymentTitle")}</strong>
+                <small>{t("home.trust.paymentText")}</small>
+              </span>
             </li>
             <li>
               <SignalIcon />
               <span>
-                {regionCount} {t("common.regions")}
+                <strong>{t("home.explorer.planOptions", { count: planCount })}</strong>
+                <small>{t("home.trust.plansText")}</small>
               </span>
             </li>
             <li>
-              <QrIcon />
-              <span>{t("home.explorer.planOptions", { count: planCount })}</span>
-            </li>
-            <li>
-              <ShieldIcon />
-              <span>{t("home.trust.digital")}</span>
-            </li>
-            <li>
-              <CheckIcon />
-              <span>{t("home.trust.clearStatus")}</span>
+              <HeadsetIcon />
+              <span>
+                <strong>{t("home.trust.supportTitle")}</strong>
+                <small>{t("home.trust.supportText")}</small>
+              </span>
             </li>
           </ul>
         </div>

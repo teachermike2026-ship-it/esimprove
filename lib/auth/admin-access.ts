@@ -39,7 +39,9 @@ export type AdminSection =
   | "orders"
   | "attention"
   | "revenue"
-  | "alerts";
+  | "alerts"
+  | "reconciliation"
+  | "search";
 
 type AdminSectionAccess =
   | { kind: "staff" }
@@ -75,12 +77,23 @@ export const ADMIN_SECTION_ACCESS: Record<AdminSection, AdminSectionAccess> = {
   attention: { kind: "permission", permission: "orders.write" },
   revenue: { kind: "permission", permission: "invoices.read" },
   alerts: { kind: "admin" },
+  reconciliation: { kind: "permission", permission: "invoices.read" },
+  // Search results are filtered per role inside the page.
+  search: { kind: "staff" },
 };
+
+export type AdminNavBadge = "processing" | "attention" | "support" | "alerts";
 
 export interface AdminNavItem {
   section: AdminSection;
   href: string;
   label: string;
+  /** Icon name from components/admin/admin-icons. */
+  icon?: string;
+  /** Live count shown next to the item (computed in the layout). */
+  badge?: AdminNavBadge;
+  /** Shows the supplier health dot. */
+  statusDot?: boolean;
   /** Rendered as a clearly-disabled entry; the surface is unavailable in this build. */
   comingLater?: boolean;
 }
@@ -92,59 +105,41 @@ export interface AdminNavGroup {
 
 /** Sidebar grouped by area of work. Keep entries in sync with the pages they link to. */
 export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
-  { label: "Overview", items: [{ section: "overview", href: "/admin", label: "Overview" }] },
   {
-    label: "Operations",
+    label: "Main",
     items: [
-      { section: "orders", href: "/admin/orders", label: "Orders" },
-      { section: "attention", href: "/admin/attention", label: "Needs attention" },
-      { section: "jobs", href: "/admin/jobs", label: "Fulfillment jobs" },
+      { section: "overview", href: "/admin", label: "Overview", icon: "home" },
+      { section: "orders", href: "/admin/orders", label: "Orders", icon: "cart", badge: "processing" },
+      { section: "attention", href: "/admin/attention", label: "Needs Attention", icon: "alert", badge: "attention" },
+      { section: "payments", href: "/admin/payments", label: "Payments", icon: "card" },
+      { section: "reconciliation", href: "/admin/reconciliation", label: "Reconciliation", icon: "scale" },
+      { section: "provider", href: "/admin/provider", label: "Supplier", icon: "server", statusDot: true },
+      { section: "revenue", href: "/admin/revenue", label: "Revenue & Profit", icon: "chart" },
+      { section: "customers", href: "/admin/customers", label: "Customers", icon: "users" },
+      { section: "support", href: "/admin/support", label: "Support", icon: "lifebuoy", badge: "support" },
+      { section: "analytics", href: "/admin/analytics", label: "Visitor Analytics", icon: "activity" },
+      { section: "analytics", href: "/admin/analytics?tab=funnel", label: "Marketing Funnel", icon: "funnel" },
+      { section: "plans", href: "/admin/plans", label: "Catalog", icon: "layers" },
+      { section: "coupons", href: "/admin/coupons", label: "Promotions", icon: "tag" },
+      { section: "emails", href: "/admin/emails", label: "Email Center", icon: "mail" },
+      { section: "alerts", href: "/admin/alerts", label: "Alerts", icon: "bell", badge: "alerts" },
+      { section: "audit", href: "/admin/audit", label: "Audit Log", icon: "file" },
+      { section: "settings", href: "/admin/settings", label: "Settings", icon: "settings" },
     ],
   },
   {
-    label: "Money",
+    label: "More tools",
     items: [
-      { section: "payments", href: "/admin/payments", label: "Payments & USDT" },
       { section: "refunds", href: "/admin/refunds", label: "Refunds & disputes" },
-      { section: "revenue", href: "/admin/revenue", label: "Revenue & profit" },
       { section: "finance", href: "/admin/finance", label: "Finance ledger" },
-    ],
-  },
-  { label: "Supplier", items: [{ section: "provider", href: "/admin/provider", label: "eSIM Access" }] },
-  {
-    label: "Customers",
-    items: [
-      { section: "customers", href: "/admin/customers", label: "Customers" },
-      { section: "support", href: "/admin/support", label: "Support" },
-      { section: "help", href: "/admin/help", label: "Help center" },
-    ],
-  },
-  { label: "Analytics", items: [{ section: "analytics", href: "/admin/analytics", label: "Visitors & funnel" }] },
-  {
-    label: "Catalog",
-    items: [
-      { section: "plans", href: "/admin/plans", label: "Plans & pricing" },
+      { section: "jobs", href: "/admin/jobs", label: "Fulfillment jobs" },
       { section: "pricing", href: "/admin/pricing", label: "Markup rules" },
       { section: "plans", href: "/admin/plans/destinations", label: "Destinations" },
       { section: "plans", href: "/admin/plans/regions", label: "Regions" },
-      { section: "coupons", href: "/admin/coupons", label: "Promotions" },
-    ],
-  },
-  { label: "Communication", items: [{ section: "emails", href: "/admin/emails", label: "Email Center" }] },
-  {
-    label: "System",
-    items: [
-      { section: "alerts", href: "/admin/alerts", label: "Alerts" },
       { section: "monitoring", href: "/admin/monitoring", label: "Monitoring" },
-      { section: "audit", href: "/admin/audit", label: "Audit log" },
-    ],
-  },
-  {
-    label: "Settings",
-    items: [
-      { section: "settings", href: "/admin/settings", label: "Settings" },
+      { section: "help", href: "/admin/help", label: "Help center" },
       { section: "legal", href: "/admin/legal", label: "Legal & compliance" },
-      { section: "integrations", href: "/admin/integrations", label: "API Integrations" },
+      { section: "integrations", href: "/admin/integrations", label: "API integrations" },
       { section: "seo", href: "/admin/seo", label: "SEO & CMS" },
       { section: "blog", href: "/admin/blog", label: "Blog & articles" },
     ],

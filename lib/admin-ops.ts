@@ -363,8 +363,8 @@ export interface RevenueReport {
   averageOrderMinor: number;
   byDay: Array<{ day: string; grossMinor: number; orders: number; estimatedProfitMinor: number }>;
   byMethod: Array<{ method: string; orders: number; grossMinor: number }>;
-  byDestination: Array<{ name: string; orders: number; grossMinor: number }>;
-  topPlans: Array<{ name: string; quantity: number; grossMinor: number }>;
+  byDestination: Array<{ name: string; code: string | null; orders: number; grossMinor: number }>;
+  topPlans: Array<{ name: string; code: string | null; quantity: number; grossMinor: number }>;
   /** Paid orders in other currencies are counted here and excluded from the USD totals. */
   otherCurrencyOrders: number;
 }
@@ -402,6 +402,7 @@ export async function getRevenueReport(db: Database, from: Date, to: Date, curre
             totalMinor: orderItems.totalMinor,
             costMinor: orderItems.costMinor,
             destination: destinations.name,
+            countryCode: destinations.countryCode,
           })
           .from(orderItems)
           .leftJoin(plans, eq(plans.id, orderItems.planId))
@@ -441,17 +442,17 @@ export async function getRevenueReport(db: Database, from: Date, to: Date, curre
 
   const delivered = new Set(inCurrency.filter((o) => o.fulfillmentStatus === "delivered").map((o) => o.id));
   const costByOrder = new Map<string, number>();
-  const byDestination = new Map<string, { orders: Set<string>; grossMinor: number }>();
-  const byPlan = new Map<string, { quantity: number; grossMinor: number }>();
+  const byDestination = new Map<string, { code: string | null; orders: Set<string>; grossMinor: number }>();
+  const byPlan = new Map<string, { code: string | null; quantity: number; grossMinor: number }>();
   for (const item of items) {
     // Supplier cost is incurred only when the eSIM was actually issued.
     if (delivered.has(item.orderId)) costByOrder.set(item.orderId, (costByOrder.get(item.orderId) ?? 0) + item.costMinor);
     const dest = item.destination ?? "Unknown";
-    const d = byDestination.get(dest) ?? { orders: new Set<string>(), grossMinor: 0 };
+    const d = byDestination.get(dest) ?? { code: item.countryCode ?? null, orders: new Set<string>(), grossMinor: 0 };
     d.orders.add(item.orderId);
     d.grossMinor += item.totalMinor;
     byDestination.set(dest, d);
-    const p = byPlan.get(item.planName) ?? { quantity: 0, grossMinor: 0 };
+    const p = byPlan.get(item.planName) ?? { code: item.countryCode ?? null, quantity: 0, grossMinor: 0 };
     p.quantity += item.quantity;
     p.grossMinor += item.totalMinor;
     byPlan.set(item.planName, p);
@@ -507,7 +508,7 @@ export async function getRevenueReport(db: Database, from: Date, to: Date, curre
     byDay,
     byMethod: [...byMethod.entries()].map(([method, v]) => ({ method, ...v })).sort((a, b) => b.grossMinor - a.grossMinor),
     byDestination: [...byDestination.entries()]
-      .map(([name, v]) => ({ name, orders: v.orders.size, grossMinor: v.grossMinor }))
+      .map(([name, v]) => ({ name, code: v.code, orders: v.orders.size, grossMinor: v.grossMinor }))
       .sort((a, b) => b.grossMinor - a.grossMinor)
       .slice(0, 10),
     topPlans: [...byPlan.entries()]
@@ -762,4 +763,84 @@ export async function getReconciliation(db: Database, days = 14, now = new Date(
     if (d) d.casesInReview += 1;
   }
   return [...result.values()].reverse();
+}
+
+// ---------------------------------------------------------------------------
+// Overview dashboard (Reference B layout), all from records
+
+export type OverviewRangeKey = "today" | "7d" | "30d" | "month";
+
+export function resolveOverviewRange(key: string | undefined, now = new Date()) {
+  const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const to = new Date(startOfDay.getTime() + 86_400_000);
+  const rangeKey: OverviewRangeKey = key === "today" || key === "30d" || key === "month" ? key : "7d";
+  const from =
+    rangeKey === "today"
+      ? startOfDay
+      : rangeKey === "30d"
+        ? new Date(startOfDay.getTime() - 29 * 86_400_000)
+        : rangeKey === "month"
+          ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+          : new Date(startOfDay.getTime() - 6 * 86_400_000);
+  const length = to.getTime() - from.getTime();
+  return { key: rangeKey, from, to, previousFrom: new Date(from.getTime() - length), previousTo: from };
+}
+
+/** Percentage change, or null when there is no previous value to compare with. */
+export function percentChange(current: number, previous: number): number | null {
+  if (previous <= 0) return null;
+  return Math.round(((current - previous) / previous) * 1000) / 10;
+}
+
+export async function getOverviewDashboard(db: Database, rangeKey?: string) {
+  const range = resolveOverviewRange(rangeKey);
+  const { getFunnelReport } = await import("@/lib/analytics-funnel");
+  const { analyticsSessions } = await import("@/lib/db/schema");
+  const sessionsIn = (from: Date, to: Date) =>
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(analyticsSessions)
+      .where(and(eq(analyticsSessions.isInternal, false), gte(analyticsSessions.firstSeen, from), lt(analyticsSessions.firstSeen, to)));
+  const [current, previous, sessionsNow, sessionsBefore, funnel, created] = await Promise.all([
+    getRevenueReport(db, range.from, range.to),
+    getRevenueReport(db, range.previousFrom, range.previousTo),
+    sessionsIn(range.from, range.to),
+    sessionsIn(range.previousFrom, range.previousTo),
+    getFunnelReport(db, range),
+    db
+      .select({ paymentStatus: orders.paymentStatus, fulfillmentStatus: orders.fulfillmentStatus })
+      .from(orders)
+      .where(and(gte(orders.createdAt, range.from), lt(orders.createdAt, range.to))),
+  ]);
+  const sessions = Number(sessionsNow[0]?.n ?? 0);
+  const previousSessions = Number(sessionsBefore[0]?.n ?? 0);
+  const conversion = sessions > 0 ? Math.round((current.orders / sessions) * 1000) / 10 : null;
+  const previousConversion = previousSessions > 0 ? Math.round((previous.orders / previousSessions) * 1000) / 10 : null;
+
+  const status = { delivered: 0, processing: 0, pending: 0, failed: 0, refunded: 0 };
+  for (const o of created) {
+    if (o.paymentStatus === "refunded" || o.paymentStatus === "partially_refunded") status.refunded += 1;
+    else if (o.paymentStatus === "failed" || o.fulfillmentStatus === "failed") status.failed += 1;
+    else if (o.fulfillmentStatus === "delivered") status.delivered += 1;
+    else if (o.paymentStatus === "paid" || o.paymentStatus === "disputed") status.processing += 1;
+    else status.pending += 1;
+  }
+
+  return {
+    range,
+    current,
+    previous,
+    sessions,
+    conversion,
+    conversionChange: conversion !== null && previousConversion !== null ? Math.round((conversion - previousConversion) * 10) / 10 : null,
+    changes: {
+      orders: percentChange(current.orders, previous.orders),
+      revenue: percentChange(current.grossMinor, previous.grossMinor),
+      profit: percentChange(current.estimatedProfitMinor, previous.estimatedProfitMinor),
+      aov: percentChange(current.averageOrderMinor, previous.averageOrderMinor),
+    },
+    funnel,
+    status,
+    createdOrders: created.length,
+  };
 }
