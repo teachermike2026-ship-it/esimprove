@@ -22,7 +22,8 @@ import { formatDate, formatMoney } from "@/lib/money";
 import { StatusBadge } from "@/components/status-badge";
 import { BarList, LineChart } from "@/components/analytics-charts";
 import { runJobsAction } from "./actions";
-import { ArrowRight, RetryIcon } from "@/components/icons";
+import { AlertIcon, ArrowRight, RetryIcon } from "@/components/icons";
+import { attentionCountsBySeverity, getOpsOverview } from "@/lib/admin-ops";
 
 export const metadata: Metadata = {
   title: "Admin overview",
@@ -40,6 +41,9 @@ export default async function AdminDashboardPage() {
   const canSeeSupport = is("support");
   const canSeeJobs = is("jobs");
   const canSeeEmails = is("emails");
+  const canSeeRevenue = is("revenue");
+  const canSeeAttention = is("attention");
+  const canSeeSupplier = is("provider");
   const canRunJobs = is("jobs");
 
   const db = await getDb();
@@ -65,8 +69,12 @@ export default async function AdminDashboardPage() {
       }),
     ]);
 
+  const ops = canSeeRevenue || canSeeAttention || canSeeSupplier || canSeeEmails ? await getOpsOverview(db) : null;
+  const attention = ops ? attentionCountsBySeverity(ops.attention) : null;
+  const usd = (minor: number) => formatMoney(minor, "USD");
+
   const kpiCards = [
-    canSeeOrders && { label: "Orders (all time)", value: kpis.ordersTotal, href: "/admin/orders", link: "View orders", hint: "Every local order, newest activity included.", empty: "No orders yet. Mock checkouts will appear here." },
+    canSeeOrders && { label: "Orders (all time)", value: kpis.ordersTotal, href: "/admin/orders", link: "View orders", hint: "Every order, any status.", empty: "No orders yet." },
     canSeeOrders && { label: "Orders today", value: kpis.ordersToday, href: "/admin/orders", link: "View orders", hint: "Orders placed today (UTC).", empty: "No orders today so far." },
     canSeeOrders && { label: "Orders this month", value: kpis.ordersThisMonth, href: "/admin/orders", link: "View orders", hint: "Calendar month in UTC.", empty: "No orders this month yet." },
     canSeeCustomers && { label: "Customers", value: kpis.customersTotal, href: "/admin/customers", link: "View customers", hint: "Registered accounts with the customer role.", empty: "No customers yet." },
@@ -75,7 +83,7 @@ export default async function AdminDashboardPage() {
     canSeePlans && { label: "Destinations", value: kpis.destinationsTotal, href: "/admin/plans/destinations", link: "View destinations", hint: "Mapped destinations served by the catalogue.", empty: "No destinations configured." },
     canSeeRefunds && { label: "Pending refunds", value: kpis.pendingRefunds, href: "/admin/refunds", link: "Review refunds", hint: "Refund requests awaiting a decision.", empty: "No refunds awaiting review." },
     canSeeSupport && { label: "Open support tickets", value: kpis.openSupportTickets, href: "/admin/support", link: "View tickets", hint: "Open or awaiting staff.", empty: "No open support tickets." },
-    canSeeJobs && { label: "Failed fulfillment jobs", value: kpis.failedJobs, href: "/admin/jobs", link: "View jobs", hint: "Jobs the mock supplier worker could not complete.", empty: "No failed jobs." },
+    canSeeJobs && { label: "Failed fulfillment jobs", value: kpis.failedJobs, href: "/admin/jobs", link: "View jobs", hint: "eSIM orders the supplier could not complete.", empty: "No failed jobs." },
   ].filter(Boolean) as Array<{ label: string; value: number; href: string; link: string; hint: string; empty: string }>;
 
   return (
@@ -85,8 +93,7 @@ export default async function AdminDashboardPage() {
           <p className="eyebrow">Operations</p>
           <h1>Overview</h1>
           <p className="muted">
-            Local orders, mock payments, mock fulfillment, and redacted email logs. All counts
-            are local data. Everything marked DEMO is illustrative.
+            Live figures from the order, payment, supplier and email records. Revenue counts paid orders only.
           </p>
         </div>
         {canRunJobs ? (
@@ -97,6 +104,57 @@ export default async function AdminDashboardPage() {
           </form>
         ) : null}
       </div>
+
+      {ops ? (
+        <section className="stat-grid section-tight" aria-label="Operations at a glance">
+          {canSeeAttention && attention ? (
+            <Link className="card stat kpi-card" href="/admin/attention">
+              <span>Needs attention</span>
+              <strong>{ops.attention.length}</strong>
+              <p className="muted small">
+                {attention.critical > 0 ? (
+                  <>
+                    <AlertIcon className="inline-icon" /> {attention.critical} critical ·{" "}
+                  </>
+                ) : null}
+                {attention.high} high · {attention.medium} medium
+              </p>
+            </Link>
+          ) : null}
+          {canSeeRevenue ? (
+            <Link className="card stat kpi-card" href="/admin/revenue?range=today">
+              <span>Sales today</span>
+              <strong>{usd(ops.today.grossMinor)}</strong>
+              <p className="muted small">
+                {ops.today.orders} paid · 7 days {usd(ops.week.grossMinor)} · month {usd(ops.month.grossMinor)}
+              </p>
+            </Link>
+          ) : null}
+          {canSeeRevenue ? (
+            <Link className="card stat kpi-card" href="/admin/revenue?range=month">
+              <span>Estimated profit this month</span>
+              <strong>{usd(ops.month.estimatedProfitMinor)}</strong>
+              <p className="muted small">After supplier cost and estimated card fees · {ops.pendingPayments} payments pending</p>
+            </Link>
+          ) : null}
+          {canSeeSupplier ? (
+            <Link className="card stat kpi-card" href="/admin/provider">
+              <span>Supplier balance</span>
+              <strong>{ops.lastBalance?.balanceMinor == null ? "Unavailable" : usd(ops.lastBalance.balanceMinor)}</strong>
+              <p className="muted small">
+                {ops.lastBalance ? `Last read ${formatDate(ops.lastBalance.capturedAt)}` : "Not read yet"}
+              </p>
+            </Link>
+          ) : null}
+          {canSeeEmails ? (
+            <Link className="card stat kpi-card" href="/admin/emails">
+              <span>Email failures (7 days)</span>
+              <strong>{ops.emailFailures7d}</strong>
+              <p className="muted small">Failed emails never block delivery on the website.</p>
+            </Link>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="stat-grid">
         {kpiCards.map((card) => (

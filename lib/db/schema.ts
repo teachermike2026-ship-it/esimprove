@@ -508,6 +508,10 @@ export const emailEvents = pgTable(
     subject: text("subject").notNull(),
     bodyText: text("body_text").notNull(),
     status: text("status").notNull().default("logged"),
+    /** Email provider message ID (Resend `id`), when the provider accepted it (migration 0017). */
+    providerMessageId: text("provider_message_id"),
+    /** Sanitized provider response or error (never contains keys), migration 0017. */
+    providerResponse: text("provider_response"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     sentAt: timestamp("sent_at", { withTimezone: true }),
   },

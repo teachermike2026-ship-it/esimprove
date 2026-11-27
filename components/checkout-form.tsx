@@ -79,7 +79,10 @@ export function CheckoutForm({
               name="paymentMethodChoice"
               value="card"
               checked={method === "card"}
-              onChange={() => setMethod("card")}
+              onChange={() => {
+                setMethod("card");
+                window.esimproveTrack?.("payment_method_selected", { metadata: { method: "card" } });
+              }}
               disabled={disabled}
             />
             <span className="payment-method-top">
@@ -120,7 +123,10 @@ export function CheckoutForm({
               name="paymentMethodChoice"
               value="crypto"
               checked={cryptoSelected}
-              onChange={() => setMethod("crypto")}
+              onChange={() => {
+                setMethod("crypto");
+                window.esimproveTrack?.("payment_method_selected", { metadata: { method: "crypto" } });
+              }}
               disabled={disabled || !cryptoAvailable}
               aria-describedby={cryptoAvailable ? undefined : "crypto-unavailable-note"}
             />

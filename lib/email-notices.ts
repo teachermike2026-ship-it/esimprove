@@ -45,16 +45,21 @@ export async function sendTransactionalEmail(
   });
 
   try {
-    await getEmailTransport().send({
+    const result = await getEmailTransport().send({
       to: input.to,
       subject: input.subject,
       text: input.text,
       template: input.template,
       orderId: input.orderId ?? undefined,
     });
+    // "sent" only when a live provider accepted it; otherwise only logged.
     await db
       .update(emailEvents)
-      .set({ status: "logged", sentAt: new Date() })
+      .set({
+        status: result.mode === "live" ? "sent" : "logged",
+        sentAt: new Date(),
+        providerMessageId: result.mode === "live" ? result.id : null,
+      })
       .where(eq(emailEvents.id, emailEventId));
     return { ok: true, emailEventId };
   } catch (error) {
@@ -66,6 +71,7 @@ export async function sendTransactionalEmail(
       .set({
         status: "failed",
         bodyText: `${safeBody}\n\nTransport error: ${safeError}`,
+        providerResponse: safeError,
       })
       .where(eq(emailEvents.id, emailEventId));
     return { ok: false, emailEventId };

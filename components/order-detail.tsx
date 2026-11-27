@@ -24,11 +24,17 @@ function cryptoStatusKey(status: string) {
   >[0];
 }
 
+/** Timeline entries that are for staff only. */
+export function isInternalOrderEvent(type: string): boolean {
+  return type.startsWith("admin.") || type.endsWith(".review_required");
+}
+
 export async function OrderDetail({
   view,
   accessToken,
   refunds = [],
   showActivation = false,
+  includeInternalEvents = false,
 }: {
   view: OrderView;
   accessToken?: string | null;
@@ -38,9 +44,14 @@ export async function OrderDetail({
    * that already authorised the viewer for this order; never in admin.
    */
   showActivation?: boolean;
+  /** Admin view only: include internal timeline entries (alerts, notes, reviews). */
+  includeInternalEvents?: boolean;
 }) {
   const { t, href } = await getI18n();
-  const { order, items, events } = view;
+  const { order, items } = view;
+  // Internal entries (admin alerts and notes, manual-review reasons) are never
+  // shown to customers.
+  const events = includeInternalEvents ? view.events : view.events.filter((event) => !isInternalOrderEvent(event.type));
   const orderStatus =
     order.status === "failed" ? t("order.needsAttention") : statusLabel(t, order.status);
 

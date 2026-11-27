@@ -623,6 +623,40 @@ export function AnalyticsTracker({ consentVersion }: { consentVersion: string })
     void sendEvents(events, pathname, consentVersion);
   }, [pathname, consented, consentVersion]);
 
+  // Scroll milestones: at most four events per page view (25/50/75/90%),
+  // public pages only, with consent. Individual scroll positions are not sent.
+  useEffect(() => {
+    if (!consented || !pathname) return;
+    if (isPrivatePath(splitLocalePath(pathname).pathname)) return;
+    const milestones = [25, 50, 75, 90];
+    const reached = new Set<number>();
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const doc = document.documentElement;
+      const scrollable = doc.scrollHeight - window.innerHeight;
+      if (scrollable <= 0) return;
+      const depth = Math.min(100, Math.round(((window.scrollY + window.innerHeight) / doc.scrollHeight) * 100));
+      const fresh = milestones.filter((m) => depth >= m && !reached.has(m));
+      if (fresh.length === 0) return;
+      for (const m of fresh) reached.add(m);
+      void sendEvents(
+        fresh.map((m) => ({ type: "scroll_depth", path: pathname, metadata: { depth: m } })),
+        pathname,
+        consentVersion,
+      );
+      if (reached.size === milestones.length) window.removeEventListener("scroll", onScroll);
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(measure);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [pathname, consented, consentVersion]);
+
   useEffect(() => {
     if (!consented) {
       window.esimproveTrack = undefined;
@@ -630,6 +664,14 @@ export function AnalyticsTracker({ consentVersion }: { consentVersion: string })
     }
 
     window.esimproveTrack = (type, options) => {
+      // Checkout is private: only the payment method choice is recorded there,
+      // under a fixed generic path, with no other data.
+      if (type === "payment_method_selected") {
+        const method = options?.metadata?.method;
+        if (method !== "card" && method !== "crypto") return;
+        void sendEvents([{ type, path: "/checkout", metadata: { method } }], "/checkout", consentVersion);
+        return;
+      }
       if (!pathname || isPrivatePath(splitLocalePath(pathname).pathname)) return;
       void sendEvents([{ type, path: options?.path ?? pathname, ...options }], pathname, consentVersion);
     };

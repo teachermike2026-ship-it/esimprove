@@ -36,7 +36,10 @@ export type AdminSection =
   | "pricing"
   | "emails"
   | "settings"
-  | "orders";
+  | "orders"
+  | "attention"
+  | "revenue"
+  | "alerts";
 
 type AdminSectionAccess =
   | { kind: "staff" }
@@ -68,6 +71,10 @@ export const ADMIN_SECTION_ACCESS: Record<AdminSection, AdminSectionAccess> = {
   emails: { kind: "admin" },
   settings: { kind: "admin" },
   orders: { kind: "permission", permission: "orders.read" },
+  // Acting on stuck/failed orders is an operator task (retries, emails).
+  attention: { kind: "permission", permission: "orders.write" },
+  revenue: { kind: "permission", permission: "invoices.read" },
+  alerts: { kind: "admin" },
 };
 
 export interface AdminNavItem {
@@ -86,57 +93,51 @@ export interface AdminNavGroup {
 /** Sidebar grouped by area of work. Keep entries in sync with the pages they link to. */
 export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   { label: "Overview", items: [{ section: "overview", href: "/admin", label: "Overview" }] },
-  { label: "Analytics", items: [{ section: "analytics", href: "/admin/analytics", label: "Analytics" }] },
   {
-    label: "Orders",
+    label: "Operations",
     items: [
       { section: "orders", href: "/admin/orders", label: "Orders" },
-      { section: "finance", href: "/admin/finance", label: "Finance" },
-    ],
-  },
-  { label: "Customers", items: [{ section: "customers", href: "/admin/customers", label: "Customers" }] },
-  {
-    label: "Plans & Catalogue",
-    items: [
-      { section: "plans", href: "/admin/plans", label: "Plans & pricing" },
-      { section: "pricing", href: "/admin/pricing", label: "Pricing rules" },
-      { section: "coupons", href: "/admin/coupons", label: "Coupons" },
+      { section: "attention", href: "/admin/attention", label: "Needs attention" },
+      { section: "jobs", href: "/admin/jobs", label: "Fulfillment jobs" },
     ],
   },
   {
-    label: "Destinations",
+    label: "Money",
     items: [
-      { section: "plans", href: "/admin/plans/destinations", label: "Destinations" },
-      { section: "plans", href: "/admin/plans/regions", label: "Regions" },
+      { section: "payments", href: "/admin/payments", label: "Payments & USDT" },
+      { section: "refunds", href: "/admin/refunds", label: "Refunds & disputes" },
+      { section: "revenue", href: "/admin/revenue", label: "Revenue & profit" },
+      { section: "finance", href: "/admin/finance", label: "Finance ledger" },
     ],
   },
-  { label: "Refunds", items: [{ section: "refunds", href: "/admin/refunds", label: "Refunds" }] },
+  { label: "Supplier", items: [{ section: "provider", href: "/admin/provider", label: "eSIM Access" }] },
   {
-    label: "Support",
+    label: "Customers",
     items: [
+      { section: "customers", href: "/admin/customers", label: "Customers" },
       { section: "support", href: "/admin/support", label: "Support" },
       { section: "help", href: "/admin/help", label: "Help center" },
     ],
   },
+  { label: "Analytics", items: [{ section: "analytics", href: "/admin/analytics", label: "Visitors & funnel" }] },
   {
-    label: "Fulfillment",
-    items: [{ section: "jobs", href: "/admin/jobs", label: "Fulfillment jobs" }],
-  },
-  {
-    label: "Monitoring",
+    label: "Catalog",
     items: [
-      { section: "monitoring", href: "/admin/monitoring", label: "Monitoring & alerts" },
-      { section: "emails", href: "/admin/emails", label: "Email log" },
+      { section: "plans", href: "/admin/plans", label: "Plans & pricing" },
+      { section: "pricing", href: "/admin/pricing", label: "Markup rules" },
+      { section: "plans", href: "/admin/plans/destinations", label: "Destinations" },
+      { section: "plans", href: "/admin/plans/regions", label: "Regions" },
+      { section: "coupons", href: "/admin/coupons", label: "Promotions" },
     ],
   },
-  { label: "Activity Logs", items: [{ section: "audit", href: "/admin/audit", label: "Audit log" }] },
+  { label: "Communication", items: [{ section: "emails", href: "/admin/emails", label: "Email Center" }] },
   {
-    label: "Payments — Coming Later",
-    items: [{ section: "payments", href: "/admin/payments", label: "Payments", comingLater: true }],
-  },
-  {
-    label: "Supplier — Coming Later",
-    items: [{ section: "provider", href: "/admin/provider", label: "Supplier", comingLater: true }],
+    label: "System",
+    items: [
+      { section: "alerts", href: "/admin/alerts", label: "Alerts" },
+      { section: "monitoring", href: "/admin/monitoring", label: "Monitoring" },
+      { section: "audit", href: "/admin/audit", label: "Audit log" },
+    ],
   },
   {
     label: "Settings",

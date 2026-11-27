@@ -15,7 +15,7 @@ import { getSupplierAdapterFor } from "@/lib/integrations/supplier";
 import { ProviderError, type SupplierEsim } from "@/lib/integrations/supplier/types";
 import { getEmailTransport } from "@/lib/integrations/email";
 import { redactSensitiveEmailText } from "@/lib/integrations/email/redact";
-import { buildActivation } from "@/lib/esim-activation";
+import { buildActivation, deliveredOrderItemIds } from "@/lib/esim-activation";
 import { encryptSecret, sha256Hex } from "@/lib/crypto";
 import { createOrderAccessToken, logActivationAccess } from "@/lib/orders";
 import { newId } from "@/lib/ids";
@@ -264,6 +264,7 @@ async function deliverEmail(
 
   let status: "logged" | "sent" | "failed";
   let failure = "";
+  let providerMessageId: string | null = null;
   try {
     const result = await getEmailTransport().send({
       to: input.order.email,
@@ -274,6 +275,7 @@ async function deliverEmail(
       orderId: input.order.id,
     });
     status = result.mode === "live" ? "sent" : "logged";
+    providerMessageId = result.mode === "live" ? result.id : null;
   } catch (error) {
     status = "failed";
     failure = redactSensitiveEmailText(error instanceof Error ? error.message : String(error));
@@ -287,8 +289,12 @@ async function deliverEmail(
       .update(emailEvents)
       .set(
         status === "failed"
-          ? { status, bodyText: `${redacted}\n\nTransport error: ${failure.slice(0, 500)}` }
-          : { status, sentAt: new Date() },
+          ? {
+              status,
+              bodyText: `${redacted}\n\nTransport error: ${failure.slice(0, 500)}`,
+              providerResponse: failure.slice(0, 500),
+            }
+          : { status, sentAt: new Date(), providerMessageId },
       )
       .where(eq(emailEvents.id, emailId));
     if (status === "sent") {
@@ -682,4 +688,30 @@ export async function runOutboxAndJobs(db: Database): Promise<{
   const outbox = await dispatchOutbox(db);
   const jobs = await runFulfillmentJobs(db);
   return { outbox, jobs };
+}
+
+/**
+ * Admin action: send the eSIM delivery email again for an order that was
+ * actually delivered, using the eSIM data stored for it (never generated).
+ * Returns how many emails were attempted. Never throws on email failure.
+ */
+export async function resendDeliveryEmails(db: Database, orderId: string): Promise<{ attempted: number; reason?: string }> {
+  const order = (await db.select().from(orders).where(eq(orders.id, orderId)).limit(1))[0];
+  if (!order) return { attempted: 0, reason: "Order not found." };
+  if (!order.email.trim()) return { attempted: 0, reason: "This guest order has no email address." };
+  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+  const delivered = await deliveredOrderItemIds(db, items.map((item) => item.id));
+  const eligible = items.filter((item) => delivered.has(item.id));
+  if (eligible.length === 0) return { attempted: 0, reason: "No delivered eSIM exists for this order yet." };
+  for (const item of eligible) {
+    const stored = await db.select({ id: esims.id }).from(esims).where(eq(esims.orderItemId, item.id)).limit(1);
+    if (stored.length === 0) continue;
+    await deliverEmail(db, {
+      order,
+      orderItemId: item.id,
+      accessToken: await createOrderAccessToken(db, order.id),
+      itemName: item.quantity > 1 ? `${item.planName} (×${item.quantity})` : item.planName,
+    });
+  }
+  return { attempted: eligible.length };
 }

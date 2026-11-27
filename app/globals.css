@@ -9024,3 +9024,21 @@ a.es-app-row {
   gap: 0.6rem;
   justify-items: start;
 }
+
+/* Admin: order filters */
+.admin-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+}
+.admin-filters .field {
+  margin: 0;
+}
+a.kpi-card {
+  color: inherit;
+  text-decoration: none;
+}
+a.kpi-card:hover {
+  border-color: var(--teal-500);
+}

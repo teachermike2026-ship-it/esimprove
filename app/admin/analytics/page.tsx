@@ -32,6 +32,7 @@ import {
 } from "@/lib/analytics-commerce";
 import { formatDate, formatMoney } from "@/lib/money";
 import { BarList, LineChart } from "@/components/analytics-charts";
+import { FUNNEL_STAGES, getFunnelReport, getScrollReport, type FunnelGroup } from "@/lib/analytics-funnel";
 import { ArrowRight } from "@/components/icons";
 
 export const metadata: Metadata = {
@@ -47,6 +48,7 @@ const TABS = [
   { key: "games", label: "Games" },
   { key: "activities", label: "Activities" },
   { key: "sources", label: "Sources & devices" },
+  { key: "funnel", label: "Funnel & scroll" },
 ] as const;
 
 const RANGE_OPTIONS = [
@@ -166,6 +168,8 @@ export default async function AdminAnalyticsPage({
 
       {tab === "commerce" ? (
         <CommerceTab db={db} range={commerceRange} />
+      ) : tab === "funnel" ? (
+        <FunnelTab db={db} range={webRange} group={stringParam(params, "group")} />
       ) : !hasData ? (
         <EmptyState />
       ) : tab === "overview" ? (
@@ -656,6 +660,151 @@ async function ActivitiesTab({ db, range }: { db: Db; range: Range }) {
             ))}
           </ol>
         )}
+      </section>
+    </>
+  );
+}
+
+const FUNNEL_GROUPS: Array<{ key: FunnelGroup; label: string }> = [
+  { key: "all", label: "All" },
+  { key: "device", label: "By device" },
+  { key: "source", label: "By traffic source" },
+  { key: "country", label: "By country" },
+];
+
+async function FunnelTab({ db, range, group }: { db: Db; range: Range; group?: string }) {
+  const selected = (FUNNEL_GROUPS.some((g) => g.key === group) ? group : "all") as FunnelGroup;
+  const [funnel, scroll] = await Promise.all([getFunnelReport(db, range, selected), getScrollReport(db, range)]);
+  const first = funnel.stages[0]?.count ?? 0;
+  return (
+    <>
+      <section className="card section-tight">
+        <h2>Sales funnel</h2>
+        <p className="muted small">
+          Browsing stages count distinct sessions of visitors who accepted analytics cookies (pseudonymous; internal
+          traffic excluded). Payment and delivery come from order records, which do not depend on consent, so the two
+          parts are shown side by side rather than joined per person.
+        </p>
+        <BarList
+          ariaLabel="Funnel stages"
+          rows={funnel.stages.map((stage) => ({
+            label: stage.label,
+            value: stage.count,
+            hint:
+              stage.fromPrevious === null
+                ? "sessions"
+                : `${stage.fromPrevious}% of previous · ${stage.fromFirst}% of visitors`,
+          }))}
+        />
+        <div className="stat-grid section-tight">
+          <article className="card stat">
+            <span>Payments confirmed</span>
+            <strong>{funnel.paidOrders}</strong>
+            <p className="muted small">Paid orders in this period (verified payments only).</p>
+          </article>
+          <article className="card stat">
+            <span>eSIMs delivered</span>
+            <strong>{funnel.deliveredOrders}</strong>
+            <p className="muted small">Paid orders in this period that were delivered.</p>
+          </article>
+          <article className="card stat">
+            <span>Checkout → payment</span>
+            <strong>
+              {funnel.stages[4]?.count ? `${Math.round((funnel.paidOrders / funnel.stages[4].count) * 1000) / 10}%` : "—"}
+            </strong>
+            <p className="muted small">Approximate: paid orders ÷ consenting checkout sessions.</p>
+          </article>
+          <article className="card stat">
+            <span>Visitor → payment</span>
+            <strong>{first ? `${Math.round((funnel.paidOrders / first) * 1000) / 10}%` : "—"}</strong>
+            <p className="muted small">Approximate, for the same reason.</p>
+          </article>
+        </div>
+      </section>
+
+      <section className="card section-tight">
+        <div className="admin-toolbar">
+          <h2>Conversion by segment</h2>
+          <nav className="pill-row" aria-label="Segment">
+            {FUNNEL_GROUPS.map((g) => (
+              <a
+                key={g.key}
+                className={`chip ${selected === g.key ? "chip-active" : ""}`}
+                href={`/admin/analytics?tab=funnel&range=${range.key}&group=${g.key}`}
+              >
+                {g.label}
+              </a>
+            ))}
+          </nav>
+        </div>
+        {funnel.byGroup.length === 0 ? (
+          <p className="muted small">No funnel events in this period yet.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Segment</th>
+                  {FUNNEL_STAGES.map((s) => (
+                    <th key={s.key}>{s.label}</th>
+                  ))}
+                  <th>Visit → checkout</th>
+                </tr>
+              </thead>
+              <tbody>
+                {funnel.byGroup.map((row) => (
+                  <tr key={row.group}>
+                    <td>{row.group}</td>
+                    {row.stages.map((n, i) => (
+                      <td key={i}>{n}</td>
+                    ))}
+                    <td>{row.stages[0] ? `${Math.round((row.stages[4]! / row.stages[0]) * 1000) / 10}%` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="form-note">
+          Traffic sources are classified from the referrer host only. AI assistants are counted only when their host is
+          recognised; everything else falls under its search, social, referral, direct or unknown category.
+        </p>
+      </section>
+
+      <section className="card section-tight">
+        <h2>Scroll depth</h2>
+        <p className="muted small">
+          Milestone events (25/50/75/90%) on public pages, at most four per page view. Individual scroll positions are
+          not recorded. Tracking starts with this release, so earlier periods are empty.
+        </p>
+        <BarList
+          ariaLabel="Scroll milestones reached"
+          rows={scroll.milestones.map((m) => ({ label: `Reached ${m.depth}%`, value: m.events, hint: "page views" }))}
+        />
+        {scroll.pages.length > 0 ? (
+          <div className="table-wrap section-tight">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Page</th>
+                  <th>Views</th>
+                  <th>Reached 50%</th>
+                  <th>Reached 90%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scroll.pages.map((p) => (
+                  <tr key={p.path}>
+                    <td className="small">{p.path}</td>
+                    <td>{p.views}</td>
+                    <td>{p.views ? `${Math.round((p.reached50 / p.views) * 100)}%` : "—"}</td>
+                    <td>{p.views ? `${Math.round((p.reached90 / p.views) * 100)}%` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </section>
     </>
   );

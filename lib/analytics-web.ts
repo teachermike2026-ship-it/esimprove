@@ -49,6 +49,10 @@ export const TRACKED_EVENT_TYPES = [
   "order_created",
   "cta_clicked",
   "share_clicked",
+  // Scroll milestones (25/50/75/90) on public pages; one event per milestone per page view.
+  "scroll_depth",
+  // Checkout: which payment method was chosen (card or crypto only, no form data).
+  "payment_method_selected",
 ] as const;
 
 export type TrackedEventType = (typeof TRACKED_EVENT_TYPES)[number];

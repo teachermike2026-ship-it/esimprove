@@ -9,6 +9,7 @@ import { OrderDetail } from "@/components/order-detail";
 import { formatDate, formatMoney } from "@/lib/money";
 import { StatusBadge } from "@/components/status-badge";
 import { refundOrderViaProviderAction, retryOrderJobsAction, retryJobAction } from "../../actions";
+import { addOrderNoteAction, resendDeliveryEmailAction } from "../../ops-actions";
 import { AlertIcon, RetryIcon } from "@/components/icons";
 
 export const metadata: Metadata = {
@@ -21,10 +22,10 @@ export default async function AdminOrderDetailPage({
   searchParams,
 }: {
   params: Promise<{ orderNumber: string }>;
-  searchParams: Promise<{ retried?: string; refundRequested?: string; refundError?: string }>;
+  searchParams: Promise<{ retried?: string; refundRequested?: string; refundError?: string; notice?: string }>;
 }) {
   const { orderNumber } = await params;
-  const { retried, refundRequested, refundError } = await searchParams;
+  const { retried, refundRequested, refundError, notice } = await searchParams;
   const staff = await requireStaff("/admin/orders", "orders");
   // Retrying fulfillment mutates job state; read-only staff must not see a
   // button that the server action would reject.
@@ -65,6 +66,12 @@ export default async function AdminOrderDetailPage({
         </div>
       </div>
 
+      {notice ? (
+        <div className="callout section-tight" role="status">
+          <p>{notice}</p>
+        </div>
+      ) : null}
+
       {retried ? (
         <div className="callout section-tight" role="status">
           <RetryIcon className="inline-icon" />
@@ -76,9 +83,9 @@ export default async function AdminOrderDetailPage({
         <div className="callout callout-warning section-tight">
           <AlertIcon className="inline-icon" />
           <p>
-            One or more demo fulfillment jobs failed. Inspect the error
-            {canRetry ? ", then retry the job or use the order-level retry." : "."} No real
-            supplier order exists.
+            One or more fulfillment jobs failed. Inspect the error
+            {canRetry ? ", then retry the job or use the order-level retry." : "."} A retry reuses the
+            same supplier transaction ID, so it never buys a second eSIM for the same line.
           </p>
         </div>
       ) : null}
@@ -201,12 +208,122 @@ export default async function AdminOrderDetailPage({
         </section>
       </div>
 
+      {canViewPayments ? (
+        <section className="card form section-tight">
+          <h2>Line items, cost and margin</h2>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Plan</th>
+                  <th>Qty</th>
+                  <th>Selling price</th>
+                  <th>Supplier cost</th>
+                  <th>Gross margin</th>
+                  <th>Supplier product</th>
+                  <th>eSIMs (ICCID)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {view.items.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      {item.planName}
+                      <br />
+                      <span className="small muted">
+                        {item.dataMb ? `${item.dataMb} MB` : ""} · {item.validityDays} days
+                      </span>
+                    </td>
+                    <td>{item.quantity}</td>
+                    <td>{formatMoney(item.totalMinor, item.currency)}</td>
+                    <td>{formatMoney(item.costMinor, item.currency)}</td>
+                    <td>{formatMoney(item.totalMinor - item.costMinor, item.currency)}</td>
+                    <td className="small">
+                      {item.supplierKey} · {item.supplierProductId}
+                    </td>
+                    <td className="small">
+                      {item.esims.length === 0 ? "None issued" : item.esims.map((e) => e.iccid ?? e.id).join(", ")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="form-note">
+            QR codes and activation codes are never shown in the admin console; customers see them on their own order page.
+          </p>
+        </section>
+      ) : null}
+
+      <div className="grid grid-2 section-tight">
+        <section className="card form">
+          <h2>Internal notes</h2>
+          {view.events.filter((e) => e.type === "admin.note").length === 0 ? (
+            <p className="muted small">No notes yet. Notes are visible to staff only.</p>
+          ) : (
+            <ul className="timeline">
+              {view.events
+                .filter((e) => e.type === "admin.note")
+                .map((note) => (
+                  <li key={note.id}>
+                    <div>
+                      <span>{note.message}</span>
+                      <br />
+                      <span className="small muted">
+                        {String((note.metadata as Record<string, unknown> | null)?.authorEmail ?? "staff")} ·{" "}
+                        {formatDate(note.createdAt)}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+            </ul>
+          )}
+          {canRetry ? (
+            <form action={addOrderNoteAction} className="form">
+              <input type="hidden" name="orderNumber" value={view.order.orderNumber} />
+              <label className="small" htmlFor="order-note">
+                Add a note
+              </label>
+              <textarea id="order-note" name="note" rows={3} maxLength={2000} required />
+              <button className="button button-small button-secondary" type="submit">
+                Save note
+              </button>
+            </form>
+          ) : null}
+        </section>
+
+        <section className="card form">
+          <h2>Delivery email</h2>
+          {view.order.fulfillmentStatus !== "delivered" ? (
+            <p className="muted small">Available once the order is delivered.</p>
+          ) : !view.order.email ? (
+            <p className="muted small">Guest order without an email address: the customer uses the private order link.</p>
+          ) : canRetry ? (
+            <form action={resendDeliveryEmailAction} className="form">
+              <input type="hidden" name="orderNumber" value={view.order.orderNumber} />
+              <p className="small muted">
+                Sends the real stored eSIM details again to the order email. Nothing is regenerated and no supplier call is made.
+              </p>
+              <label className="checkbox">
+                <input type="checkbox" name="confirm" value="yes" required />
+                <span>Send the eSIM delivery email to this customer again.</span>
+              </label>
+              <button className="button button-small" type="submit">
+                Resend delivery email
+              </button>
+            </form>
+          ) : (
+            <p className="muted small">Your role cannot resend emails.</p>
+          )}
+        </section>
+      </div>
+
       <div className="section-tight">
-        <OrderDetail view={view} />
+        <OrderDetail view={view} includeInternalEvents />
       </div>
 
       <section className="card form section-tight">
-        <h2>Mock email log</h2>
+        <h2>Email log for this order</h2>
         {emails.length === 0 ? (
           <p className="muted small">No email events for this order.</p>
         ) : (

@@ -160,6 +160,7 @@ describe("0005 to 0007 migration upgrade", () => {
       "0014_esimaccess_catalog.sql",
       "0015_multi_esim_per_item.sql",
       "0016_user_identities.sql",
+      "0017_email_provider_ids.sql",
     ]);
   });
 
@@ -181,7 +182,8 @@ describe("0005 to 0007 migration upgrade", () => {
     expect(applied.map((row) => row.id)).toContain("0014_esimaccess_catalog.sql");
     expect(applied.map((row) => row.id)).toContain("0015_multi_esim_per_item.sql");
     expect(applied.map((row) => row.id)).toContain("0016_user_identities.sql");
-    expect(applied).toHaveLength(16);
+    expect(applied.map((row) => row.id)).toContain("0017_email_provider_ids.sql");
+    expect(applied).toHaveLength(17);
 
     const status = await listPendingMigrations(handle.client);
     expect(status.checked).toBe(true);
@@ -306,7 +308,7 @@ describe("0005 to 0007 migration upgrade", () => {
       "SELECT applied_at FROM schema_migrations WHERE id = '0006_legal_compliance.sql'",
     );
     expect(new Date(after!.applied_at).getTime()).toBe(beforeAppliedAt);
-    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(16);
+    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(17);
 
     // The file itself must also be idempotent if an operator re-runs it by hand.
     const sql = await readFile(path.join(MIGRATION_DIR, "0006_legal_compliance.sql"), "utf8");
@@ -345,6 +347,6 @@ describe("0005 to 0007 migration upgrade", () => {
            AND indexname = 'rate_limit_counters_window_start_idx'`,
       ),
     ).toBe(1);
-    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(16);
+    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(17);
   });
 });
