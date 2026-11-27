@@ -313,7 +313,7 @@ export const es: LegalLanguagePack = {
           blocks: [
             {
               ul: [
-                "**Tarjeta.** Cuando esté disponible, el pago con tarjeta lo procesa nuestro proveedor de pagos, Whop, en su formulario seguro. Los datos de su tarjeta van directamente al proveedor; ESIMPROVE nunca los ve ni los guarda. El pago con tarjeta aparece como «próximamente» al pagar mientras no esté activado.",
+                "**Tarjeta.** Los pagos con tarjeta (y Apple Pay o Google Pay si su dispositivo los admite) los procesa nuestro proveedor de pagos, Whop, en su formulario seguro mostrado dentro de nuestra página de pago. El formulario de Whop solicita los datos necesarios para procesar y proteger el pago, como su correo electrónico, los datos de la tarjeta y el nombre, país y dirección de facturación. Estos datos van directamente a Whop según su propia política de privacidad; ESIMPROVE nunca ve ni guarda el número de su tarjeta.",
                 "**USDT (BEP-20) en BNB Smart Chain.** La única criptomoneda que aceptamos es Tether USD (USDT) como token BEP-20 en BNB Smart Chain (chain ID 56). La dirección del contrato del token es 0x55d398326f99059fF775485246999027B3197955.",
               ],
             },
@@ -584,7 +584,9 @@ export const es: LegalLanguagePack = {
                   ["Neon (base de datos alojada en Amazon Web Services, Estados Unidos)", "Base de datos", "Los datos descritos en la sección 2"],
                   ["eSIM Access (nuestro mayorista de eSIM)", "Emite los perfiles eSIM", "El plan pedido y una referencia de transacción anónima. **No enviamos su nombre ni su correo al proveedor.**"],
                   ["NodeReal (proveedor de datos blockchain)", "Lee BNB Smart Chain para verificar pagos en USDT", "Consultas sobre nuestra dirección de recepción y hashes de transacción (datos públicos de la blockchain)"],
-                  ["Whop (proveedor de pagos con tarjeta, cuando esté activado)", "Procesa pagos con tarjeta", "Los datos que introduzca en su formulario de pago, junto con la referencia y el importe del pedido. También se aplica la política de privacidad de Whop."],
+                  ["Whop (proveedor de pagos con tarjeta)", "Procesa pagos con tarjeta, Apple Pay y Google Pay", "Los datos que introduzca en su formulario de pago (correo, tarjeta y facturación), junto con la referencia y el importe del pedido. También se aplica la política de privacidad de Whop."],
+                  ["Google y Apple (inicio de sesión opcional)", "Inician su sesión si elige Continuar con Google o Apple", "Su ID de cuenta en ese proveedor, su correo verificado y su nombre"],
+                  ["Resend (envío de correos, cuando esté activado)", "Envía correos opcionales del pedido y la eSIM", "Su correo electrónico y el contenido del mensaje"],
                   ...(ctx.ga4Configured
                     ? [["Google (Google Analytics 4)", "Analítica opcional, solo con consentimiento", "Cookies de analítica y datos de uso"]]
                     : []),
@@ -678,6 +680,8 @@ export const es: LegalLanguagePack = {
                 rows: [
                   ["esimprove_session", "Cookie (HTTP-only)", "Mantiene su sesión iniciada de forma segura", "Hasta 30 días (10 minutos durante el inicio de sesión en dos pasos)"],
                   ["cart_token", "Cookie (HTTP-only)", "Conserva los productos de su carrito", "30 días"],
+                  ["esimprove_guest_orders", "Cookie (HTTP-only)", "Permite a este dispositivo volver a abrir los pedidos hechos como invitado, sin cuenta", "1 año, o hasta que los quite en Mis pedidos"],
+                  ["esimprove_oauth", "Cookie (HTTP-only)", "Protege un inicio de sesión con Google o Apple mientras está en curso", "10 minutos"],
                   ["esimprove_locale", "Cookie", "Recuerda el idioma elegido", "1 año"],
                   ["es_consent_v1", "Almacenamiento local", "Recuerda su elección sobre cookies y su versión", "Hasta que la cambie o borre los datos del sitio"],
                   ["es_consent_id", "Almacenamiento local", "Identificador aleatorio que vincula su navegador con su registro de consentimiento (nosotros solo lo guardamos con hash)", "Hasta que borre los datos del sitio"],

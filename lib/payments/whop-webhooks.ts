@@ -177,12 +177,18 @@ async function applyCaseEvent(
 
   const amountMinor = decimalNumberToMinor(caseEvent.amount, caseEvent.currency);
   let reviewReason: string | null = null;
+  let excessNote = "";
   if (amountMinor === null) {
     reviewReason = "Case amount is not an exact amount in its currency";
   } else if (caseEvent.currency !== payment.currency.toUpperCase()) {
     reviewReason = "Case currency differs from the payment currency";
+  } else if (amountMinor > payment.amountMinor * 2) {
+    reviewReason = "Case amount is more than twice the payment amount";
   } else if (amountMinor > payment.amountMinor) {
-    reviewReason = "Case amount is higher than the payment amount";
+    // Whop refunds what the buyer was charged in their own currency, which
+    // can convert back to slightly more than our USD price (sandbox: $4.71
+    // for a $4.28 order). That is a full refund, not a reason to hold it.
+    excessNote = ` Whop reported ${amountMinor} minor units for a ${payment.amountMinor} payment (buyer currency conversion); treated as a full refund.`;
   }
 
   let caseId = "";
@@ -269,7 +275,7 @@ async function applyCaseEvent(
             );
           const refundedMinor = Number(refunded[0]?.total ?? 0);
           nextStatus = refundedMinor >= payment.amountMinor ? "refunded" : "partially_refunded";
-          message = `Whop refund ${caseEvent.providerCaseId} succeeded (${refundedMinor} of ${payment.amountMinor} minor units refunded).`;
+          message = `Whop refund ${caseEvent.providerCaseId} succeeded (${refundedMinor} of ${payment.amountMinor} minor units refunded).${excessNote}`;
         } else {
           message = `Whop refund ${caseEvent.providerCaseId} is ${caseEvent.status}. Payment status unchanged until it succeeds.`;
         }

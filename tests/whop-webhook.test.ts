@@ -358,12 +358,12 @@ describe("Whop webhooks (synthetic payloads)", () => {
     expect(await fulfillmentRequests(order.orderId)).toHaveLength(1);
   });
 
-  it("flags refunds with mismatched currency or excess amount for review", async () => {
+  it("flags refunds with an implausible excess amount for review", async () => {
     const order = await makeWhopOrder("whop-refund-review");
     await deliver("payment.succeeded", paymentData(order));
     await deliver("refund.created", {
       id: "rf_review1",
-      amount: order.amountMinor / 100 + 5,
+      amount: (order.amountMinor * 2 + 1) / 100,
       currency: "usd",
       status: "succeeded",
       payment: { id: order.providerPaymentId },
@@ -376,6 +376,47 @@ describe("Whop webhooks (synthetic payloads)", () => {
     )[0]!;
     expect(row.needsReview).toBe(true);
     expect((await orderRow(order.orderId)).paymentStatus).toBe("paid");
+  });
+
+  it("flags refunds in a different currency for review", async () => {
+    const order = await makeWhopOrder("whop-refund-currency");
+    await deliver("payment.succeeded", paymentData(order));
+    await deliver("refund.created", {
+      id: "rf_currency1",
+      amount: order.amountMinor / 100,
+      currency: "eur",
+      status: "succeeded",
+      payment: { id: order.providerPaymentId },
+    });
+    const row = (
+      await handle.db
+        .select()
+        .from(paymentProviderCases)
+        .where(eq(paymentProviderCases.providerCaseId, "rf_currency1"))
+    )[0]!;
+    expect(row.needsReview).toBe(true);
+    expect((await orderRow(order.orderId)).paymentStatus).toBe("paid");
+  });
+
+  it("treats a slightly larger same-currency refund (buyer FX) as a full refund", async () => {
+    const order = await makeWhopOrder("whop-refund-fx");
+    await deliver("payment.succeeded", paymentData(order));
+    // Sandbox case: $4.71 refunded for a $4.28 order (about 10% more).
+    await deliver("refund.created", {
+      id: "rf_fx1",
+      amount: Math.round(order.amountMinor * 1.1) / 100,
+      currency: "usd",
+      status: "succeeded",
+      payment: { id: order.providerPaymentId },
+    });
+    const row = (
+      await handle.db
+        .select()
+        .from(paymentProviderCases)
+        .where(eq(paymentProviderCases.providerCaseId, "rf_fx1"))
+    )[0]!;
+    expect(row.needsReview).toBe(false);
+    expect((await orderRow(order.orderId)).paymentStatus).toBe("refunded");
   });
 
   it("records disputes as a risk status without new fulfillment", async () => {

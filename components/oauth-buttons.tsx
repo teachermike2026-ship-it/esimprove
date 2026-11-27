@@ -26,14 +26,16 @@ function AppleMark() {
 /**
  * "Continue with Google / Apple". Plain links (not forms) so the browser
  * navigates to our start endpoint, which redirects to the provider.
- * A provider without configured credentials is shown disabled.
+ * A provider without configured credentials is not shown.
  */
 export async function OAuthButtons({ next }: { next: string }) {
   const { t } = await getI18n();
   const available = oauthAvailability();
+  // Only configured providers are shown; with none configured the section is
+  // omitted, so customers never see a button that does nothing.
+  if (!available.google && !available.apple) return null;
   const startHref = (provider: "google" | "apple") =>
     `/api/auth/oauth/${provider}/start?next=${encodeURIComponent(next)}`;
-  const none = !available.google && !available.apple;
 
   return (
     <div className="oauth-buttons">
@@ -42,24 +44,13 @@ export async function OAuthButtons({ next }: { next: string }) {
           <GoogleMark />
           <span>{t("oauth.continueGoogle")}</span>
         </a>
-      ) : (
-        <span className="oauth-button oauth-google is-disabled" aria-disabled="true">
-          <GoogleMark />
-          <span>{t("oauth.continueGoogle")}</span>
-        </span>
-      )}
+      ) : null}
       {available.apple ? (
         <a className="oauth-button oauth-apple" href={startHref("apple")} rel="nofollow">
           <AppleMark />
           <span>{t("oauth.continueApple")}</span>
         </a>
-      ) : (
-        <span className="oauth-button oauth-apple is-disabled" aria-disabled="true">
-          <AppleMark />
-          <span>{t("oauth.continueApple")}</span>
-        </span>
-      )}
-      {none ? <p className="form-note oauth-unavailable">{t("oauth.notConfigured")}</p> : null}
+      ) : null}
     </div>
   );
 }
@@ -67,6 +58,8 @@ export async function OAuthButtons({ next }: { next: string }) {
 /** Legal notice shown next to the Google / Apple buttons. */
 export async function OAuthLegalNote() {
   const { t, href } = await getI18n();
+  const available = oauthAvailability();
+  if (!available.google && !available.apple) return null;
   return (
     <p className="form-note oauth-legal">
       {t("oauth.legalPrefix")}{" "}

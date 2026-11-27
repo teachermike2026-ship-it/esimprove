@@ -305,6 +305,24 @@ function validateSharedDeploymentSecrets(problems: string[]): void {
   }
 }
 
+/**
+ * Live email (Resend) is ready only with EMAIL_PROVIDER=resend, a Resend API
+ * key (re_...) and a sender address in EMAIL_FROM. Names only, never values.
+ */
+export function liveEmailProblems(env: NodeJS.ProcessEnv = process.env): string[] {
+  const problems: string[] = [];
+  if ((env.EMAIL_PROVIDER ?? "").trim().toLowerCase() !== "resend") {
+    problems.push("EMAIL_LIVE_ENABLED requires EMAIL_PROVIDER=resend");
+  }
+  if (!/^re_[A-Za-z0-9_]+$/.test(env.RESEND_API_KEY?.trim() ?? "")) {
+    problems.push("EMAIL_LIVE_ENABLED requires RESEND_API_KEY (a Resend key starting with re_)");
+  }
+  if (!/@[^@\s>]+\.[^@\s>]+/.test(env.EMAIL_FROM?.trim() ?? "")) {
+    problems.push("EMAIL_LIVE_ENABLED requires EMAIL_FROM (for example ESIMPROVE Support <support@esimprove.com>)");
+  }
+  return problems;
+}
+
 function validateLiveFlags(problems: string[]): void {
   // PAYMENTS_LIVE_ENABLED is the explicit live-card gate for Whop. It was
   // previously rejected here unconditionally, which made live Whop checkout
@@ -319,7 +337,7 @@ function validateLiveFlags(problems: string[]): void {
   ) {
     problems.push("SUPPLIER_LIVE_ENABLED requires ESIM_ACCESS_CODE and ESIM_SECRET_KEY");
   }
-  if (flags.emailLive) problems.push("EMAIL_LIVE_ENABLED is not implemented in this build");
+  if (flags.emailLive) problems.push(...liveEmailProblems());
   if (
     flags.catalogueSync &&
     !(process.env.ESIM_ACCESS_CODE?.trim() && process.env.ESIM_SECRET_KEY?.trim())
@@ -524,13 +542,17 @@ function paymentsIntegrationMode(): string {
 
 export const integrationModes = {
   supplier: flags.supplierLive
-    ? "live-disabled"
+    ? process.env.ESIM_ACCESS_CODE?.trim() && process.env.ESIM_SECRET_KEY?.trim()
+      ? "esimaccess-live"
+      : "live-unconfigured"
     : mockCommerceAllowed
       ? "mock-sandbox"
       : "disabled",
   payments: paymentsIntegrationMode(),
   email: flags.emailLive
-    ? "live-disabled"
+    ? liveEmailProblems().length === 0
+      ? "resend-live"
+      : "live-unconfigured"
     : mockCommerceAllowed
       ? "local-logger"
       : "disabled",

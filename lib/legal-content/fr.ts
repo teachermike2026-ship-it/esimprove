@@ -313,7 +313,7 @@ export const fr: LegalLanguagePack = {
           blocks: [
             {
               ul: [
-                "**Carte bancaire.** Lorsqu'il est disponible, le paiement par carte est traité par notre prestataire de paiement, Whop, dans son formulaire sécurisé. Vos données de carte sont transmises directement au prestataire ; ESIMPROVE ne les voit ni ne les conserve jamais. Le paiement par carte est indiqué « bientôt disponible » lors du paiement tant qu'il n'est pas activé.",
+                "**Carte bancaire.** Les paiements par carte (et Apple Pay ou Google Pay si votre appareil les prend en charge) sont traités par notre prestataire de paiement, Whop, dans son formulaire sécurisé affiché dans notre page de paiement. Le formulaire de Whop demande les informations nécessaires pour traiter et sécuriser le paiement, comme votre adresse e-mail, vos données de carte et vos nom, pays et adresse de facturation. Elles sont transmises directement à Whop selon sa propre politique de confidentialité ; ESIMPROVE ne voit ni ne conserve jamais votre numéro de carte.",
                 "**USDT (BEP-20) sur BNB Smart Chain.** La seule cryptomonnaie acceptée est le Tether USD (USDT), sous forme de jeton BEP-20 sur BNB Smart Chain (chain ID 56). L'adresse du contrat du jeton est 0x55d398326f99059fF775485246999027B3197955.",
               ],
             },
@@ -584,7 +584,9 @@ export const fr: LegalLanguagePack = {
                   ["Neon (base de données hébergée sur Amazon Web Services, États-Unis)", "Base de données", "Les données décrites à la section 2"],
                   ["eSIM Access (notre grossiste eSIM)", "Émission des profils eSIM", "Le forfait commandé et une référence de transaction anonyme. **Nous n'envoyons pas votre nom ni votre e-mail au fournisseur.**"],
                   ["NodeReal (fournisseur de données blockchain)", "Lecture de BNB Smart Chain pour vérifier les paiements en USDT", "Requêtes portant sur notre adresse de réception et des hash de transaction (données publiques de la blockchain)"],
-                  ["Whop (prestataire de paiement par carte, lorsqu'il est activé)", "Traitement des paiements par carte", "Données saisies dans son formulaire de paiement, avec la référence et le montant de la commande. La politique de confidentialité de Whop s'applique également."],
+                  ["Whop (prestataire de paiement par carte)", "Traitement des paiements par carte, Apple Pay et Google Pay", "Données saisies dans son formulaire de paiement (e-mail, carte et facturation), avec la référence et le montant de la commande. La politique de confidentialité de Whop s'applique également."],
+                  ["Google et Apple (connexion facultative)", "Vous connectent si vous choisissez Continuer avec Google ou Apple", "Votre identifiant de compte chez ce fournisseur, votre e-mail vérifié et votre nom"],
+                  ["Resend (envoi d'e-mails, lorsqu'il est activé)", "Envoie des e-mails facultatifs de commande et d'eSIM", "Votre adresse e-mail et le contenu du message"],
                   ...(ctx.ga4Configured
                     ? [["Google (Google Analytics 4)", "Mesure d'audience facultative, avec consentement uniquement", "Cookies de mesure d'audience et données d'utilisation"]]
                     : []),
@@ -678,6 +680,8 @@ export const fr: LegalLanguagePack = {
                 rows: [
                   ["esimprove_session", "Cookie (HTTP-only)", "Maintient votre connexion de façon sécurisée", "Jusqu'à 30 jours (10 minutes pendant la connexion en deux étapes)"],
                   ["cart_token", "Cookie (HTTP-only)", "Conserve le contenu de votre panier", "30 jours"],
+                  ["esimprove_guest_orders", "Cookie (HTTP-only)", "Permet à cet appareil de rouvrir les commandes passées en tant qu'invité, sans compte", "1 an, ou jusqu'à leur retrait dans Mes commandes"],
+                  ["esimprove_oauth", "Cookie (HTTP-only)", "Protège une connexion Google ou Apple en cours", "10 minutes"],
                   ["esimprove_locale", "Cookie", "Mémorise la langue choisie", "1 an"],
                   ["es_consent_v1", "Stockage local", "Mémorise votre choix concernant les cookies et sa version", "Jusqu'à modification ou effacement des données du site"],
                   ["es_consent_id", "Stockage local", "Identifiant aléatoire reliant votre navigateur à la trace de votre consentement (conservé uniquement haché de notre côté)", "Jusqu'à effacement des données du site"],

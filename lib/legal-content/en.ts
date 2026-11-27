@@ -316,7 +316,7 @@ export const en: LegalLanguagePack = {
           blocks: [
             {
               ul: [
-                "**Card payments.** When available, card payments are processed by our payment provider, Whop, in its secure payment form. Your card details go directly to the provider and are never seen or stored by ESIMPROVE. Card payment is shown as \"coming soon\" at checkout until it is switched on.",
+                "**Card payments.** Card payments (and Apple Pay or Google Pay where your device supports them) are processed by our payment provider, Whop, in its secure payment form shown inside our checkout page. Whop's form asks for the details it needs to process and protect the payment, such as your email address, card details and billing name, country and address. These go directly to Whop under its own privacy policy; ESIMPROVE never sees or stores your card number.",
                 "**USDT (BEP-20) on BNB Smart Chain.** The only cryptocurrency we accept is Tether USD (USDT) as the BEP-20 token on BNB Smart Chain (chain ID 56). The token contract is 0x55d398326f99059fF775485246999027B3197955.",
               ],
             },
@@ -587,7 +587,9 @@ export const en: LegalLanguagePack = {
                   ["Neon (database hosted on Amazon Web Services, United States)", "Database", "The data described in section 2"],
                   ["eSIM Access (our wholesale eSIM supplier)", "Issues eSIM profiles", "The package ordered and an anonymous transaction reference. **We do not send your name or email to the supplier.**"],
                   ["NodeReal (blockchain data provider)", "Reads BNB Smart Chain to verify USDT payments", "Queries about our receiving address and transaction hashes (public blockchain data)"],
-                  ["Whop (card payment provider, when enabled)", "Processes card payments", "Data you enter in its payment form, plus the order reference and amount. Whop's own privacy policy also applies."],
+                  ["Whop (card payment provider)", "Processes card, Apple Pay and Google Pay payments", "Data you enter in its payment form (email, card and billing details), plus the order reference and amount. Whop's own privacy policy also applies."],
+                  ["Google and Apple (optional sign-in)", "Sign you in when you choose Continue with Google or Apple", "Your account ID with that provider, verified email address and name"],
+                  ["Resend (email delivery, when enabled)", "Sends optional order and eSIM emails", "Your email address and the message content"],
                   ...(ctx.ga4Configured
                     ? [["Google (Google Analytics 4)", "Optional analytics, only with consent", "Analytics cookies and usage data"]]
                     : []),
@@ -681,6 +683,8 @@ export const en: LegalLanguagePack = {
                 rows: [
                   ["esimprove_session", "Cookie (HTTP-only)", "Keeps you signed in securely", "Up to 30 days (10 minutes during two-step sign-in)"],
                   ["cart_token", "Cookie (HTTP-only)", "Keeps the items in your cart", "30 days"],
+                  ["esimprove_guest_orders", "Cookie (HTTP-only)", "Lets this device reopen orders you placed as a guest, without an account", "1 year, or until you remove them on My orders"],
+                  ["esimprove_oauth", "Cookie (HTTP-only)", "Protects a Google or Apple sign-in while it is in progress", "10 minutes"],
                   ["esimprove_locale", "Cookie", "Remembers the language you chose", "1 year"],
                   ["es_consent_v1", "Local storage", "Remembers your cookie choice and its version", "Until you change it or clear site data"],
                   ["es_consent_id", "Local storage", "Random ID linking your browser to your consent record (stored by us only as a hash)", "Until you clear site data"],

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getI18n } from "@/lib/i18n/server";
 import { OAuthButtons, OAuthLegalNote } from "@/components/oauth-buttons";
+import { oauthAvailability } from "@/lib/auth/oauth";
 import { ArrowRight, CheckIcon, LockIcon, UserIcon } from "@/components/icons";
 
 /**
@@ -18,6 +19,9 @@ export async function CheckoutEntry({
   const { t, href } = await getI18n();
   const checkoutPath = href("/checkout");
   const guestPath = `${checkoutPath}?as=guest`;
+  const loginPath = `${href("/login")}?next=${encodeURIComponent(checkoutPath)}`;
+  const oauth = oauthAvailability();
+  const hasOAuth = oauth.google || oauth.apple;
 
   return (
     <section className="checkout-entry" aria-labelledby="checkout-entry-title">
@@ -36,11 +40,15 @@ export async function CheckoutEntry({
           <p className="muted">{t("checkoutEntry.accountLead")}</p>
           <OAuthButtons next={checkoutPath} />
           <OAuthLegalNote />
-          <p className="checkout-entry-alt">
-            <Link href={`${href("/login")}?next=${encodeURIComponent(checkoutPath)}`}>
-              {t("checkoutEntry.emailSignIn")}
+          {hasOAuth ? (
+            <p className="checkout-entry-alt">
+              <Link href={loginPath}>{t("checkoutEntry.emailSignIn")}</Link>
+            </p>
+          ) : (
+            <Link className="button button-secondary button-wide" href={loginPath}>
+              {t("auth.signIn")} <ArrowRight className="inline-icon" />
             </Link>
-          </p>
+          )}
         </article>
 
         <article className="card checkout-entry-card checkout-entry-guest">

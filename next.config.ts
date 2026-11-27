@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/**": ["./db/migrations/**/*"],
   },
+  async rewrites() {
+    // Apple Pay domain verification (content from APPLE_PAY_DOMAIN_ASSOCIATION).
+    return [
+      {
+        source: "/.well-known/apple-developer-merchantid-domain-association",
+        destination: "/api/apple-pay-domain-association",
+      },
+    ];
+  },
   async redirects() {
     // Guides whose content moved into a fuller blog article (permanent).
     return Object.entries(SUPERSEDED_GUIDES).flatMap(([oldSlug, newSlug]) => [

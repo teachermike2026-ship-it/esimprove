@@ -7,6 +7,7 @@ import { safeNextPath } from "@/lib/validation";
 import { isAdminRole } from "@/lib/auth/roles";
 import { AlertIcon, CheckIcon, LockIcon } from "@/components/icons";
 import { OAuthButtons, OAuthLegalNote } from "@/components/oauth-buttons";
+import { oauthAvailability } from "@/lib/auth/oauth";
 import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 import { getI18n } from "@/lib/i18n/server";
 import { localizedMetadata } from "@/lib/i18n/metadata";
@@ -73,11 +74,15 @@ export default async function LoginPage({
             <span>{t(OAUTH_ERROR_KEYS[oauthError] ?? "oauth.error.failed")}</span>
           </div>
         ) : null}
-        <OAuthButtons next={nextPath} />
-        <OAuthLegalNote />
-        <p className="oauth-divider">
-          <span>{t("oauth.orEmail")}</span>
-        </p>
+        {oauthAvailability().google || oauthAvailability().apple ? (
+          <>
+            <OAuthButtons next={nextPath} />
+            <OAuthLegalNote />
+            <p className="oauth-divider">
+              <span>{t("oauth.orEmail")}</span>
+            </p>
+          </>
+        ) : null}
         <LoginForm next={nextPath} />
         <p className="form-note" style={{ textAlign: "center" }}>
           {t("auth.noAccount")}{" "}
