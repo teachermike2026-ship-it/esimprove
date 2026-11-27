@@ -1,8 +1,8 @@
 # Netlify build configuration for Next.js 16.
 #
-# Netlify detects Next.js and installs its OpenNext adapter automatically. Do
-# not add @netlify/plugin-nextjs or another Next.js plugin: that would pin an
-# outdated adapter and conflict with the supported zero-config integration.
+# The Next.js runtime is declared explicitly because zero-config detection did
+# not install it for API-triggered production builds on this site. Netlify
+# installs the current adapter from npm; do not pin an old version.
 #
 # APP_ENV must be set per deploy context in Netlify:
 #   deploy previews -> preview
@@ -24,3 +24,12 @@
   NODE_VERSION = "22"
   NPM_FLAGS = "--no-audit --no-fund"
   NEXT_TELEMETRY_DISABLED = "1"
+  # APP_ENV and DATABASE_ENV ("production") plus DATABASE_SSL ("require") are
+  # ordinary configuration values, not credentials. They are marked secret on
+  # Netlify, so scanning would otherwise flag every occurrence of those common
+  # words in the repository. Omit only these three keys; all real secrets
+  # remain scanned.
+  SECRETS_SCAN_OMIT_KEYS = "APP_ENV,DATABASE_ENV,DATABASE_SSL"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
