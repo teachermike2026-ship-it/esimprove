@@ -118,7 +118,11 @@ describe("Whop sandbox adapter (fake SDK)", () => {
     const { payment_method_configuration: methods, ...described } = call.body;
     expect(JSON.stringify(described)).not.toMatch(/crypto|usdt|bep-?20|traveler@example\.com/i);
     // ...and Whop's own crypto method is switched off: crypto is a separate gate.
-    expect(methods).toEqual({ enabled: ["card"], disabled: ["crypto"], include_platform_defaults: true });
+    expect(methods).toEqual({
+      enabled: ["card", "apple_pay", "google_pay"],
+      disabled: ["crypto"],
+      include_platform_defaults: true,
+    });
   });
 
   it("refunds a confirmed sandbox payment once per payment through the SDK", async () => {
@@ -152,10 +156,12 @@ describe("Whop sandbox adapter (fake SDK)", () => {
 describe("Whop Elements content security policy", () => {
   it("matches the sources published by @whop/elements", () => {
     for (const environment of ["sandbox", "production"] as const) {
-      const expected = contentSecurityPolicy({ environment, wallets: false, bankConnections: false }).directives;
+      // Wallets on (Apple Pay / Google Pay / PayPal), bank connections off.
+      const expected = contentSecurityPolicy({ environment, wallets: true, bankConnections: false }).directives;
       expect([...WHOP_ELEMENTS_CSP[environment].frame]).toEqual([...expected["frame-src"]]);
       expect([...WHOP_ELEMENTS_CSP[environment].script]).toEqual([...expected["script-src"]]);
       expect([...WHOP_ELEMENTS_CSP[environment].connect]).toEqual([...expected["connect-src"]]);
+      expect([...WHOP_ELEMENTS_CSP[environment].img]).toEqual([...(expected["img-src"] ?? [])]);
     }
   });
 

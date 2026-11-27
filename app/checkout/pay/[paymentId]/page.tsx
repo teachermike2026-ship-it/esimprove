@@ -5,9 +5,10 @@ import { getDb } from "@/lib/db/client";
 import { loadAuthorizedMockPayment } from "@/lib/payment-access";
 import { appUrl, mockCommerceAllowed, onlineCheckoutAvailable } from "@/lib/config";
 import { isWhopCheckoutUrl, whopMode } from "@/lib/integrations/payment/whop";
+import { getOrderItems } from "@/lib/orders";
 import { WhopEmbeddedCheckout } from "@/components/whop-embedded-checkout";
-import { formatMoney } from "@/lib/money";
-import { AlertIcon, ArrowRight, CreditCardIcon } from "@/components/icons";
+import { formatData, formatMoney } from "@/lib/money";
+import { AlertIcon, ArrowRight, LockIcon, ShieldIcon } from "@/components/icons";
 import { getI18n } from "@/lib/i18n/server";
 import { localizedMetadata } from "@/lib/i18n/metadata";
 
@@ -21,6 +22,13 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
+/**
+ * Checkout step 2 for card payments. Whop's payment form (card, and Apple Pay
+ * / Google Pay where supported) is embedded on this esimprove.com page inside
+ * the normal checkout layout. Customers are never sent to whop.com: there is
+ * no hosted-checkout link or redirect here. The order is paid only when the
+ * signature-verified Whop webhook confirms it.
+ */
 export default async function PaymentPage({
   params,
   searchParams,
@@ -28,7 +36,7 @@ export default async function PaymentPage({
   params: Promise<{ paymentId: string }>;
   searchParams: Promise<{ token?: string }>;
 }) {
-  const { t, href } = await getI18n();
+  const { t, href, locale } = await getI18n();
   const { paymentId } = await params;
   const flags = await searchParams;
   const token = flags.token ?? null;
@@ -64,6 +72,7 @@ export default async function PaymentPage({
       ? {
           checkoutConfigurationId: payment.providerPaymentId,
           environment: mode === "sandbox" ? ("sandbox" as const) : ("production" as const),
+          // Whop sends the customer back to our own confirmation page.
           returnUrl: `${appUrl}/checkout/success?${new URLSearchParams({
             order: order.orderNumber,
             ...(token ? { token } : {}),
@@ -71,95 +80,114 @@ export default async function PaymentPage({
         }
       : null;
   const orderHref = `/orders/${order.orderNumber}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  const items = await getOrderItems(db, order.id);
 
   return (
-    <div className="centered">
+    <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">{t("payment.metaTitle")}</p>
+          <p className="eyebrow">{t("payment.stepLabel")}</p>
           <h1>
-            {failed
-              ? t("payment.failedTitle")
-              : isWhop
-                ? t("payment.awaitingTitle")
-                : t("payment.unavailableTitle")}
+            {failed ? t("payment.failedTitle") : embed ? t("payment.embedPageTitle") : t("payment.awaitingTitle")}
           </h1>
-          <p className="lead">
-            {failed
-              ? t("payment.failedLead")
-              : isWhop
-                ? t("payment.awaitingLead")
-                : t("payment.unavailableLead")}
+          <p className="muted">
+            {failed ? t("payment.failedLead") : embed ? t("payment.embedPageLead") : t("payment.awaitingLead")}
           </p>
         </div>
       </div>
 
-      <section className="card payment-card">
-        <dl className="meta-list">
-          <div>
-            <dt>{t("payment.order")}</dt>
-            <dd>{order.orderNumber}</dd>
-          </div>
-          <div>
-            <dt>{t("payment.email")}</dt>
-            <dd>{order.email}</dd>
-          </div>
-          <div>
-            <dt>{t("payment.amount")}</dt>
-            <dd>{formatMoney(payment.amountMinor, payment.currency)}</dd>
-          </div>
-        </dl>
+      <div className="checkout-layout">
+        <section className="card checkout-pay-card" aria-labelledby="payment-embed-title">
+          {embed ? (
+            <>
+              <div className="checkout-pay-head">
+                <h2 id="payment-embed-title">{t("payment.embedTitle")}</h2>
+                <span className="checkout-pay-secure">
+                  <LockIcon className="inline-icon" /> {t("payment.secureBadge")}
+                </span>
+              </div>
+              <p className="form-note">{t("payment.walletNote")}</p>
+              <WhopEmbeddedCheckout
+                checkoutConfigurationId={embed.checkoutConfigurationId}
+                environment={embed.environment}
+                returnUrl={embed.returnUrl}
+                locale={locale}
+                labels={{
+                  loading: t("payment.embedLoading"),
+                  loadFailed: t("payment.embedLoadFailed"),
+                  retry: t("payment.embedRetry"),
+                  sandboxNotice: t("payment.sandboxNotice"),
+                }}
+              />
+              <p className="form-note checkout-pay-note">
+                <ShieldIcon className="inline-icon" /> {t("payment.whopBody")}
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 id="payment-embed-title">
+                {t("payment.order")} {order.orderNumber}
+              </h2>
+              {failed ? (
+                <div className="callout callout-warning">
+                  <AlertIcon className="inline-icon" />
+                  <p>{t("payment.failedNotice")}</p>
+                </div>
+              ) : null}
+              <p>
+                {isWhop && !failed
+                  ? t("payment.embedUnavailable")
+                  : t("payment.contactBody", { orderNumber: order.orderNumber })}
+              </p>
+              <div className="payment-actions">
+                <Link className="button" href={href(orderHref)}>
+                  {t("payment.viewOrder")} <ArrowRight className="inline-icon" />
+                </Link>
+                <Link className="button button-secondary" href={href("/contact")}>
+                  {t("common.contactSupport")}
+                </Link>
+                <Link className="button button-ghost" href={href("/plans")}>
+                  {t("payment.continueShopping")}
+                </Link>
+              </div>
+            </>
+          )}
+        </section>
 
-        {embed ? (
-          <section className="payment-embed" aria-labelledby="payment-embed-title">
-            <h2 id="payment-embed-title">{t("payment.embedTitle")}</h2>
-            <WhopEmbeddedCheckout
-              checkoutConfigurationId={embed.checkoutConfigurationId}
-              environment={embed.environment}
-              returnUrl={embed.returnUrl}
-              hostedCheckoutUrl={payment.checkoutUrl}
-              labels={{
-                loading: t("payment.embedLoading"),
-                loadFailed: t("payment.embedLoadFailed"),
-                openHosted: t("payment.openHosted"),
-                sandboxNotice: t("payment.sandboxNotice"),
-              }}
-            />
+        <aside className="checkout-sidebar" aria-label={t("checkout.orderSummaryAria")}>
+          <section className="card summary-card">
+            <h2>{t("checkout.orderSummary")}</h2>
+            <div className="summary-row">
+              <span>{t("payment.order")}</span>
+              <span dir="ltr">{order.orderNumber}</span>
+            </div>
+            {items.map((item) => (
+              <div className="summary-row" key={item.id}>
+                <span>
+                  {item.planName}
+                  {item.dataMb ? ` · ${formatData(item.dataMb)}` : ""} × {item.quantity}
+                </span>
+                <span dir="ltr">{formatMoney(item.totalMinor, item.currency, locale)}</span>
+              </div>
+            ))}
+            {order.email ? (
+              <div className="summary-row">
+                <span>{t("payment.email")}</span>
+                <span>{order.email}</span>
+              </div>
+            ) : null}
+            <div className="summary-total">
+              <span>{t("payment.amount")}</span>
+              <span dir="ltr">{formatMoney(payment.amountMinor, payment.currency, locale)}</span>
+            </div>
+            <p className="form-note">{t("payment.summaryNote")}</p>
           </section>
-        ) : null}
-
-        {failed ? (
-          <div className="callout callout-warning">
-            <AlertIcon className="inline-icon" />
-            <p>{t("payment.failedNotice")}</p>
+          <div className="callout">
+            <ShieldIcon className="inline-icon" />
+            <p>{t("checkout.paymentNotice")}</p>
           </div>
-        ) : null}
-
-        <p>
-          {isWhop && !failed
-            ? t("payment.whopBody")
-            : t("payment.contactBody", { orderNumber: order.orderNumber })}
-        </p>
-
-        <div className="payment-actions">
-          {canResume && !embed ? (
-            <a className="button" href={payment.checkoutUrl} rel="noreferrer">
-              <CreditCardIcon className="inline-icon" /> {t("payment.securePay")}{" "}
-              <ArrowRight className="inline-icon" />
-            </a>
-          ) : null}
-          <Link className="button" href={href(orderHref)}>
-            <CreditCardIcon className="inline-icon" /> {t("payment.viewOrder")}{" "}
-            <ArrowRight className="inline-icon" />
-          </Link>
-          <Link className="button button-secondary" href={href("/contact")}>
-            {t("common.contactSupport")}
-          </Link>
-          <Link className="button button-ghost" href={href("/plans")}>
-            {t("payment.continueShopping")}
-          </Link>
-        </div>
-      </section>
-    </div>
+        </aside>
+      </div>
+    </>
   );
 }

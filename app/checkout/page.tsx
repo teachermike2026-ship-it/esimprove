@@ -6,13 +6,14 @@ import { getCartView } from "@/lib/cart";
 import { readCartToken } from "@/lib/cart-session";
 import { getCurrentUser } from "@/lib/auth/session";
 import { CheckoutForm } from "@/components/checkout-form";
+import { CheckoutEntry } from "@/components/checkout-entry";
 import { CheckoutPaymentPreview } from "@/components/checkout-payment-preview";
 import { EmptyState } from "@/components/empty-state";
 import { formatData, formatMoney } from "@/lib/money";
 import { formatPreviewUsdtAmount } from "@/lib/crypto-payment";
 import { newId } from "@/lib/ids";
 import { onlineCheckoutAvailable, paymentProviderKey } from "@/lib/config";
-import { AlertIcon, ArrowRight, ShieldIcon } from "@/components/icons";
+import { AlertIcon, ArrowRight, LockIcon, ShieldIcon, UserIcon } from "@/components/icons";
 import { getI18n } from "@/lib/i18n/server";
 import { localizedMetadata } from "@/lib/i18n/metadata";
 import { demoPlan, demoProductEnabled } from "@/lib/demo-plan";
@@ -34,7 +35,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function CheckoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ demo?: string }>;
+  searchParams: Promise<{ demo?: string; as?: string }>;
 }) {
   const params = await searchParams;
   const { t, href, locale } = await getI18n();
@@ -157,6 +158,16 @@ export default async function CheckoutPage({
   const cart = await getCartView(db, token);
   if (!cart || cart.lines.length === 0) redirect("/cart");
   const user = await getCurrentUser();
+  // Step 1 for visitors who are not signed in: account or guest.
+  if (!user && params.as !== "guest") {
+    const itemCount = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
+    return (
+      <CheckoutEntry
+        itemCount={itemCount}
+        totalLabel={formatMoney(cart.totalMinor, cart.currency, locale)}
+      />
+    );
+  }
   const idempotencyKey = newId("checkout");
   const hasUnavailable = cart.lines.some((line) => line.status !== "published");
   // Same guard the checkout action enforces: no payment for an order the
@@ -187,6 +198,21 @@ export default async function CheckoutPage({
         </div>
       </div>
 
+      <div className="checkout-identity section-tight" role="note">
+        {user ? (
+          <>
+            <UserIcon className="inline-icon" />
+            <span>{t("checkoutEntry.signedInAs", { email: user.email })}</span>
+          </>
+        ) : (
+          <>
+            <LockIcon className="inline-icon" />
+            <span>{t("checkoutEntry.guestActive")}</span>
+            <Link href={href("/checkout")}>{t("checkoutEntry.change")}</Link>
+          </>
+        )}
+      </div>
+
       {supplierUnavailable ? (
         <div className="callout callout-warning section-tight" role="alert">
           <AlertIcon className="inline-icon" />
@@ -204,8 +230,6 @@ export default async function CheckoutPage({
       <div className="checkout-layout">
         <CheckoutForm
           idempotencyKey={idempotencyKey}
-          defaultEmail={user?.email ?? ""}
-          defaultName={user?.name ?? ""}
           disabled={hasUnavailable || supplierUnavailable}
           cryptoAvailable={cryptoAvailable}
           cardReady={cardReady}

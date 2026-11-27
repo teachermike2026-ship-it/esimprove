@@ -254,7 +254,7 @@ export async function applyPaymentEvent(
     // Whop buyers may pay with a different email than the order email; this
     // is informational for support and never blocks or stores the address.
     customerEmailMatchesOrder:
-      event.customerEmail == null
+      event.customerEmail == null || !order.email.trim()
         ? undefined
         : event.customerEmail.trim().toLowerCase() === order.email.trim().toLowerCase(),
   };

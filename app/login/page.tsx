@@ -5,7 +5,9 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { LoginForm } from "@/components/auth-forms";
 import { safeNextPath } from "@/lib/validation";
 import { isAdminRole } from "@/lib/auth/roles";
-import { CheckIcon, LockIcon } from "@/components/icons";
+import { AlertIcon, CheckIcon, LockIcon } from "@/components/icons";
+import { OAuthButtons, OAuthLegalNote } from "@/components/oauth-buttons";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 import { getI18n } from "@/lib/i18n/server";
 import { localizedMetadata } from "@/lib/i18n/metadata";
 
@@ -18,12 +20,23 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
+const OAUTH_ERROR_KEYS: Record<string, TranslationKey> = {
+  unavailable: "oauth.error.unavailable",
+  cancelled: "oauth.error.cancelled",
+  expired: "oauth.error.expired",
+  email_unverified: "oauth.error.emailUnverified",
+  admin: "oauth.error.admin",
+  conflict: "oauth.error.conflict",
+  rate_limited: "oauth.error.rateLimited",
+  failed: "oauth.error.failed",
+};
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; verified?: string }>;
+  searchParams: Promise<{ next?: string; verified?: string; oauth_error?: string }>;
 }) {
-  const { next, verified } = await searchParams;
+  const { next, verified, oauth_error: oauthError } = await searchParams;
   const { t, href } = await getI18n();
   const user = await getCurrentUser();
   if (user) redirect(safeNextPath(next, isAdminRole(user.role) ? "/admin" : "/portal"));
@@ -54,6 +67,17 @@ export default async function LoginPage({
             <p>{t("auth.emailVerifiedNotice")}</p>
           </div>
         ) : null}
+        {oauthError ? (
+          <div className="form-error" role="alert">
+            <AlertIcon className="inline-icon" />
+            <span>{t(OAUTH_ERROR_KEYS[oauthError] ?? "oauth.error.failed")}</span>
+          </div>
+        ) : null}
+        <OAuthButtons next={nextPath} />
+        <OAuthLegalNote />
+        <p className="oauth-divider">
+          <span>{t("oauth.orEmail")}</span>
+        </p>
         <LoginForm next={nextPath} />
         <p className="form-note" style={{ textAlign: "center" }}>
           {t("auth.noAccount")}{" "}

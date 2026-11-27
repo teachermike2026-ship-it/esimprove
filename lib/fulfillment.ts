@@ -583,12 +583,15 @@ export async function runFulfillmentJobs(
       // Optional notification. It runs after delivery is recorded and never
       // throws, so a failed, rate-limited or disabled email provider cannot
       // undo, delay or retry website delivery.
-      await deliverEmail(db, {
-        order,
-        orderItemId: item.id,
-        accessToken: await createOrderAccessToken(db, order.id),
-        itemName: item.quantity > 1 ? `${item.planName} (×${item.quantity})` : item.planName,
-      });
+      // Guest orders without an email address skip it entirely.
+      if (order.email.trim()) {
+        await deliverEmail(db, {
+          order,
+          orderItemId: item.id,
+          accessToken: await createOrderAccessToken(db, order.id),
+          itemName: item.quantity > 1 ? `${item.planName} (×${item.quantity})` : item.planName,
+        });
+      }
       await recordAudit(db, {
         actorType: "system",
         action: "fulfillment.delivered",

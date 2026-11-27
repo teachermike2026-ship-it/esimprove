@@ -126,10 +126,14 @@ describe("dynamic Whop checkout (fake SDK)", () => {
     expect(options).toEqual({ idempotencyKey: "esimprove_checkout_pay_synthetic01" });
   });
 
-  it("explicitly requests card on top of Whop's platform defaults", async () => {
+  it("explicitly requests card, Apple Pay and Google Pay on top of Whop's platform defaults", async () => {
     await createWhopCheckout(input);
     expect(calls[0]!.body).toMatchObject({
-      payment_method_configuration: { enabled: ["card"], disabled: ["crypto"], include_platform_defaults: true },
+      payment_method_configuration: {
+        enabled: ["card", "apple_pay", "google_pay"],
+        disabled: ["crypto"],
+        include_platform_defaults: true,
+      },
     });
   });
 

@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { canViewOrder, getOrderViewByNumber } from "@/lib/orders";
 import { OrderDetail } from "@/components/order-detail";
 import { PaymentStatusRefresher } from "@/components/payment-status-refresher";
+import { GuestAccessCard } from "@/components/guest-access-card";
 import { ArrowRight } from "@/components/icons";
 import { getI18n } from "@/lib/i18n/server";
 import { localizedMetadata } from "@/lib/i18n/metadata";
@@ -87,6 +88,9 @@ export default async function CheckoutSuccessPage({
       {paid && FULFILLMENT_IN_PROGRESS.has(view.order.fulfillmentStatus) ? (
         <PaymentStatusRefresher intervalMs={4000} maxAttempts={90} />
       ) : null}
+      {!view.order.userId && token ? (
+        <GuestAccessCard orderNumber={view.order.orderNumber} token={token} />
+      ) : null}
       <OrderDetail view={view} accessToken={token} showActivation />
       <div className="hero-actions section-tight">
         <Link
@@ -97,9 +101,15 @@ export default async function CheckoutSuccessPage({
         >
           {t("success.openOrder")} <ArrowRight className="inline-icon" />
         </Link>
-        <Link className="button button-secondary" href={href("/portal")}>
-          {t("success.customerPortal")}
-        </Link>
+        {view.order.userId ? (
+          <Link className="button button-secondary" href={href("/portal")}>
+            {t("success.customerPortal")}
+          </Link>
+        ) : (
+          <Link className="button button-secondary" href={href("/orders")}>
+            {t("guest.myOrdersLink")}
+          </Link>
+        )}
       </div>
     </>
   );

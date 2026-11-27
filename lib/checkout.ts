@@ -46,11 +46,19 @@ export class CheckoutError extends Error {
   }
 }
 
+/** Order access links for guests must outlive a typical trip. */
+export const GUEST_ORDER_ACCESS_DAYS = 365;
+const ACCOUNT_ORDER_ACCESS_DAYS = 30;
+
 export interface CreateCheckoutInput {
   cartToken: string;
-  email: string;
-  name: string;
-  country: string;
+  /**
+   * Optional. Guests check out without any personal details; signed-in
+   * customers pass their account email and name. Stored as "" when absent.
+   */
+  email?: string | null;
+  name?: string | null;
+  country?: string | null;
   idempotencyKey: string;
   userId?: string | null;
   termsVersion?: string;
@@ -97,7 +105,8 @@ function successUrl(orderNumber: string, accessToken: string): string {
   return `${appUrl}/checkout/success?${query.toString()}`;
 }
 
-function redirectUrlForPayment(input: {
+/** Where the browser goes after checkout. Card payments always stay on our own payment page. */
+export function redirectUrlForPayment(input: {
   paymentId: string;
   paymentStatus: string;
   provider: string;
@@ -223,6 +232,10 @@ export async function createCheckout(
   input: CreateCheckoutInput,
 ): Promise<CheckoutResult> {
   const paymentMethod = input.paymentMethod ?? DEFAULT_CHECKOUT_PAYMENT_METHOD;
+  const customerEmail = input.email?.trim().toLowerCase() ?? "";
+  const customerName = input.name?.trim() ?? "";
+  const customerCountry = input.country?.trim() ?? "";
+  const accessDays = input.userId ? ACCOUNT_ORDER_ACCESS_DAYS : GUEST_ORDER_ACCESS_DAYS;
   const cryptoConfig =
     paymentMethod === "crypto" ? loadCryptoPaymentConfig() : null;
 
@@ -324,7 +337,11 @@ export async function createCheckout(
     // Same checkout form submission (same idempotency key): reuse the order and
     // the customer details already stored on it. The customer may switch
     // payment method after a failed attempt without creating a second order.
-    const accessToken = await createOrderAccessToken(db, existing.id);
+    const accessToken = await createOrderAccessToken(
+      db,
+      existing.id,
+      existing.userId ? ACCOUNT_ORDER_ACCESS_DAYS : GUEST_ORDER_ACCESS_DAYS,
+    );
     const base = {
       orderId: existing.id,
       orderNumber: existing.orderNumber,
@@ -427,9 +444,9 @@ export async function createCheckout(
     await tx.insert(orders).values({
       id: orderId,
       orderNumber,
-      email: input.email,
-      customerName: input.name,
-      country: input.country,
+      email: customerEmail,
+      customerName,
+      country: customerCountry,
       userId: input.userId ?? null,
       status: "pending_payment",
       paymentStatus: "pending",
@@ -478,7 +495,7 @@ export async function createCheckout(
     });
   });
 
-  const accessToken = await createOrderAccessToken(db, orderId);
+  const accessToken = await createOrderAccessToken(db, orderId, accessDays);
 
   if (paymentMethod === "crypto") {
     const cryptoPayment = await createCryptoPayment(db, {
@@ -524,7 +541,7 @@ export async function createCheckout(
     orderNumber,
     amountMinor: totals.totalMinor,
     currency,
-    email: input.email,
+    email: customerEmail,
     items: priced.map((line) => ({
       planId: line.plan.id,
       planSlug: line.plan.slug,

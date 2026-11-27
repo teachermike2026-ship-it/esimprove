@@ -45,6 +45,27 @@ export const users = pgTable(
   (table) => [uniqueIndex("users_email_unique").on(table.email)],
 );
 
+/** Google / Apple identities linked to one account (migration 0016). */
+export const userIdentities = pgTable(
+  "user_identities",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    subject: text("subject").notNull(),
+    email: text("email"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("user_identities_provider_subject_unique").on(table.provider, table.subject),
+    uniqueIndex("user_identities_user_provider_unique").on(table.userId, table.provider),
+    index("user_identities_user_idx").on(table.userId),
+  ],
+);
+
 export const sessions = pgTable(
   "sessions",
   {

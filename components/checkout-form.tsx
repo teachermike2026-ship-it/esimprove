@@ -20,27 +20,21 @@ import {
 
 type CheckoutState = { error?: string };
 
-const COUNTRIES = ["US", "GB", "CA", "AU", "DE", "FR", "ES", "IT", "JP"] as const;
-
 export function CheckoutForm({
   idempotencyKey,
-  defaultEmail = "",
-  defaultName = "",
   disabled = false,
   previewOnly = false,
   cryptoAvailable = false,
   cardReady = false,
 }: {
   idempotencyKey: string;
-  defaultEmail?: string;
-  defaultName?: string;
   disabled?: boolean;
   previewOnly?: boolean;
   cryptoAvailable?: boolean;
   /** True only when the Whop card checkout is fully configured on the server. */
   cardReady?: boolean;
 }) {
-  const { t, href, locale } = useI18n();
+  const { t, href } = useI18n();
   const [state, formAction, pending] = useActionState<CheckoutState, FormData>(
     createCheckoutAction,
     {},
@@ -48,7 +42,6 @@ export function CheckoutForm({
   const [method, setMethod] = useState<CheckoutPaymentMethod>(
     DEFAULT_CHECKOUT_PAYMENT_METHOD,
   );
-  const regionNames = new Intl.DisplayNames([locale], { type: "region" });
   const cryptoSelected = method === "crypto";
   const cardBlocked = !cryptoSelected && !cardReady;
 
@@ -162,42 +155,6 @@ export function CheckoutForm({
 
       {!cryptoSelected ? <CardDetailsFields cardReady={cardReady} /> : null}
 
-      <div className="field">
-        <label htmlFor="checkout-email">{t("checkout.emailForOrder")}</label>
-        <input
-          id="checkout-email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          defaultValue={defaultEmail}
-          required
-          maxLength={254}
-        />
-      </div>
-      <div className="field">
-        <label htmlFor="checkout-name">{t("checkout.nameOnOrder")}</label>
-        <input
-          id="checkout-name"
-          name="name"
-          type="text"
-          autoComplete="name"
-          defaultValue={defaultName}
-          required
-          minLength={2}
-          maxLength={80}
-        />
-      </div>
-      <div className="field">
-        <label htmlFor="checkout-country">{t("checkout.countryResidence")}</label>
-        <select id="checkout-country" name="country" required defaultValue="US">
-          {COUNTRIES.map((code) => (
-            <option key={code} value={code}>
-              {regionNames.of(code) ?? code}
-            </option>
-          ))}
-          <option value="OTHER">{t("checkout.countryOther")}</option>
-        </select>
-      </div>
       <label className="checkbox">
         <input type="checkbox" name="terms" required />
         <span>

@@ -8719,11 +8719,308 @@ a.es-app-row {
 .whop-embed {
   display: grid;
   gap: 0.75rem;
+  align-content: start;
   min-height: 24rem;
 }
 .whop-embed-sandbox {
   justify-self: start;
+  width: fit-content;
 }
-.whop-embed-fallback {
+
+/* Checkout entry: account or guest (mobile first) */
+.checkout-entry {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.checkout-entry-head {
+  text-align: center;
+}
+
+.checkout-entry-head h1 {
+  margin: 0.25rem 0 0.4rem;
+}
+
+.checkout-entry-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 760px) {
+  .checkout-entry-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.checkout-entry-card {
+  display: grid;
+  gap: 0.85rem;
+  align-content: start;
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+}
+
+.checkout-entry-card h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.checkout-entry-card p {
+  margin: 0;
+}
+
+.checkout-entry-guest {
+  border: 1.5px solid var(--teal-500);
+  background: linear-gradient(180deg, var(--teal-100), var(--surface) 60%);
+}
+
+.checkout-entry-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  background: var(--teal-100);
+  color: var(--teal-700);
+}
+
+.checkout-entry-icon svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.checkout-entry-points {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-soft);
+}
+
+.checkout-entry-points .inline-icon {
+  color: var(--teal-600);
+}
+
+.checkout-entry-alt {
   font-size: 0.9rem;
+  text-align: center;
+}
+
+.oauth-buttons {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.oauth-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 2.9rem;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.oauth-button:hover {
+  border-color: var(--teal-500);
+  background: var(--teal-100);
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+
+.oauth-apple {
+  border-color: #000;
+  background: #000;
+  color: #fff;
+}
+
+.oauth-apple:hover {
+  border-color: #000;
+  background: #1d1d1f;
+  color: #fff;
+}
+
+.oauth-button.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.oauth-legal {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.oauth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+}
+
+.oauth-divider::before,
+.oauth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.checkout-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius);
+  background: var(--teal-100);
+  color: var(--teal-800);
+  font-size: 0.92rem;
+}
+
+.checkout-identity a {
+  margin-inline-start: auto;
+  font-weight: 700;
+}
+
+/* Guest order access */
+.guest-access-card {
+  display: grid;
+  gap: 0.85rem;
+  border: 1.5px solid var(--teal-500);
+}
+
+.guest-access-head {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.guest-access-head h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.15rem;
+}
+
+.guest-access-head p {
+  margin: 0;
+}
+
+.guest-access-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.guest-order-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guest-order-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.guest-order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Checkout step 2: Whop's form embedded in the ESIMPROVE checkout layout */
+.checkout-pay-card {
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+}
+
+.checkout-pay-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.checkout-pay-head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.checkout-pay-secure {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: var(--teal-100);
+  color: var(--teal-700);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.checkout-pay-card .whop-embed {
+  min-height: 22rem;
+}
+
+.checkout-pay-note {
+  margin: 0;
+}
+
+.whop-embed-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1rem 0;
+}
+
+.whop-embed-spinner {
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid var(--teal-100);
+  border-top-color: var(--teal-600);
+  border-radius: 999px;
+  animation: whop-embed-spin 0.8s linear infinite;
+}
+
+@keyframes whop-embed-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .whop-embed-spinner {
+    animation: none;
+  }
+}
+
+.whop-embed-failed {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
 }

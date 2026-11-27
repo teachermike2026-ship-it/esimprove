@@ -203,7 +203,10 @@ function variantMatchesPlan(
  * Whop shows automatically by buyer location stay available).
  */
 export const WHOP_CHECKOUT_PAYMENT_METHODS = {
-  enabled: ["card"],
+  // Card plus the wallets Whop supports. Whop shows Apple Pay / Google Pay only
+  // where the device and browser support them (Apple Pay also needs the
+  // checkout domain verified with Whop).
+  enabled: ["card", "apple_pay", "google_pay"],
   // Whop's own crypto payment method is switched off: card payments go
   // through Whop, while USDT is ESIMPROVE's separate crypto checkout. (Whop
   // also rejects the configuration with 400 unless `disabled` is an array.)

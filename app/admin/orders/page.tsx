@@ -56,9 +56,9 @@ export default async function AdminOrdersPage() {
                     <span className="small muted">{order.country}</span>
                   </td>
                   <td>
-                    {order.customerName}
+                    {order.customerName || (order.userId ? "—" : "Guest checkout")}
                     <br />
-                    <span className="small muted">{order.email}</span>
+                    <span className="small muted">{order.email || "No email (guest)"}</span>
                   </td>
                   <td>{formatMoney(order.totalMinor, order.currency)}</td>
                   <td>

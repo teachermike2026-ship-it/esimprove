@@ -30,6 +30,9 @@ export async function sendTransactionalEmail(
   input: SendTransactionalEmailInput,
 ): Promise<SendTransactionalEmailResult> {
   const emailEventId = newId("email");
+  // Guest orders may have no email address at all. Nothing is sent or logged;
+  // the customer reads the same information on their secure order page.
+  if (!input.to.trim()) return { ok: false, emailEventId };
   const safeBody = redactSensitiveEmailText(input.text);
   await db.insert(emailEvents).values({
     id: emailEventId,

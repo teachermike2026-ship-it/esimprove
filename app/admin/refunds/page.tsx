@@ -89,9 +89,9 @@ export default async function AdminRefundsPage({
                     <Link href={`/admin/orders/${orderNumber}`}>{orderNumber}</Link>
                   </td>
                   <td>
-                    {customerName}
+                    {customerName || "Guest checkout"}
                     <br />
-                    <span className="small muted">{customerEmail}</span>
+                    <span className="small muted">{customerEmail || "No email (guest)"}</span>
                   </td>
                   <td>{formatMoney(refund.amountMinor, refund.currency)}</td>
                   <td>

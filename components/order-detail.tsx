@@ -55,8 +55,9 @@ export async function OrderDetail({
               <span>
                 <ClockIcon className="inline-icon" /> {formatDate(order.createdAt)}
               </span>
-              <span>{order.email}</span>
-              <span>{order.customerName}</span>
+              {order.email ? <span>{order.email}</span> : null}
+              {order.customerName ? <span>{order.customerName}</span> : null}
+              {!order.userId && !order.email ? <span>{t("guest.orderBadge")}</span> : null}
             </div>
           </div>
           <div className="pill-row">

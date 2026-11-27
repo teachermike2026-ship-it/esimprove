@@ -5,11 +5,11 @@ import { getDb } from "@/lib/db/client";
 import { getCurrentUser } from "@/lib/auth/session";
 import { readCartToken } from "@/lib/cart-session";
 import { createCheckout, CheckoutError } from "@/lib/checkout";
-import { checkoutSchema, formString, normalizeEmail, zodMessage } from "@/lib/validation";
+import { checkoutSchema, formString, zodMessage } from "@/lib/validation";
 import { LEGAL_DOCUMENT_VERSION } from "@/lib/legal-profile";
 import { recordConsent } from "@/lib/consents";
 import { recordConsentEvent } from "@/lib/consent";
-import { hashToken } from "@/lib/crypto";
+import { rememberGuestOrder } from "@/lib/guest-orders";
 import { isCheckoutPaymentMethod } from "@/lib/checkout-payment";
 import { onlineCheckoutAvailable, paymentProviderKey } from "@/lib/config";
 
@@ -45,10 +45,9 @@ export async function createCheckoutAction(
     };
   }
 
+  // No email, name or country: guests stay anonymous, and a signed-in
+  // customer's details come from their account (never from the form).
   const parsed = checkoutSchema.safeParse({
-    email: formString(formData, "email"),
-    name: formString(formData, "name"),
-    country: formString(formData, "country"),
     terms: formString(formData, "terms"),
     immediateSupply: formString(formData, "immediateSupply"),
     termsVersion: formString(formData, "termsVersion"),
@@ -86,9 +85,9 @@ export async function createCheckoutAction(
   try {
     const result = await createCheckout(db, {
       cartToken,
-      email: parsed.data.email,
-      name: parsed.data.name,
-      country: parsed.data.country,
+      email: user?.email ?? null,
+      name: user?.name ?? null,
+      country: null,
       idempotencyKey: parsed.data.idempotencyKey,
       userId: user?.id ?? null,
       termsVersion: LEGAL_DOCUMENT_VERSION,
@@ -116,14 +115,18 @@ export async function createCheckoutAction(
         surface: "checkout",
       });
     } else {
+      // Guests have no account or email: the acceptance is linked to the
+      // order itself, with the document version and time.
       await recordConsentEvent(db, {
-        subjectType: "anonymous",
-        subjectId: `checkout:${hashToken(normalizeEmail(parsed.data.email))}`,
+        subjectType: "order",
+        subjectId: result.orderId,
         purpose: "checkout_terms",
         version: LEGAL_DOCUMENT_VERSION,
         granted: true,
         surface: "checkout",
       });
+      // Lets this device reopen the order later without an account.
+      await rememberGuestOrder({ orderNumber: result.orderNumber, token: result.accessToken });
     }
   } catch (error) {
     if (error instanceof CheckoutError) return { error: error.message };

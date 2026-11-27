@@ -44,18 +44,88 @@ export interface ContentSecurityPolicyOptions {
  * `contentSecurityPolicy()` from `@whop/elements` 1.10.0. A test keeps this in
  * sync with the package. Production also adds Whop's pixel host.
  */
+/**
+ * Sources Whop Elements needs on our checkout payment page, exactly as
+ * published by `contentSecurityPolicy({ environment, wallets: true })` in
+ * @whop/elements: card, Apple Pay, Google Pay and PayPal inside the embedded
+ * form. Bank connections are not offered. Kept in sync by a unit test.
+ */
 export const WHOP_ELEMENTS_CSP = {
   sandbox: {
-    frame: ["https://cdn.whop.com"],
-    script: ["https://cdn.whop.com"],
-    connect: ["https://sandbox-api.whop.com"],
+    frame: [
+      "https://cdn.whop.com",
+      "https://checkout.paypal.com",
+      "https://assets.braintreegateway.com",
+      "https://www.sandbox.paypal.com",
+    ],
+    script: [
+      "https://cdn.whop.com",
+      "https://pay.google.com",
+      "https://applepay.cdn-apple.com",
+      "https://js.braintreegateway.com",
+      "https://assets.braintreegateway.com",
+      "https://www.sandbox.paypal.com",
+      "https://c.paypal.com",
+    ],
+    connect: [
+      "https://sandbox-api.whop.com",
+      "https://pay.google.com",
+      "https://google.com",
+      "https://account.google.com",
+      "https://www.google.com",
+      "https://api.basistheory.com",
+      "https://payments.sandbox.braintree-api.com",
+      "https://api.sandbox.braintreegateway.com",
+      "https://api-m.sandbox.paypal.com",
+      "https://www.sandbox.paypal.com",
+    ],
+    img: ["https://www.paypalobjects.com"],
+    // Apple Pay JS loads its button fonts from Apple (not in Whop's list).
+    font: ["https://applepay.cdn-apple.com"],
   },
   production: {
-    frame: ["https://cdn.whop.com"],
-    script: ["https://cdn.whop.com", "https://t.whop.tw"],
-    connect: ["https://api.whop.com", "https://t.whop.tw"],
+    frame: [
+      "https://cdn.whop.com",
+      "https://checkout.paypal.com",
+      "https://assets.braintreegateway.com",
+      "https://www.paypal.com",
+    ],
+    script: [
+      "https://cdn.whop.com",
+      "https://t.whop.tw",
+      "https://pay.google.com",
+      "https://applepay.cdn-apple.com",
+      "https://js.braintreegateway.com",
+      "https://assets.braintreegateway.com",
+      "https://www.paypal.com",
+      "https://c.paypal.com",
+    ],
+    connect: [
+      "https://api.whop.com",
+      "https://t.whop.tw",
+      "https://pay.google.com",
+      "https://google.com",
+      "https://account.google.com",
+      "https://www.google.com",
+      "https://api.basistheory.com",
+      "https://payments.braintree-api.com",
+      "https://api.braintreegateway.com",
+      "https://api-m.paypal.com",
+      "https://www.paypal.com",
+    ],
+    img: ["https://www.paypalobjects.com"],
+    // Apple Pay JS loads its button fonts from Apple (not in Whop's list).
+    font: ["https://applepay.cdn-apple.com"],
   },
 } as const;
+
+/**
+ * Permissions-Policy for the checkout payment page. The rest of the site keeps
+ * `payment=()`; here the Payment Request API (Apple Pay / Google Pay) is
+ * allowed for our page and Whop's embedded form only.
+ */
+export const CHECKOUT_PAYMENT_PERMISSIONS_POLICY =
+  'camera=(), microphone=(), geolocation=(), payment=(self "https://cdn.whop.com")';
 
 export const GA4_SCRIPT_SRC = "https://www.googletagmanager.com";
 export const GA4_COLLECT_SRC = [
@@ -120,6 +190,7 @@ export function buildContentSecurityPolicy(
 
   const imageSources = ["'self'", "data:", "blob:"];
   imageSources.push(...(options.imageHosts ?? configuredCspHosts("CSP_IMAGE_HOSTS")));
+  if (whop) imageSources.push(...whop.img);
 
   const mediaSources = ["'self'"];
   mediaSources.push(...(options.mediaHosts ?? configuredCspHosts("CSP_MEDIA_HOSTS")));
@@ -130,7 +201,7 @@ export function buildContentSecurityPolicy(
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline'",
     `img-src ${imageSources.join(" ")}`,
-    "font-src 'self'",
+    `font-src ${["'self'", ...(whop ? whop.font : [])].join(" ")}`,
     `connect-src ${connectSources.join(" ")}`,
     `media-src ${mediaSources.join(" ")}`,
     "worker-src 'self' blob:",

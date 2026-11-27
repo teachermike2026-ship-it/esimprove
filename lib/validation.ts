@@ -77,10 +77,12 @@ export const privacyLookupSchema = z.object({
   email: emailSchema,
 });
 
+/**
+ * Checkout needs no personal details: guests pay without an email, name or
+ * country, and signed-in customers' details come from their account. Only the
+ * legally required acknowledgements and the anti-duplicate key are collected.
+ */
 export const checkoutSchema = z.object({
-  email: emailSchema,
-  name: z.string().trim().min(2, "Enter the name for the order").max(80),
-  country: z.string().trim().min(2, "Choose a country").max(80),
   terms: z.literal("on", { message: "Accept the terms to continue" }),
   // Express request for immediate supply + acknowledgement of losing the
   // withdrawal right once the eSIM is installed or activated (EU CRD art. 16,

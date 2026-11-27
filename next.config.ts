@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { SUPERSEDED_GUIDES } from "./lib/editorial/index";
+import { CHECKOUT_PAYMENT_PERMISSIONS_POLICY } from "./lib/security-headers";
 
 // HSTS is emitted only for a production build; preview and local HTTP must not
 // pin HSTS in a browser.
@@ -50,6 +51,18 @@ const nextConfig: NextConfig = {
             : []),
         ],
       },
+      // The card payment step embeds Whop's form, which offers Apple Pay and
+      // Google Pay through the browser Payment Request API. Allow it only
+      // here (last matching rule wins), for our page and Whop's frame.
+      ...["/checkout/pay/:path*", "/:locale(fr|es|ar)/checkout/pay/:path*"].map((source) => ({
+        source,
+        headers: [
+          {
+            key: "Permissions-Policy",
+            value: CHECKOUT_PAYMENT_PERMISSIONS_POLICY,
+          },
+        ],
+      })),
     ];
   },
 };

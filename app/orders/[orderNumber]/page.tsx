@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db/client";
 import { getCurrentUser } from "@/lib/auth/session";
 import { canViewOrder, getOrderViewByNumber } from "@/lib/orders";
 import { OrderDetail } from "@/components/order-detail";
+import { GuestAccessCard } from "@/components/guest-access-card";
 import { getI18n } from "@/lib/i18n/server";
 import { localizedMetadata } from "@/lib/i18n/metadata";
 
@@ -57,6 +58,9 @@ export default async function GuestOrderPage({
       {view.order.paymentStatus === "paid" &&
       ["not_started", "queued", "processing", "provisioning"].includes(view.order.fulfillmentStatus) ? (
         <PaymentStatusRefresher intervalMs={4000} maxAttempts={90} />
+      ) : null}
+      {!view.order.userId && token ? (
+        <GuestAccessCard orderNumber={view.order.orderNumber} token={token} />
       ) : null}
       <OrderDetail view={view} accessToken={token} showActivation />
     </>

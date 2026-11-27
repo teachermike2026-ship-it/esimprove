@@ -55,7 +55,7 @@ export default async function AdminOrderDetailPage({
           <p className="eyebrow">Admin order</p>
           <h1>{orderNumber}</h1>
           <p className="muted">
-            Created {formatDate(view.order.createdAt)} · {view.order.email}
+            Created {formatDate(view.order.createdAt)} · {view.order.email || "Guest checkout (no email)"}
           </p>
         </div>
         <div className="pill-row">
