@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PaymentStatusRefresher } from "@/components/payment-status-refresher";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
@@ -53,7 +54,11 @@ export default async function GuestOrderPage({
           <li aria-current="page">{orderNumber}</li>
         </ol>
       </nav>
-      <OrderDetail view={view} accessToken={token} />
+      {view.order.paymentStatus === "paid" &&
+      ["not_started", "queued", "processing", "provisioning"].includes(view.order.fulfillmentStatus) ? (
+        <PaymentStatusRefresher intervalMs={4000} maxAttempts={90} />
+      ) : null}
+      <OrderDetail view={view} accessToken={token} showActivation />
     </>
   );
 }

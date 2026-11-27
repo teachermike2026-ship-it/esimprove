@@ -5,6 +5,8 @@ import { getDb } from "@/lib/db/client";
 import { getDestinations, getPlans, getRegionBySlug } from "@/lib/catalog";
 import { DestinationCard } from "@/components/destination-card";
 import { PlanCard } from "@/components/plan-card";
+import { EditorialGuideCard } from "@/components/blog/editorial-guide-card";
+import { editorialForRegion } from "@/lib/editorial";
 import { getI18n } from "@/lib/i18n/server";
 import { localizedMetadata } from "@/lib/i18n/metadata";
 
@@ -32,6 +34,7 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
   const db = await getDb();
   const region = await getRegionBySlug(db, slug);
   if (!region) notFound();
+  const guide = editorialForRegion(region.slug);
   const [destinations, plans] = await Promise.all([
     getDestinations(db, { regionSlug: region.slug }),
     getPlans(db, { region: region.slug, limit: 12 }),
@@ -52,6 +55,14 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
           <p className="eyebrow">{t("regions.regionEyebrow")}</p>
           <h1>{t("regions.metaRegionTitle", { region: region.name })}</h1>
           <p className="lead">{region.description}</p>
+          {guide ? (
+            <EditorialGuideCard
+              article={guide}
+              href={href}
+              eyebrow={t("blog.guideEyebrow")}
+              linkLabel={t("blog.readGuide")}
+            />
+          ) : null}
           <div className="pill-row">
             <span className="badge badge-neutral">
               {t("home.explorer.destinationsCount", { count: destinations.length })}

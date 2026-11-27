@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CountryFlag } from "@/components/country-flag";
+import { DestinationFlag } from "@/components/country-flag";
 import { ArrowRight, GlobeIcon } from "@/components/icons";
 import { useI18n } from "@/components/i18n-provider";
 import { formatMoney } from "@/lib/money";
@@ -11,6 +11,8 @@ export interface ExplorerDestination {
   slug: string;
   name: string;
   countryCode: string;
+  /** ISO codes covered, for multi-country destinations. */
+  coverage?: string[];
   regionName: string;
   planCount: number;
   fromPriceMinor: number | null;
@@ -87,7 +89,7 @@ export function DestinationExplorer({
             >
               <span className="es-destination-head">
                 <span className="es-destination-flag">
-                  <CountryFlag code={destination.countryCode} label={destination.name} />
+                  <DestinationFlag countryCode={destination.countryCode} name={destination.name} coverage={destination.coverage} />
                 </span>
                 <span className="es-destination-title">
                   <small dir="ltr">eSIM · {destination.regionName}</small>

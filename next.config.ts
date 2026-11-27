@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { SUPERSEDED_GUIDES } from "./lib/editorial/index";
 
 // HSTS is emitted only for a production build; preview and local HTTP must not
 // pin HSTS in a browser.
@@ -10,6 +11,17 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@electric-sql/pglite", "pg"],
   outputFileTracingIncludes: {
     "/**": ["./db/migrations/**/*"],
+  },
+  async redirects() {
+    // Guides whose content moved into a fuller blog article (permanent).
+    return Object.entries(SUPERSEDED_GUIDES).flatMap(([oldSlug, newSlug]) => [
+      { source: `/guides/${oldSlug}`, destination: `/blog/${newSlug}`, permanent: true },
+      {
+        source: `/:locale(fr|es|ar)/guides/${oldSlug}`,
+        destination: `/:locale/blog/${newSlug}`,
+        permanent: true,
+      },
+    ]);
   },
   async headers() {
     return [

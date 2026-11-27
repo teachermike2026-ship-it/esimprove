@@ -6,6 +6,7 @@ const TONES: Record<string, string> = {
   paid: "badge-success",
   delivered: "badge-success",
   ready_to_install: "badge-success",
+  refund_flagged: "badge-danger",
   processing: "badge-warning",
   provisioning: "badge-warning",
   queued: "badge-warning",

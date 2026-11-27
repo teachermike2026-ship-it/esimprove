@@ -1,3 +1,5 @@
+import { pricingConfigurationProblems } from "@/lib/pricing-config";
+
 const DEFAULT_SITE_URL = "http://localhost:3000";
 
 const DEPLOYED_CONTEXTS = ["preview", "staging", "production"] as const;
@@ -61,6 +63,59 @@ export function paymentProviderKey(): string {
   return (process.env.PAYMENT_PROVIDER || "mock").trim().toLowerCase();
 }
 
+export type WhopCredentialSource = "sandbox-vars" | "standard-vars" | "unset";
+
+export interface WhopCredentials {
+  apiKey: string | null;
+  companyId: string | null;
+  productId: string | null;
+  webhookSecret: string | null;
+  /** Which variable family each value came from (names only, never values). */
+  sources: Record<"apiKey" | "companyId" | "productId" | "webhookSecret", WhopCredentialSource>;
+}
+
+/**
+ * The single place that decides which Whop credentials are used.
+ *
+ * - WHOP_SANDBOX=true: the separate sandbox variables WHOP_SANDBOX_API_KEY,
+ *   WHOP_SANDBOX_COMPANY_ID, WHOP_SANDBOX_PRODUCT_ID and
+ *   WHOP_SANDBOX_WEBHOOK_SECRET are used first, so live values can stay in the
+ *   standard variables untouched. A missing sandbox variable falls back to the
+ *   standard one (older single-environment setups).
+ * - WHOP_SANDBOX=false (live): only the standard variables are read; sandbox
+ *   variables are never used for live.
+ *
+ * Standard variables: WHOP_API_KEY (legacy WHOP_COMPANY_API_KEY),
+ * WHOP_COMPANY_ID (legacy WHOP_ACCOUNT_ID), WHOP_PRODUCT_ID, WHOP_WEBHOOK_SECRET.
+ */
+export function whopCredentials(env: NodeJS.ProcessEnv = process.env): WhopCredentials {
+  const read = (name: string) => env[name]?.trim() || null;
+  const sandbox = (env.WHOP_SANDBOX ?? "").trim().toLowerCase();
+  const sandboxMode = sandbox === "true" || sandbox === "1";
+  const pick = (sandboxName: string, ...standard: string[]): [string | null, WhopCredentialSource] => {
+    if (sandboxMode) {
+      const value = read(sandboxName);
+      if (value) return [value, "sandbox-vars"];
+    }
+    for (const name of standard) {
+      const value = read(name);
+      if (value) return [value, "standard-vars"];
+    }
+    return [null, "unset"];
+  };
+  const [apiKey, apiKeySource] = pick("WHOP_SANDBOX_API_KEY", "WHOP_API_KEY", "WHOP_COMPANY_API_KEY");
+  const [companyId, companySource] = pick("WHOP_SANDBOX_COMPANY_ID", "WHOP_COMPANY_ID", "WHOP_ACCOUNT_ID");
+  const [productId, productSource] = pick("WHOP_SANDBOX_PRODUCT_ID", "WHOP_PRODUCT_ID");
+  const [webhookSecret, secretSource] = pick("WHOP_SANDBOX_WEBHOOK_SECRET", "WHOP_WEBHOOK_SECRET");
+  return {
+    apiKey,
+    companyId,
+    productId,
+    webhookSecret,
+    sources: { apiKey: apiKeySource, companyId: companySource, productId: productSource, webhookSecret: secretSource },
+  };
+}
+
 /**
  * WHOP_SANDBOX must be explicit. An empty/misspelled value fails closed rather
  * than defaulting a real API key into live mode.
@@ -72,7 +127,13 @@ export function whopSandboxSetting(): boolean | null {
   return null;
 }
 
+/** True when an existing Whop product (`prod_...`) is configured for inline variants. */
+function whopProductConfigured(): boolean {
+  return /^prod_[A-Za-z0-9]+$/.test(whopCredentials().productId ?? "");
+}
+
 function whopPlanMapConfigured(): boolean {
+  if (whopProductConfigured()) return true;
   const raw = process.env.WHOP_PLAN_VARIANT_MAP?.trim();
   if (!raw) return false;
   try {
@@ -100,8 +161,9 @@ function whopPlanMapConfigured(): boolean {
  */
 export function onlineCheckoutAvailable(): boolean {
   if (paymentProviderKey() === "whop") {
-    if (!process.env.WHOP_COMPANY_API_KEY?.trim()) return false;
-    if (!process.env.WHOP_WEBHOOK_SECRET?.trim()) return false;
+    const whop = whopCredentials();
+    if (!whop.apiKey) return false;
+    if (!whop.webhookSecret) return false;
     const publicAppUrl = process.env.APP_URL?.trim();
     if (!publicAppUrl || !isPublicHttpsUrl(publicAppUrl)) return false;
     if (!whopPlanMapConfigured()) return false;
@@ -244,21 +306,38 @@ function validateSharedDeploymentSecrets(problems: string[]): void {
 }
 
 function validateLiveFlags(problems: string[]): void {
-  if (flags.paymentsLive) problems.push("PAYMENTS_LIVE_ENABLED is not implemented in this build");
-  if (flags.supplierLive) problems.push("SUPPLIER_LIVE_ENABLED is not implemented in this build");
+  // PAYMENTS_LIVE_ENABLED is the explicit live-card gate for Whop. It was
+  // previously rejected here unconditionally, which made live Whop checkout
+  // impossible to enable in production. It remains unsupported for any other
+  // provider.
+  if (flags.paymentsLive && paymentProviderKey() !== "whop") {
+    problems.push("PAYMENTS_LIVE_ENABLED is only supported with PAYMENT_PROVIDER=whop");
+  }
+  if (
+    flags.supplierLive &&
+    !(process.env.ESIM_ACCESS_CODE?.trim() && process.env.ESIM_SECRET_KEY?.trim())
+  ) {
+    problems.push("SUPPLIER_LIVE_ENABLED requires ESIM_ACCESS_CODE and ESIM_SECRET_KEY");
+  }
   if (flags.emailLive) problems.push("EMAIL_LIVE_ENABLED is not implemented in this build");
-  if (flags.catalogueSync) problems.push("CATALOGUE_SYNC_ENABLED is not implemented in this build");
+  if (
+    flags.catalogueSync &&
+    !(process.env.ESIM_ACCESS_CODE?.trim() && process.env.ESIM_SECRET_KEY?.trim())
+  ) {
+    problems.push("CATALOGUE_SYNC_ENABLED requires ESIM_ACCESS_CODE and ESIM_SECRET_KEY");
+  }
+  problems.push(...pricingConfigurationProblems());
   if (flags.analytics) problems.push("ANALYTICS_ENABLED is not implemented in this build");
   if (flags.stagingAccess) problems.push("STAGING_ACCESS_ENABLED is not implemented in this build");
 }
 
 function validateWhopConfiguration(problems: string[]): void {
   if (paymentProviderKey() !== "whop") return;
-  if (!process.env.WHOP_COMPANY_API_KEY?.trim()) {
-    problems.push("WHOP_COMPANY_API_KEY is required when PAYMENT_PROVIDER=whop");
+  if (!whopCredentials().apiKey) {
+    problems.push("WHOP_API_KEY is required when PAYMENT_PROVIDER=whop (in sandbox mode WHOP_SANDBOX_API_KEY is used first)");
   }
-  if (!process.env.WHOP_WEBHOOK_SECRET?.trim()) {
-    problems.push("WHOP_WEBHOOK_SECRET is required when PAYMENT_PROVIDER=whop");
+  if (!whopCredentials().webhookSecret) {
+    problems.push("WHOP_WEBHOOK_SECRET is required when PAYMENT_PROVIDER=whop (in sandbox mode WHOP_SANDBOX_WEBHOOK_SECRET is used first)");
   }
   const publicAppUrl = process.env.APP_URL?.trim();
   if (!publicAppUrl) {
@@ -273,6 +352,18 @@ function validateWhopConfiguration(problems: string[]): void {
   }
   if (isProduction && sandbox) {
     problems.push("Whop sandbox cannot be used in production");
+  }
+  if (isProduction && sandbox === false && !flags.paymentsLive) {
+    problems.push("Whop live checkout in production requires PAYMENTS_LIVE_ENABLED=true");
+  }
+  const productId = whopCredentials().productId ?? undefined;
+  if (productId && !whopProductConfigured()) {
+    problems.push("WHOP_PRODUCT_ID must be a Whop product ID (prod_...)");
+  }
+  if (!whopPlanMapConfigured()) {
+    problems.push(
+      "WHOP_PRODUCT_ID (prod_...) or a non-empty WHOP_PLAN_VARIANT_MAP is required when PAYMENT_PROVIDER=whop",
+    );
   }
   if (!isProduction && !sandbox && !flags.paymentsLive) {
     problems.push("Whop live checkout requires PAYMENTS_LIVE_ENABLED=true and explicit approval");
@@ -421,7 +512,7 @@ export function sessionCookieName(): string {
 
 function paymentsIntegrationMode(): string {
   if (paymentProviderKey() === "whop") {
-    if (!process.env.WHOP_COMPANY_API_KEY?.trim()) return "whop-unconfigured";
+    if (!whopCredentials().apiKey) return "whop-unconfigured";
     const sandbox = whopSandboxSetting();
     if (sandbox === true) return "whop-sandbox";
     if (sandbox === false) return "whop-live";

@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
-import { fulfillmentJobs, orders, refunds, users } from "@/lib/db/schema";
+import { fulfillmentJobs, orderEvents, orders, payments, refunds, users } from "@/lib/db/schema";
+import { getWhopPaymentProvider } from "@/lib/integrations/payments";
+import { newId } from "@/lib/ids";
 import { retryFulfillmentJob, runOutboxAndJobs } from "@/lib/fulfillment";
 import { applyRefund, rejectRefund } from "@/lib/refunds";
 import {
@@ -145,6 +147,66 @@ export async function approveRefundAction(formData: FormData): Promise<void> {
   revalidatePath("/admin/refunds");
   revalidatePath("/portal");
   redirect("/admin/refunds?processed=1");
+}
+
+/**
+ * Full refund of a paid order through its payment provider (Whop). Used for a
+ * paid order that could not be fulfilled, or on customer request. Nothing is
+ * marked refunded here: the provider's verified refund webhook does that, and
+ * also flags the order's eSIMs. The idempotency key allows one refund request
+ * per payment, so a double click cannot refund twice.
+ */
+export async function refundOrderViaProviderAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin("/admin/orders", "refunds.write");
+  const orderNumber = formString(formData, "orderNumber");
+  const paymentId = formString(formData, "paymentId");
+  const back = `/admin/orders/${encodeURIComponent(orderNumber)}`;
+  if (!orderNumber || !paymentId) redirect("/admin/orders");
+  if (formString(formData, "confirm") !== "yes") {
+    redirect(`${back}?refundError=${encodeURIComponent("Tick the confirmation box to request the refund.")}`);
+  }
+  const db = await getDb();
+  const payment = (await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1))[0];
+  const order = payment
+    ? (await db.select().from(orders).where(eq(orders.id, payment.orderId)).limit(1))[0]
+    : undefined;
+  if (!payment || !order || order.orderNumber !== orderNumber) redirect("/admin/orders");
+  if (!["paid", "disputed", "partially_refunded"].includes(payment.status)) {
+    redirect(`${back}?refundError=${encodeURIComponent(`A ${payment.status} payment cannot be refunded.`)}`);
+  }
+  const provider = payment.provider === "whop" ? getWhopPaymentProvider() : null;
+  if (!provider?.refundPayment) {
+    redirect(`${back}?refundError=${encodeURIComponent("This payment provider has no refund integration.")}`);
+  }
+  let providerStatus = "";
+  try {
+    const result = await provider.refundPayment({
+      providerPaymentId: payment.providerPaymentId,
+      idempotencyKey: `esimprove_refund_${payment.id}`,
+      metadata: { orderId: order.id, paymentId: payment.id, reason: "admin_full_refund" },
+    });
+    providerStatus = result.providerStatus;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The refund could not be requested.";
+    redirect(`${back}?refundError=${encodeURIComponent(message)}`);
+  }
+  await db.insert(orderEvents).values({
+    id: newId("orderevent"),
+    orderId: order.id,
+    type: "refund.requested_at_provider",
+    message: `Full refund requested from ${payment.provider} by an administrator. The order is marked refunded when the provider confirms it.`,
+    metadata: { provider: payment.provider, providerStatus },
+  });
+  await recordAudit(db, {
+    actorType: "admin",
+    actorId: admin.id,
+    action: "admin.payment.refund_requested",
+    entityType: "payment",
+    entityId: payment.id,
+    metadata: { provider: payment.provider, orderNumber },
+  });
+  revalidatePath(back);
+  redirect(`${back}?refundRequested=1`);
 }
 
 export async function rejectRefundAction(formData: FormData): Promise<void> {

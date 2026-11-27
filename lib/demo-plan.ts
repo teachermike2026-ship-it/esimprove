@@ -43,10 +43,11 @@ export const demoPlan: PlanSummary = {
 
 /**
  * The demo product must never appear in deployed contexts, even if the source
- * is deployed accidentally. DEMO_MODE=false also hides it locally.
+ * is deployed accidentally. Since the real eSIM Access catalog is imported, it
+ * is also hidden locally unless DEMO_PREVIEW_PRODUCT=true is set explicitly.
  */
 export function demoProductEnabled(): boolean {
-  return isLocal && demoMode;
+  return isLocal && demoMode && (process.env.DEMO_PREVIEW_PRODUCT ?? "").trim() === "true";
 }
 
 export function isDemoProductSlug(slug: string): boolean {

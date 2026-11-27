@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { isOrderItemDelivered } from "@/lib/esim-activation";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
@@ -43,6 +44,8 @@ export default async function PortalEsimPage({
     .limit(1);
   const row = rows[0];
   if (!row) notFound();
+  // Never show activation details before fulfillment is confirmed.
+  if (!(await isOrderItemDelivered(db, row.item.id))) notFound();
 
   const encrypted: EncryptedSecret = {
     ciphertext: row.esim.lpaCiphertext,

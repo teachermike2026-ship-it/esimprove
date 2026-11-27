@@ -20,11 +20,16 @@
     "admin:create": "tsx scripts/create-admin.ts",
     "owner:provision": "tsx scripts/provision-owner.ts",
     "netlify:preflight": "tsx scripts/netlify-preflight.ts",
+    "whop:webhook": "tsx scripts/whop-setup-webhook.ts",
+    "crypto:check": "tsx scripts/crypto-rpc-check.ts",
+    "catalog:sync": "tsx scripts/catalog-sync.ts",
     "totp": "tsx scripts/totp.ts",
     "check": "npm run typecheck && npm run lint && npm test"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.11",
+    "@whop/elements": "1.10.0",
+    "@whop/elements-react": "1.10.0",
     "@whop/sdk": "^2.8.1",
     "drizzle-orm": "0.45.4",
     "next": "16.4.6",

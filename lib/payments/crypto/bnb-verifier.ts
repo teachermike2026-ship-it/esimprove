@@ -213,6 +213,54 @@ export class HttpBnbRpcClient implements BscRpcClient {
   }
 }
 
+/**
+ * Tries each RPC client in order for read calls. Only transport/provider
+ * failures fail over; a definite answer (including "not found") is returned
+ * as-is, so a fallback can never turn a negative result into a payment.
+ * Every client must report the same chain ID or the call fails.
+ */
+export class FailoverBnbRpcClient implements BscRpcClient {
+  constructor(private readonly clients: BscRpcClient[]) {
+    if (clients.length === 0) throw new Error("At least one RPC client is required");
+  }
+
+  private async run<T>(call: (client: BscRpcClient) => Promise<T>): Promise<T> {
+    let lastError: unknown = null;
+    for (const client of this.clients) {
+      try {
+        return await call(client);
+      } catch (error) {
+        lastError = error;
+        const retriable =
+          error instanceof RpcError &&
+          (error.kind === "network" || error.kind === "rpc_error" || error.kind === "invalid_response");
+        if (!retriable) throw error;
+      }
+    }
+    throw lastError;
+  }
+
+  async getChainId(): Promise<number> {
+    return this.run((client) => client.getChainId());
+  }
+
+  async getLatestBlockNumber(): Promise<number> {
+    return this.run((client) => client.getLatestBlockNumber());
+  }
+
+  async getTransaction(hash: string): Promise<RpcTransaction | null> {
+    return this.run((client) => client.getTransaction(hash));
+  }
+
+  async getTransactionReceipt(hash: string): Promise<RpcReceipt | null> {
+    return this.run((client) => client.getTransactionReceipt(hash));
+  }
+
+  async getBlockTimestamp(blockNumber: number): Promise<Date | null> {
+    return this.run((client) => client.getBlockTimestamp(blockNumber));
+  }
+}
+
 export interface TransferExpectation {
   tokenContract: string;
   wallet: string;

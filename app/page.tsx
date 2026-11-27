@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db/client";
 import {
   getDestinations,
   getPlans,
+  getPlansForDestination,
   getRegions,
   type PlanSummary,
 } from "@/lib/catalog";
@@ -11,10 +12,18 @@ import { formatData, formatMoney } from "@/lib/money";
 import { CountryFlag } from "@/components/country-flag";
 import { DestinationExplorer, type ExplorerDestination } from "@/components/home/destination-explorer";
 import { DestinationSearch } from "@/components/home/destination-search";
-import { PhoneShowcase, type PhoneDestination, type PhoneRegion } from "@/components/home/phone-showcase";
+import {
+  PhoneShowcase,
+  type PhoneDestination,
+  type PhonePackage,
+  type PhonePlan,
+  type PhoneRegion,
+} from "@/components/home/phone-showcase";
+import { isCountryCode, isGlobalCode } from "@/lib/flags";
 import { ExampleQr } from "@/components/home/example-qr";
 import { TutorialSection } from "@/components/home/tutorial-section";
 import { WorldMap } from "@/components/home/world-map";
+import { HomeBlogSection } from "@/components/home/blog-section";
 import { localizedMetadata } from "@/lib/i18n/metadata";
 import { getI18n } from "@/lib/i18n/server";
 import {
@@ -69,6 +78,7 @@ export default async function HomePage() {
         slug: destination.slug,
         name: destination.name,
         countryCode: destination.countryCode,
+        coverage: destination.coverage,
         regionName: destination.regionName,
         planCount: destination.planCount,
         fromPriceMinor: destination.fromPriceMinor,
@@ -110,6 +120,80 @@ export default async function HomePage() {
     planCount: region.planCount,
     fromPriceMinor: region.fromPriceMinor,
   }));
+
+  // Phone carousel screens — every value below comes from the live catalog.
+  const toPackage = (destination: (typeof destinations)[number]): PhonePackage => ({
+    slug: destination.slug,
+    name: destination.name,
+    countryCode: destination.countryCode,
+    coverage: destination.coverage ?? [],
+    planCount: destination.planCount,
+    fromPriceMinor: destination.fromPriceMinor,
+  });
+  const toPhonePlan = (plan: PlanSummary): PhonePlan => ({
+    slug: plan.slug,
+    name: plan.name,
+    dataMb: plan.dataMb,
+    validityDays: plan.validityDays,
+    priceMinor: plan.priceMinor,
+    currency: plan.currency,
+  });
+  const multiCountry = destinations.filter((destination) => !isCountryCode(destination.countryCode));
+  const largestRegional = multiCountry
+    .filter((destination) => !isGlobalCode(destination.countryCode))
+    .sort((a, b) => (b.coverage?.length ?? 0) - (a.coverage?.length ?? 0));
+  const regionalByArea = new Map<string, (typeof destinations)[number]>();
+  for (const destination of largestRegional) {
+    if (!regionalByArea.has(destination.regionSlug)) regionalByArea.set(destination.regionSlug, destination);
+  }
+  const globalPackage = multiCountry
+    .filter((destination) => isGlobalCode(destination.countryCode))
+    .sort((a, b) => (b.coverage?.length ?? 0) - (a.coverage?.length ?? 0))[0];
+  const phonePackages: PhonePackage[] = [
+    ...[...regionalByArea.values()].slice(0, globalPackage ? 4 : 5),
+    ...(globalPackage ? [globalPackage] : []),
+  ].map(toPackage);
+
+  const singleFeatured = featuredDestinations.filter((destination) => isCountryCode(destination.countryCode));
+  const detailDestination = singleFeatured[0] ?? null;
+  const featuredPackageDestination = singleFeatured[2] ?? singleFeatured[0] ?? null;
+  const [detailSource, featuredPackagePlans] = await Promise.all([
+    detailDestination ? getPlansForDestination(db, detailDestination.id) : Promise.resolve([]),
+    featuredPackageDestination ? getPlansForDestination(db, featuredPackageDestination.id) : Promise.resolve([]),
+  ]);
+  // Up to six real plans with distinct data allowances, preferring trip-length
+  // validity (7+ days) and falling back to the shortest plans if needed.
+  const detailPlans: PhonePlan[] = [];
+  if (detailDestination) {
+    const tripLength = detailSource.filter((plan) => plan.validityDays >= 7);
+    const source = tripLength.length >= 4 ? tripLength : detailSource;
+    const seenData = new Set<number>();
+    for (const plan of [...source].sort((a, b) => a.dataMb - b.dataMb || a.priceMinor - b.priceMinor)) {
+      if (seenData.has(plan.dataMb)) continue;
+      seenData.add(plan.dataMb);
+      detailPlans.push(toPhonePlan(plan));
+      if (detailPlans.length === 6) break;
+    }
+  }
+
+  const coveringPackages = (code: string) =>
+    multiCountry
+      .filter((destination) => destination.coverage?.includes(code))
+      .sort((a, b) => (a.fromPriceMinor ?? Infinity) - (b.fromPriceMinor ?? Infinity));
+  const searchDestination =
+    singleFeatured.slice(1).find((destination) => coveringPackages(destination.countryCode).length >= 2) ??
+    singleFeatured[1] ??
+    null;
+  const searchResults: PhonePackage[] = searchDestination
+    ? [searchDestination, ...coveringPackages(searchDestination.countryCode).slice(0, 4)].map(toPackage)
+    : [];
+
+  // A trip-length plan (1 GB+, 7+ days) when the catalog has one; cheapest first.
+  const featuredPlan =
+    featuredPackagePlans.find((plan) => plan.dataMb >= 1024 && plan.validityDays >= 7) ??
+    featuredPackagePlans.find((plan) => plan.dataMb >= 1024) ??
+    featuredPackagePlans[0] ??
+    null;
 
   const flexibleDestination = featuredDestinations[0] ?? destinations[0] ?? null;
   const flexiblePlans = flexibleDestination
@@ -179,6 +263,30 @@ export default async function HomePage() {
             <PhoneShowcase
               destinations={phoneDestinations}
               regions={phoneRegions}
+              packages={phonePackages}
+              detail={
+                detailDestination && detailPlans.length > 0
+                  ? { ...toPackage(detailDestination), plans: detailPlans }
+                  : null
+              }
+              search={
+                searchDestination && searchResults.length > 0
+                  ? { query: searchDestination.name.slice(0, Math.min(5, searchDestination.name.length)), results: searchResults }
+                  : null
+              }
+              featured={
+                featuredPackageDestination && featuredPlan
+                  ? {
+                      ...toPackage(featuredPackageDestination),
+                      plan: toPhonePlan(featuredPlan),
+                      more: featuredPackagePlans
+                        .filter((plan) => plan.dataMb > featuredPlan.dataMb && plan.validityDays >= featuredPlan.validityDays)
+                        .filter((plan, index, list) => list.findIndex((other) => other.dataMb === plan.dataMb) === index)
+                        .slice(0, 2)
+                        .map(toPhonePlan),
+                    }
+                  : null
+              }
               destinationCount={destinationCount}
               regionCount={regionCount}
               planCount={planCount}
@@ -444,6 +552,8 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      <HomeBlogSection />
     </div>
   );
 }

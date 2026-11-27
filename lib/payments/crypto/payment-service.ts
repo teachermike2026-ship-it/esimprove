@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lte, ne, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, ne, or } from "drizzle-orm";
 import type { Database, DatabaseExecutor } from "@/lib/db/client";
 import {
   cryptoPayments,
@@ -23,9 +23,13 @@ import {
   parseRawAmountFromDb,
   sameAddress,
 } from "@/lib/payments/crypto/amount";
-import { type ExplorerProvider } from "@/lib/payments/crypto/explorer-provider";
+import {
+  type ExplorerProvider,
+  type TokenTransfer,
+} from "@/lib/payments/crypto/explorer-provider";
 import { RpcLogTransferProvider } from "@/lib/payments/crypto/rpc-log-provider";
 import {
+  FailoverBnbRpcClient,
   HttpBnbRpcClient,
   verifyBnbTransfer,
   type BscRpcClient,
@@ -55,7 +59,8 @@ export type CryptoVerificationMessageCode =
   | "manual_review"
   | "verification_error"
   | "invalid_tx_hash"
-  | "transaction_failed";
+  | "transaction_failed"
+  | "amount_mismatch";
 
 export type CryptoPaymentRow = typeof cryptoPayments.$inferSelect;
 export type CryptoOrderRow = typeof orders.$inferSelect;
@@ -134,7 +139,9 @@ function result(
           : status === "late_payment"
             ? "late_payment"
             : status === "manual_review"
-              ? "manual_review"
+              ? (payment.metadata ?? {}).amountMismatch
+                ? "amount_mismatch"
+                : "manual_review"
               : status === "verification_error"
                 ? "verification_error"
                 : "waiting_for_payment");
@@ -193,7 +200,7 @@ export async function createCryptoPayment(
   }
 
   let lastError: unknown = null;
-  for (let attempt = 0; attempt < 16; attempt += 1) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
     const generated = generatePaymentAmount(input.amountMinor, input.currency);
     const cryptoPaymentId = newId("cryptopay");
     const paymentId = newId("pay");
@@ -462,10 +469,59 @@ async function markManualReview(
     entityId: payment.id,
     metadata: { orderId: payment.orderId, reason, txHash: current.txHash },
   });
-  return result(current, null, now, {
-    status: "manual_review",
-    messageCode: "manual_review",
-  });
+  return result(current, null, now, { status: "manual_review" });
+}
+
+/** Tolerance for treating a transfer as a wrong amount for one specific order. */
+function amountMismatchTolerance(expected: bigint): bigint {
+  const oneUsdt = 10n ** 18n;
+  const tenPercent = expected / 10n;
+  return tenPercent > oneUsdt ? tenPercent : oneUsdt;
+}
+
+/**
+ * Policy for transfers that reach the receiving wallet with an amount that
+ * does not exactly equal any reserved order amount (for example the customer
+ * rounded 28.5817 to 28.58, or sent too much):
+ * - never credited automatically;
+ * - if the transfer is close to exactly ONE reserved order (within
+ *   max(1 USDT, 10%)), arrived after that order was created, and its hash is
+ *   not assigned elsewhere, that order goes to manual review with the
+ *   received and expected amounts recorded, so support can refund the
+ *   difference or ask for the remainder;
+ * - if it is close to several orders, nothing is guessed (the transfer stays
+ *   unassigned for reconciliation).
+ */
+async function findAmountMismatch(
+  db: Database,
+  payment: CryptoPaymentRow,
+  expected: bigint,
+  transfers: TokenTransfer[],
+): Promise<{ txHash: string; receivedRaw: bigint } | null> {
+  if (transfers.length === 0) return null;
+  const reserved = await db
+    .select({ id: cryptoPayments.id, amountRaw: cryptoPayments.amountRaw })
+    .from(cryptoPayments)
+    .where(isNull(cryptoPayments.amountReleasedAt));
+  for (const transfer of transfers) {
+    if (transfer.timestamp.getTime() < payment.createdAt.getTime()) continue;
+    if (await txHashClaimedByAnother(db, payment.id, transfer.hash)) continue;
+    const value = BigInt(transfer.valueRaw);
+    if (value <= 0n) continue;
+    const exactOther = reserved.some(
+      (row) => row.id !== payment.id && parseRawAmountFromDb(row.amountRaw) === value,
+    );
+    if (exactOther) continue;
+    const near = reserved.filter((row) => {
+      const amount = parseRawAmountFromDb(row.amountRaw);
+      const diff = amount > value ? amount - value : value - amount;
+      return diff <= amountMismatchTolerance(amount);
+    });
+    if (near.length === 1 && near[0]!.id === payment.id && value !== expected) {
+      return { txHash: transfer.hash, receivedRaw: value };
+    }
+  }
+  return null;
 }
 
 async function persistConfirming(
@@ -699,6 +755,23 @@ async function markPaid(
         .update(payments)
         .set({ status: "paid", updatedAt: now })
         .where(eq(payments.id, payment.paymentId));
+      const orderState = await tx
+        .select({ paymentStatus: orders.paymentStatus })
+        .from(orders)
+        .where(eq(orders.id, payment.orderId))
+        .limit(1);
+      if (orderState[0]?.paymentStatus === "paid") {
+        // Already paid by card: keep the transfer recorded for a manual
+        // refund, but do not reset the order or queue fulfillment again.
+        await insertOrderEvent(
+          tx,
+          payment.orderId,
+          "payment.duplicate",
+          "A crypto payment was confirmed for an order that was already paid. Manual refund review is required.",
+          { cryptoPaymentId: payment.id, txHash: settlement.txHash, amountUsdt: payment.amountUsdt },
+        );
+        return;
+      }
       await tx
         .update(orders)
         .set({
@@ -819,6 +892,9 @@ export class CryptoPaymentNotFoundError extends Error {
  * Perform one complete verification pass. Network failures return
  * `verification_error` and never promote or expire a payment.
  */
+/** How long one verification pass may hold a payment before another may start. */
+const VERIFICATION_LEASE_MS = 30_000;
+
 export async function verifyCryptoPayment(
   db: Database,
   cryptoPaymentId: string,
@@ -826,6 +902,49 @@ export async function verifyCryptoPayment(
 ): Promise<CryptoVerificationResult> {
   const config = options.config ?? assertCryptoPaymentConfig();
   const now = options.now ?? new Date();
+  const payment = await getCryptoPaymentById(db, cryptoPaymentId);
+  if (!payment) throw new CryptoPaymentNotFoundError();
+  if (payment.status === "paid" || payment.status === "late_payment" || payment.status === "manual_review") {
+    return result(payment, config, now);
+  }
+
+  // Single-flight: browser polling, "check now" and the worker may run at the
+  // same time. Only the holder of the lease scans the chain; others return the
+  // last saved state. (Correctness never depends on this: the paid transition
+  // and tx-hash uniqueness are enforced in the database.)
+  const claimed = await db
+    .update(cryptoPayments)
+    .set({ verificationLeaseUntil: new Date(Date.now() + VERIFICATION_LEASE_MS) })
+    .where(
+      and(
+        eq(cryptoPayments.id, payment.id),
+        or(
+          isNull(cryptoPayments.verificationLeaseUntil),
+          lte(cryptoPayments.verificationLeaseUntil, new Date()),
+        ),
+      ),
+    )
+    .returning({ id: cryptoPayments.id });
+  if (claimed.length === 0) {
+    return result(payment, config, now);
+  }
+  try {
+    return await verifyCryptoPaymentLocked(db, cryptoPaymentId, { ...options, config, now });
+  } finally {
+    await db
+      .update(cryptoPayments)
+      .set({ verificationLeaseUntil: null })
+      .where(eq(cryptoPayments.id, payment.id));
+  }
+}
+
+async function verifyCryptoPaymentLocked(
+  db: Database,
+  cryptoPaymentId: string,
+  options: VerifyCryptoPaymentOptions & { config: CryptoPaymentConfig; now: Date },
+): Promise<CryptoVerificationResult> {
+  const config = options.config;
+  const now = options.now;
   const payment = await getCryptoPaymentById(db, cryptoPaymentId);
   if (!payment) throw new CryptoPaymentNotFoundError();
 
@@ -842,7 +961,13 @@ export async function verifyCryptoPayment(
   if (!order) throw new Error("Crypto payment references an unknown order");
 
   const rpc =
-    options.rpc ?? new HttpBnbRpcClient({ url: config.rpcUrl });
+    options.rpc ??
+    (config.rpcFallbackUrl
+      ? new FailoverBnbRpcClient([
+          new HttpBnbRpcClient({ url: config.rpcUrl }),
+          new HttpBnbRpcClient({ url: config.rpcFallbackUrl }),
+        ])
+      : new HttpBnbRpcClient({ url: config.rpcUrl }));
   const explorer =
     options.explorer ??
     new RpcLogTransferProvider({
@@ -869,6 +994,7 @@ export async function verifyCryptoPayment(
 
   let scanTruncated = false;
   let explorerCandidate = false;
+  const wrongAmountTransfers: TokenTransfer[] = [];
   // A customer-supplied hash can be verified directly against BNB RPC. The
   // explorer is discovery only, so an explorer outage must not block this
   // fallback. Without a supplied hash, discovery is required.
@@ -899,7 +1025,10 @@ export async function verifyCryptoPayment(
       for (const transfer of scan.transfers) {
         if (!sameAddress(transfer.to, config.wallet)) continue;
         if (!sameAddress(transfer.contractAddress, config.tokenContract)) continue;
-        if (transfer.valueRaw !== amountRawString) continue;
+        if (transfer.valueRaw !== amountRawString) {
+          wrongAmountTransfers.push(transfer);
+          continue;
+        }
         candidateHashes.add(transfer.hash);
         explorerCandidate = true;
       }
@@ -915,6 +1044,26 @@ export async function verifyCryptoPayment(
       new Error("Explorer scan reached its safety page limit; payment cannot be ruled out"),
       now,
     );
+  }
+
+  if (candidateHashes.size === 0 && wrongAmountTransfers.length > 0) {
+    const mismatch = await findAmountMismatch(db, payment, amountRaw, wrongAmountTransfers);
+    if (mismatch) {
+      const kind = mismatch.receivedRaw < amountRaw ? "Underpaid" : "Overpaid";
+      const reason = `${kind}: received ${formatRawTokenAmount(mismatch.receivedRaw)} USDT, expected ${formatRawTokenAmount(amountRaw)} USDT (transaction ${mismatch.txHash})`;
+      return markManualReview(db, payment, reason, now, {
+        metadata: {
+          ...(payment.metadata ?? {}),
+          manualReviewReason: reason,
+          amountMismatch: {
+            kind: kind.toLowerCase(),
+            txHash: mismatch.txHash,
+            receivedRaw: mismatch.receivedRaw.toString(),
+            expectedRaw: amountRaw.toString(),
+          },
+        },
+      });
+    }
   }
 
   if (candidateHashes.size === 0) {
@@ -1246,7 +1395,14 @@ export interface CryptoMonitorResult {
  */
 export async function monitorCryptoPayments(
   db: Database,
-  options: { config?: CryptoPaymentConfig; limit?: number; now?: Date } = {},
+  options: {
+    config?: CryptoPaymentConfig;
+    limit?: number;
+    now?: Date;
+    /** Test seams; production uses the configured RPC clients. */
+    explorer?: ExplorerProvider;
+    rpc?: BscRpcClient;
+  } = {},
 ): Promise<CryptoMonitorResult> {
   const config = options.config ?? assertCryptoPaymentConfig();
   const now = options.now ?? new Date();
@@ -1255,13 +1411,35 @@ export async function monitorCryptoPayments(
     now.getTime() - config.latePaymentWindowHours * 60 * 60 * 1000,
   );
 
+  // Release reserved amounts that can no longer receive a matching transfer
+  // (24 h after payment or expiry). Without this, each price could only be
+  // used ~9,999 times in total.
+  await db
+    .update(cryptoPayments)
+    .set({ amountReleasedAt: now })
+    .where(
+      and(
+        isNull(cryptoPayments.amountReleasedAt),
+        or(
+          and(eq(cryptoPayments.status, "paid"), lte(cryptoPayments.paidAt, lateCutoff)),
+          and(eq(cryptoPayments.status, "expired"), lte(cryptoPayments.expiresAt, lateCutoff)),
+        ),
+      ),
+    );
+
+  // Expired rows are only re-scanned inside the late-payment window. Older
+  // expired rows must not occupy the batch, or active payments would starve.
   const rows = await db
     .select()
     .from(cryptoPayments)
     .where(
       or(
         inArray(cryptoPayments.status, ACTIVE_STATUSES),
-        and(eq(cryptoPayments.status, "expired"), lte(cryptoPayments.expiresAt, now)),
+        and(
+          eq(cryptoPayments.status, "expired"),
+          lte(cryptoPayments.expiresAt, now),
+          gte(cryptoPayments.expiresAt, lateCutoff),
+        ),
       ),
     )
     .orderBy(cryptoPayments.lastVerifiedAt, cryptoPayments.createdAt)
@@ -1287,6 +1465,8 @@ export async function monitorCryptoPayments(
         config,
         now,
         actor: "worker",
+        explorer: options.explorer,
+        rpc: options.rpc,
       });
       if (verified.status === "paid") out.paid += 1;
       else if (verified.status === "confirming") out.confirming += 1;

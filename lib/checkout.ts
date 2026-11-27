@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import type { Database } from "@/lib/db/client";
 import {
   cartItems,
@@ -19,14 +19,16 @@ import {
   type CheckoutItem,
 } from "@/lib/integrations/payments/types";
 import { generateOrderNumber, newId } from "@/lib/ids";
+import { IntegrationDisabledError } from "@/lib/integrations/supplier/types";
 import { recordAudit } from "@/lib/audit";
-import { appUrl, onlineCheckoutAvailable, siteUrl } from "@/lib/config";
+import { appUrl, demoMode, onlineCheckoutAvailable, siteUrl } from "@/lib/config";
 import {
   createCryptoPayment,
   cryptoPaymentUrl,
   getCryptoPaymentByOrderId,
 } from "@/lib/payments/crypto/payment-service";
 import { loadCryptoPaymentConfig } from "@/lib/payments/crypto/config";
+import { checkFulfillmentReadiness } from "@/lib/fulfillment-readiness";
 import {
   DEFAULT_CHECKOUT_PAYMENT_METHOD,
   type CheckoutPaymentMethod,
@@ -75,6 +77,17 @@ async function paymentForOrder(db: Database, orderId: string) {
   return getPaymentForOrder(db, orderId);
 }
 
+/** The card (non-crypto) payment row for an order, if one was created. */
+async function cardPaymentForOrder(db: Database, orderId: string) {
+  const rows = await db
+    .select()
+    .from(payments)
+    .where(and(eq(payments.orderId, orderId), ne(payments.provider, "crypto")))
+    .orderBy(payments.createdAt)
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 function localPaymentUrl(paymentId: string, accessToken: string): string {
   return `/checkout/pay/${encodeURIComponent(paymentId)}?token=${encodeURIComponent(accessToken)}`;
 }
@@ -106,7 +119,10 @@ function redirectUrlForPayment(input: {
         "The payment checkout link is invalid. No payment was taken. Please contact support.",
       );
     }
-    return input.checkoutUrl;
+    // Our own payment page embeds Whop's checkout (Whop Elements) for the
+    // checkout configuration created above; Whop's hosted page stays
+    // available there as a fallback.
+    return localPaymentUrl(input.paymentId, input.accessToken);
   }
   // Unknown non-mock providers must not be redirected to an unvalidated URL.
   throw new CheckoutError(
@@ -170,6 +186,14 @@ async function createPaymentForOrder(
   } catch (error) {
     if (error instanceof PaymentUnavailableError) {
       throw new CheckoutError("unavailable", error.message);
+    }
+    if (error instanceof IntegrationDisabledError) {
+      // Production without an enabled card provider: fail with a clear
+      // message instead of the generic "checkout could not be created".
+      throw new CheckoutError(
+        "unavailable",
+        "Card payments are not available right now. No payment was taken. Please pay with crypto or try again later.",
+      );
     }
     throw error;
   }
@@ -280,32 +304,76 @@ export async function createCheckout(
     .where(eq(orders.idempotencyKey, input.idempotencyKey))
     .limit(1);
   const existing = existingRows[0];
+
+  // Never take a payment for an order the supplier cannot fulfil (live
+  // ordering off, supplier balance too low, or the balance cannot be read).
+  if (!existing || existing.paymentStatus !== "paid") {
+    const readiness = await checkFulfillmentReadiness(
+      db,
+      priced.map((line) => ({
+        supplierKey: line.plan.supplierKey,
+        unitCostMinor: line.plan.costMinor,
+        quantity: line.quantity,
+      })),
+      { excludeOrderId: existing?.id },
+    );
+    if (!readiness.ok) throw new CheckoutError("unavailable", readiness.message);
+  }
+
   if (existing) {
+    // Same checkout form submission (same idempotency key): reuse the order and
+    // the customer details already stored on it. The customer may switch
+    // payment method after a failed attempt without creating a second order.
     const accessToken = await createOrderAccessToken(db, existing.id);
-    const existingCrypto = await getCryptoPaymentByOrderId(db, existing.id);
-    if (existingCrypto) {
-      const cryptoUrl = cryptoPaymentUrl(existingCrypto.id, accessToken);
+    const base = {
+      orderId: existing.id,
+      orderNumber: existing.orderNumber,
+      accessToken,
+      totalMinor: existing.totalMinor,
+      currency: existing.currency,
+    };
+
+    if (existing.paymentStatus === "paid") {
+      const paid = await paymentForOrder(db, existing.id);
+      const url = successUrl(existing.orderNumber, accessToken);
       return {
-        orderId: existing.id,
-        orderNumber: existing.orderNumber,
-        paymentId: existingCrypto.paymentId,
-        checkoutUrl: cryptoUrl,
-        redirectUrl: cryptoUrl,
-        accessToken,
-        totalMinor: existing.totalMinor,
-        currency: existing.currency,
-        provider: "crypto",
-        isMock: false,
-        paymentMethod: "crypto",
-        cryptoPaymentId: existingCrypto.id,
+        ...base,
+        paymentId: paid?.id ?? "",
+        checkoutUrl: url,
+        redirectUrl: url,
+        provider: paid?.provider ?? "unknown",
+        isMock: paid?.provider === "mock",
+        paymentMethod: paid?.provider === "crypto" ? "crypto" : "card",
       };
     }
 
-    const existingPayment = await paymentForOrder(db, existing.id);
+    if (paymentMethod === "crypto") {
+      const existingCrypto = await getCryptoPaymentByOrderId(db, existing.id);
+      const crypto = existingCrypto
+        ? { cryptoPaymentId: existingCrypto.id, paymentId: existingCrypto.paymentId }
+        : await createCryptoPayment(db, {
+            orderId: existing.id,
+            amountMinor: existing.totalMinor,
+            currency: existing.currency,
+            userId: existing.userId,
+          });
+      const cryptoUrl = cryptoPaymentUrl(crypto.cryptoPaymentId, accessToken);
+      return {
+        ...base,
+        paymentId: crypto.paymentId,
+        checkoutUrl: cryptoUrl,
+        redirectUrl: cryptoUrl,
+        provider: "crypto",
+        isMock: false,
+        paymentMethod: "crypto",
+        cryptoPaymentId: crypto.cryptoPaymentId,
+      };
+    }
+
+    const existingPayment = await cardPaymentForOrder(db, existing.id);
     if (existingPayment) {
       return {
-        orderId: existing.id,
-        orderNumber: existing.orderNumber,
+        ...base,
         paymentId: existingPayment.id,
         checkoutUrl: existingPayment.checkoutUrl,
         redirectUrl: redirectUrlForPayment({
@@ -317,36 +385,9 @@ export async function createCheckout(
           orderNumber: existing.orderNumber,
           accessToken,
         }),
-        accessToken,
-        totalMinor: existing.totalMinor,
-        currency: existing.currency,
         provider: existingPayment.provider,
         isMock: existingPayment.provider === "mock",
         paymentMethod: "card",
-      };
-    }
-
-    if (paymentMethod === "crypto") {
-      const createdCrypto = await createCryptoPayment(db, {
-        orderId: existing.id,
-        amountMinor: existing.totalMinor,
-        currency: existing.currency,
-        userId: existing.userId,
-      });
-      const cryptoUrl = cryptoPaymentUrl(createdCrypto.cryptoPaymentId, accessToken);
-      return {
-        orderId: existing.id,
-        orderNumber: existing.orderNumber,
-        paymentId: createdCrypto.paymentId,
-        checkoutUrl: cryptoUrl,
-        redirectUrl: cryptoUrl,
-        accessToken,
-        totalMinor: existing.totalMinor,
-        currency: existing.currency,
-        provider: "crypto",
-        isMock: false,
-        paymentMethod: "crypto",
-        cryptoPaymentId: createdCrypto.cryptoPaymentId,
       };
     }
 
@@ -361,8 +402,7 @@ export async function createCheckout(
       returnUrl: successUrl(existing.orderNumber, accessToken),
     });
     return {
-      orderId: existing.id,
-      orderNumber: existing.orderNumber,
+      ...base,
       paymentId: createdPayment.paymentId,
       checkoutUrl: createdPayment.checkoutUrl,
       redirectUrl: redirectUrlForPayment({
@@ -374,9 +414,6 @@ export async function createCheckout(
         orderNumber: existing.orderNumber,
         accessToken,
       }),
-      accessToken,
-      totalMinor: existing.totalMinor,
-      currency: existing.currency,
       provider: createdPayment.provider,
       isMock: createdPayment.isMock,
       paymentMethod: "card",
@@ -403,7 +440,7 @@ export async function createCheckout(
       currency,
       idempotencyKey: input.idempotencyKey,
       termsVersion: input.termsVersion ?? "terms-1.0",
-      isDemo: true,
+      isDemo: demoMode,
     });
 
     await tx.insert(orderItems).values(
@@ -461,7 +498,7 @@ export async function createCheckout(
         orderNumber,
         totalMinor: totals.totalMinor,
         currency,
-        isDemo: true,
+        isDemo: demoMode,
         paymentMethod: "crypto",
         cryptoPaymentId: cryptoPayment.cryptoPaymentId,
       },
@@ -509,7 +546,7 @@ export async function createCheckout(
       orderNumber,
       totalMinor: totals.totalMinor,
       currency,
-      isDemo: true,
+      isDemo: demoMode,
       paymentMethod: "card",
     },
   });

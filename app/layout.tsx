@@ -88,7 +88,19 @@ export async function generateMetadata(): Promise<Metadata> {
       languages,
     },
     ...(settings?.faviconUrl ? { icons: { icon: settings.faviconUrl } } : {}),
-    ...(verification ? { verification: { google: verification } } : {}),
+    // Search engine ownership checks: Google token from SEO settings, Bing
+    // (msvalidate.01) and Yandex from env vars. Each is a public meta tag.
+    ...(verification || process.env.BING_SITE_VERIFICATION || process.env.YANDEX_SITE_VERIFICATION
+      ? {
+          verification: {
+            ...(verification ? { google: verification } : {}),
+            ...(process.env.YANDEX_SITE_VERIFICATION ? { yandex: process.env.YANDEX_SITE_VERIFICATION } : {}),
+            ...(process.env.BING_SITE_VERIFICATION
+              ? { other: { "msvalidate.01": process.env.BING_SITE_VERIFICATION } }
+              : {}),
+          },
+        }
+      : {}),
     robots: noIndex
       ? { index: false, follow: false, nocache: true }
       : settings?.indexDefault === false

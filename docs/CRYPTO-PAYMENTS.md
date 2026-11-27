@@ -815,3 +815,45 @@ they are addressed.
 - [ ] The owner has approved the suffix/reconciliation policy and refund
       process.
 - [ ] Existing launch gates and supplier/email gates are satisfied.
+
+---
+
+## 20. Mainnet readiness update (2026-11-25)
+
+Verified read-only on BNB Smart Chain mainnet through NodeReal
+(`npm run crypto:check`, never sends a transaction or prints the key):
+chain ID 56, token contract has code, `symbol()` = USDT, `decimals()` = 18,
+receiving wallet is an EOA, wallet-filtered `eth_getLogs` accepted ranges up to
+50,000 blocks, average block time ~0.45 s. A real third-party USDT transfer was
+discovered and **verified** by ESIMPROVE's code, and the same transaction was
+**rejected** for a wrong amount, wallet, token, and chain.
+
+Fixes in this round:
+
+| Problem | Fix |
+|---|---|
+| `BNB_RPC_URL` in `.env.local` contained the NodeReal prefix twice, so every RPC call failed | Repaired locally (backup in `.env.local.bak-rpcfix`); config validation now rejects a duplicated URL |
+| Worker batch included every expired payment ever; after ~25 expired rows, active payments were never checked | Expired rows are only scanned inside the 24 h late window |
+| `amount_raw` was unique forever: each price allowed only ~9,999 orders in total | Migration `0013`: unique only while reserved; the worker releases amounts 24 h after paid/expired. Manual-review and late-payment rows stay reserved |
+| Wrong amounts (rounded/under/over payments) were silently ignored until expiry | Policy below; customer sees a dedicated "amount does not match" message (4 languages) |
+| Block-time estimate 0.75 s, 5,000-block windows | 0.45 s estimate, 50,000-block windows (auto-shrinks if refused) |
+| Single RPC | Optional `BNB_RPC_FALLBACK_URL` for verification reads; fails over only on transport/provider errors, never overrides a definite answer |
+
+### Wrong-amount policy
+
+- Only a transfer whose raw value **exactly** equals the order's reserved amount
+  can pay an order.
+- A transfer to the wallet, after the order was created, whose value is within
+  max(1 USDT, 10%) of exactly **one** reserved order (and does not exactly match
+  another order, and whose hash is not assigned elsewhere) moves that order to
+  `manual_review` with `metadata.amountMismatch` = {kind underpaid|overpaid,
+  txHash, receivedRaw, expectedRaw}. It is never paid or fulfilled
+  automatically; support refunds the difference or requests the remainder.
+- If the value is close to several reserved orders, nothing is guessed.
+
+### Not verified (requires a real payment)
+
+A real customer transfer to the ESIMPROVE wallet reaching 15 confirmations and
+producing exactly one eSIM; BNB testnet transactions (no funded test wallet was
+used or requested).
+

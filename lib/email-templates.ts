@@ -19,6 +19,7 @@ export const EMAIL_TEMPLATE_KEYS = [
   "support.reply",
   "support.status",
   "account.notice",
+  "admin.alert",
 ] as const;
 
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];

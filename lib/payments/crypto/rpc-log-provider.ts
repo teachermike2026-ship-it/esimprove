@@ -168,7 +168,9 @@ export class RpcLogTransferProvider implements ExplorerProvider {
   private async startBlockFor(since: Date, latest: number): Promise<number> {
     const latestTime = await this.blockTime(latest);
     const secondsBack = Math.max(0, (latestTime.getTime() - since.getTime()) / 1000);
-    const blockSeconds = this.options.estimatedBlockSeconds ?? 0.75;
+    // BSC mainnet measured at ~0.45 s per block (read-only check). The
+    // estimate is corrected against real timestamps either way.
+    const blockSeconds = this.options.estimatedBlockSeconds ?? 0.45;
     let step = Math.max(1, Math.ceil(secondsBack / blockSeconds));
     let candidate = Math.max(0, latest - step);
     for (let attempt = 0; attempt < 12 && candidate > 0; attempt += 1) {
@@ -203,7 +205,9 @@ export class RpcLogTransferProvider implements ExplorerProvider {
         : await this.startBlockFor(query.since, latest);
     const minChunk = this.options.minChunkBlocks ?? 10;
     const maxRequests = this.options.maxLogRequests ?? 200;
-    let chunk = this.options.initialChunkBlocks ?? 5_000;
+    // NodeReal BSC mainnet accepted 50,000-block wallet-filtered ranges in a
+    // read-only check; smaller windows are used automatically if refused.
+    let chunk = this.options.initialChunkBlocks ?? 50_000;
     let from = startBlock;
     let requests = 0;
     let truncated = false;

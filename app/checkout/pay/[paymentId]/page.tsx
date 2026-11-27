@@ -3,8 +3,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { loadAuthorizedMockPayment } from "@/lib/payment-access";
-import { mockCommerceAllowed, onlineCheckoutAvailable } from "@/lib/config";
-import { isWhopCheckoutUrl } from "@/lib/integrations/payment/whop";
+import { appUrl, mockCommerceAllowed, onlineCheckoutAvailable } from "@/lib/config";
+import { isWhopCheckoutUrl, whopMode } from "@/lib/integrations/payment/whop";
+import { WhopEmbeddedCheckout } from "@/components/whop-embedded-checkout";
 import { formatMoney } from "@/lib/money";
 import { AlertIcon, ArrowRight, CreditCardIcon } from "@/components/icons";
 import { getI18n } from "@/lib/i18n/server";
@@ -55,6 +56,20 @@ export default async function PaymentPage({
     payment.status === "pending" &&
     onlineCheckoutAvailable() &&
     isWhopCheckoutUrl(payment.checkoutUrl);
+  // Embed only while the payment still points at the checkout configuration
+  // (`ch_...`) created for this order; Whop prices it from our database.
+  const mode = whopMode();
+  const embed =
+    canResume && payment.providerPaymentId.startsWith("ch_") && (mode === "sandbox" || mode === "live")
+      ? {
+          checkoutConfigurationId: payment.providerPaymentId,
+          environment: mode === "sandbox" ? ("sandbox" as const) : ("production" as const),
+          returnUrl: `${appUrl}/checkout/success?${new URLSearchParams({
+            order: order.orderNumber,
+            ...(token ? { token } : {}),
+          }).toString()}`,
+        }
+      : null;
   const orderHref = `/orders/${order.orderNumber}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 
   return (
@@ -95,6 +110,24 @@ export default async function PaymentPage({
           </div>
         </dl>
 
+        {embed ? (
+          <section className="payment-embed" aria-labelledby="payment-embed-title">
+            <h2 id="payment-embed-title">{t("payment.embedTitle")}</h2>
+            <WhopEmbeddedCheckout
+              checkoutConfigurationId={embed.checkoutConfigurationId}
+              environment={embed.environment}
+              returnUrl={embed.returnUrl}
+              hostedCheckoutUrl={payment.checkoutUrl}
+              labels={{
+                loading: t("payment.embedLoading"),
+                loadFailed: t("payment.embedLoadFailed"),
+                openHosted: t("payment.openHosted"),
+                sandboxNotice: t("payment.sandboxNotice"),
+              }}
+            />
+          </section>
+        ) : null}
+
         {failed ? (
           <div className="callout callout-warning">
             <AlertIcon className="inline-icon" />
@@ -109,7 +142,7 @@ export default async function PaymentPage({
         </p>
 
         <div className="payment-actions">
-          {canResume ? (
+          {canResume && !embed ? (
             <a className="button" href={payment.checkoutUrl} rel="noreferrer">
               <CreditCardIcon className="inline-icon" /> {t("payment.securePay")}{" "}
               <ArrowRight className="inline-icon" />

@@ -155,6 +155,10 @@ describe("0005 to 0007 migration upgrade", () => {
       "0009_account_refund_support_workflows.sql",
       "0010_crypto_payments.sql",
       "0011_crypto_payment_order_unique.sql",
+      "0012_payment_provider_cases.sql",
+      "0013_crypto_amount_release.sql",
+      "0014_esimaccess_catalog.sql",
+      "0015_multi_esim_per_item.sql",
     ]);
   });
 
@@ -171,7 +175,11 @@ describe("0005 to 0007 migration upgrade", () => {
     expect(applied.map((row) => row.id)).toContain("0009_account_refund_support_workflows.sql");
     expect(applied.map((row) => row.id)).toContain("0010_crypto_payments.sql");
     expect(applied.map((row) => row.id)).toContain("0011_crypto_payment_order_unique.sql");
-    expect(applied).toHaveLength(11);
+    expect(applied.map((row) => row.id)).toContain("0012_payment_provider_cases.sql");
+    expect(applied.map((row) => row.id)).toContain("0013_crypto_amount_release.sql");
+    expect(applied.map((row) => row.id)).toContain("0014_esimaccess_catalog.sql");
+    expect(applied.map((row) => row.id)).toContain("0015_multi_esim_per_item.sql");
+    expect(applied).toHaveLength(15);
 
     const status = await listPendingMigrations(handle.client);
     expect(status.checked).toBe(true);
@@ -296,7 +304,7 @@ describe("0005 to 0007 migration upgrade", () => {
       "SELECT applied_at FROM schema_migrations WHERE id = '0006_legal_compliance.sql'",
     );
     expect(new Date(after!.applied_at).getTime()).toBe(beforeAppliedAt);
-    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(11);
+    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(15);
 
     // The file itself must also be idempotent if an operator re-runs it by hand.
     const sql = await readFile(path.join(MIGRATION_DIR, "0006_legal_compliance.sql"), "utf8");
@@ -335,6 +343,6 @@ describe("0005 to 0007 migration upgrade", () => {
            AND indexname = 'rate_limit_counters_window_start_idx'`,
       ),
     ).toBe(1);
-    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(11);
+    expect(await scalar(handle, "SELECT count(*)::int AS value FROM schema_migrations")).toBe(15);
   });
 });

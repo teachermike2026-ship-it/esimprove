@@ -17,6 +17,7 @@ import {
   normalizeSlug,
   sanitizeBlogHtml,
 } from "@/lib/sanitize";
+import { isEditorialSlug } from "@/lib/editorial";
 
 export type BlogActionState = {
   ok?: boolean;
@@ -78,6 +79,9 @@ export async function saveArticleAction(
   if (!title) return { error: "Title is required." };
   if (!slug || !isValidSlug(slug)) {
     return { error: "Slug is required and may only contain lowercase letters, numbers, and hyphens." };
+  }
+  if (isEditorialSlug(slug)) {
+    return { error: `The slug "${slug}" is used by a built-in editorial article. Choose another slug.` };
   }
   if (!bodyHtml.trim()) return { error: "Article content is required." };
   if (featuredImage && !featuredAlt) {

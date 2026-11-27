@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getDb } from "@/lib/db/client";
-import { internalJobSecret } from "@/lib/config";
+import { flags, internalJobSecret } from "@/lib/config";
 import { safeEqual } from "@/lib/crypto";
 import { runOutboxAndJobs } from "@/lib/fulfillment";
 import { recordAudit } from "@/lib/audit";
@@ -9,6 +9,12 @@ import { cleanupAnalytics } from "@/lib/retention";
 import { cleanupExpiredRateLimitCounters } from "@/lib/rate-limit";
 import { monitorCryptoPayments } from "@/lib/payments/crypto/payment-service";
 import { loadCryptoPaymentConfig } from "@/lib/payments/crypto/config";
+import {
+  claimEsimAccessSync,
+  runEsimAccessCatalogSync,
+} from "@/lib/supplier-catalog/esimaccess-sync";
+import { ESIM_ACCESS_PROVIDER_KEY } from "@/lib/integrations/supplier/esimaccess";
+import { recordProviderSyncJob } from "@/lib/operations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,12 +72,46 @@ export async function POST(request: NextRequest) {
         error instanceof Error ? error.name : "unknown error",
       );
     }
+    // Daily eSIM Access catalog refresh (read-only package-list request),
+    // only when explicitly enabled. It runs after payments and fulfillment so
+    // it can never delay an order, and a claim makes sure only one run syncs.
+    let catalogSync: Record<string, unknown> = { enabled: flags.catalogueSync };
+    if (flags.catalogueSync) {
+      try {
+        if (await claimEsimAccessSync(db)) {
+          const started = Date.now();
+          const synced = await runEsimAccessCatalogSync(db);
+          catalogSync = {
+            enabled: true,
+            ran: true,
+            retrieved: synced.retrieved,
+            created: synced.created,
+            updated: synced.updated,
+            archived: synced.archivedMissing + synced.archivedInvalid,
+            ms: Date.now() - started,
+          };
+        } else {
+          catalogSync = { enabled: true, ran: false };
+        }
+      } catch (error) {
+        console.error("Catalog sync failed", error instanceof Error ? error.name : "unknown error");
+        // Mark the claim failed so the next attempt waits for the back-off.
+        await recordProviderSyncJob(db, {
+          providerKey: ESIM_ACCESS_PROVIDER_KEY,
+          status: "failed",
+          details: { stage: "sync", error: error instanceof Error ? error.name : "unknown", at: new Date().toISOString() },
+        }).catch(() => undefined);
+        catalogSync = { enabled: true, ran: false, error: "sync_failed" };
+      }
+    }
+
     await recordAudit(db, {
       actorType: "system",
       action: "jobs.run.api",
       entityType: "fulfillment_job",
       entityId: "batch",
       metadata: {
+        catalogSync,
         cryptoMonitor,
         outboxProcessed: result.outbox.processed,
         outboxFailed: result.outbox.failed,

@@ -14,7 +14,12 @@ export const TOKEN_SCALE = 10n ** BigInt(TOKEN_DECIMALS);
 export const RAW_PER_CENT = TOKEN_SCALE / 100n;
 /** Four decimal places of uniqueness = 10^14 base units. */
 export const AMOUNT_SUFFIX_STEP = 10n ** 14n;
-export const MAX_AMOUNT_SUFFIX = 9999;
+/**
+ * At most 0.0099 USDT (less than one US cent) is added to make an amount
+ * unique. The customer is told about this before ordering, so the payable
+ * amount never exceeds the advertised price by a cent or more.
+ */
+export const MAX_AMOUNT_SUFFIX = 99;
 
 export class CryptoAmountError extends Error {
   constructor(message: string) {
@@ -48,7 +53,7 @@ export function baseAmountRaw(amountMinor: number, currency: string): bigint {
 }
 
 /**
- * Add a cryptographically random 1-9999 suffix in the 4th decimal places.
+ * Add a cryptographically random 1-99 suffix in the 3rd-4th decimal places (max 0.0099 USDT).
  * A nonzero suffix keeps the payable amount different from the marketing
  * price. The database unique index on amount_raw provides the final,
  * concurrency-safe reservation.
@@ -61,7 +66,7 @@ export function generatePaymentAmount(
   const base = baseAmountRaw(amountMinor, currency);
   const suffix = randomSuffix();
   if (!Number.isSafeInteger(suffix) || suffix < 1 || suffix > MAX_AMOUNT_SUFFIX) {
-    throw new CryptoAmountError("Amount suffix must be an integer between 1 and 9999");
+    throw new CryptoAmountError(`Amount suffix must be an integer between 1 and ${MAX_AMOUNT_SUFFIX}`);
   }
   const amountRaw = base + BigInt(suffix) * AMOUNT_SUFFIX_STEP;
   return {

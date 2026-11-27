@@ -135,7 +135,7 @@ export async function hasAnalyticsConsent(
 }
 
 export interface RecordConsentEventInput {
-  subjectType: "user" | "anonymous";
+  subjectType: "user" | "anonymous" | "order";
   subjectId: string;
   purpose: string;
   version: string;

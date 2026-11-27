@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import type { Database } from "@/lib/db/client";
 import {
+  webhookEvents,
   auditLogs,
   coupons,
   destinations,
@@ -172,6 +173,26 @@ export async function listAdminPayments(db: Database, limit = 100) {
     .from(payments)
     .innerJoin(orders, eq(payments.orderId, orders.id))
     .orderBy(desc(payments.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Verified provider webhook deliveries, newest first. Only metadata is stored
+ * (provider, event type, signed delivery ID, payload hash, time); payloads,
+ * secrets and card data are never kept. Requests with an invalid signature
+ * are rejected before this table and appear only in the server log.
+ */
+export async function listAdminWebhookEvents(db: Database, limit = 100) {
+  return db
+    .select({
+      id: webhookEvents.id,
+      provider: webhookEvents.provider,
+      eventType: webhookEvents.eventType,
+      externalEventId: webhookEvents.externalEventId,
+      processedAt: webhookEvents.processedAt,
+    })
+    .from(webhookEvents)
+    .orderBy(desc(webhookEvents.processedAt))
     .limit(limit);
 }
 

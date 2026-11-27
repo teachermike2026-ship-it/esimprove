@@ -65,8 +65,10 @@ describe("money", () => {
 
   it("formats data and dates defensively", () => {
     expect(formatData(500)).toBe("500 MB");
-    expect(formatData(1000)).toBe("1 GB");
-    expect(formatData(1500)).toBe("1.5 GB");
+    expect(formatData(1000)).toBe("1000 MB");
+    expect(formatData(1024)).toBe("1 GB");
+    expect(formatData(1536)).toBe("1.5 GB");
+    expect(formatData(3072)).toBe("3 GB");
     expect(formatData(0)).toBe("—");
     expect(formatDate(null)).toBe("—");
     expect(formatDateOnly("not-a-date")).toBe("—");
@@ -126,7 +128,9 @@ describe("state machine", () => {
     expect(canTransitionPayment("pending", "failed")).toBe(true);
     expect(canTransitionPayment("paid", "refunded")).toBe(true);
     expect(canTransitionPayment("paid", "failed")).toBe(false);
-    expect(canTransitionPayment("failed", "paid")).toBe(false);
+    // A declined card can be retried successfully in the same hosted checkout.
+    expect(canTransitionPayment("failed", "paid")).toBe(true);
+    expect(canTransitionPayment("failed", "refunded")).toBe(false);
     expect(() => assertPaymentTransition("paid", "pending")).toThrow();
   });
 

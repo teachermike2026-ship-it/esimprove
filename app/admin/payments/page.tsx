@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth/guards";
 import { getDb } from "@/lib/db/client";
-import { listAdminPayments } from "@/lib/admin";
+import { listAdminPayments, listAdminWebhookEvents } from "@/lib/admin";
 import { formatDate, formatMoney } from "@/lib/money";
 import { StatusBadge } from "@/components/status-badge";
 
@@ -14,7 +14,10 @@ export const metadata: Metadata = {
 export default async function AdminPaymentsPage() {
   await requireStaff("/admin/payments", "payments");
   const db = await getDb();
-  const payments = await listAdminPayments(db, 200);
+  const [payments, webhookLog] = await Promise.all([
+    listAdminPayments(db, 200),
+    listAdminWebhookEvents(db, 100),
+  ]);
 
   return (
     <>
@@ -64,7 +67,7 @@ export default async function AdminPaymentsPage() {
                       {orderEmail}
                     </td>
                     <td>
-                      {isWhop ? "Whop" : "Mock"}
+                      {isWhop ? "Whop" : payment.provider === "crypto" ? "Crypto" : payment.provider === "mock" ? "Mock" : payment.provider}
                     </td>
                     <td>{formatMoney(payment.amountMinor, payment.currency)}</td>
                     <td>
@@ -81,6 +84,44 @@ export default async function AdminPaymentsPage() {
           </table>
         </div>
       )}
+
+      <section className="card form section-tight" aria-labelledby="webhook-log-title">
+        <h2 id="webhook-log-title">Webhook event log</h2>
+        <p className="muted small">
+          Verified provider events, newest first. Payloads, secrets and card data are never stored; rejected
+          (invalid-signature) requests are only written to the server log.
+        </p>
+        {webhookLog.length === 0 ? (
+          <p className="muted small">No webhook events received yet.</p>
+        ) : (
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Received</th>
+                  <th scope="col">Provider</th>
+                  <th scope="col">Event</th>
+                  <th scope="col">Delivery ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                {webhookLog.map((event) => (
+                  <tr key={event.id}>
+                    <td>{event.processedAt ? formatDate(event.processedAt) : "—"}</td>
+                    <td>{event.provider}</td>
+                    <td>
+                      <code>{event.eventType}</code>
+                    </td>
+                    <td className="small muted">
+                      <code>{event.externalEventId}</code>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </>
   );
 }

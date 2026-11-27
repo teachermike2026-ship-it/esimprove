@@ -198,6 +198,46 @@ export const guides: Guide[] = [
       },
     ],
   },
+  {
+    slug: "what-is-an-esim",
+    title: "What is an eSIM, and how does a travel eSIM work?",
+    summary:
+      "A plain-language explanation of eSIMs for travellers: what they are, what you need, how a prepaid travel data plan works, and what it does not include.",
+    readingTime: "5 min read",
+    sections: [
+      {
+        heading: "An eSIM is a SIM card in digital form",
+        paragraphs: [
+          "An eSIM (embedded SIM) is a chip built into your phone that can store mobile plans as digital profiles. Instead of inserting a plastic SIM card, you add a plan by scanning a QR code or entering an activation code.",
+          "Most recent phones can hold several eSIM profiles and use one or two at a time, alongside a physical SIM if the phone has a slot.",
+        ],
+      },
+      {
+        heading: "How a travel eSIM works",
+        paragraphs: [
+          "A travel eSIM is a prepaid data plan for one country or a group of countries. You buy it online, install it before you leave, and it connects to a partner mobile network when you arrive.",
+          "Each plan has a data allowance and a validity period. On ESIMPROVE, each plan page states the countries covered, the networks, when validity starts (on installation or on first connection), and the deadline for activating it.",
+        ],
+        bullets: [
+          "Buy a plan for your destination and receive the QR code online.",
+          "Install it before travelling, while on Wi-Fi.",
+          "On arrival, choose the eSIM for mobile data and turn on data roaming for that line.",
+        ],
+      },
+      {
+        heading: "What you need",
+        paragraphs: [
+          "A device that supports eSIM and is carrier-unlocked (not locked to one operator). Support depends on the exact model and the region where it was sold, so check before buying.",
+        ],
+      },
+      {
+        heading: "What a data-only travel eSIM does not include",
+        paragraphs: [
+          "Most travel eSIMs, including ESIMPROVE plans unless a plan page says otherwise, are data only: no local phone number, no calls or SMS, and no emergency calls. Apps that use the internet, such as WhatsApp, maps and email, work over the data connection.",
+        ],
+      },
+    ],
+  },
 ];
 
 export function getGuide(slug: string): Guide | undefined {

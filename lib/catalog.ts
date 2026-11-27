@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, gte, ilike, lte, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, lte, or, sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/lib/db/client";
 import { destinations, plans, regions } from "@/lib/db/schema";
+import { isCountryCode, normalizeCoverage } from "@/lib/flags";
 
 export interface RegionSummary {
   id: string;
@@ -28,6 +29,8 @@ export interface DestinationSummary {
   accent: string;
   planCount: number;
   fromPriceMinor: number | null;
+  /** ISO codes covered by a multi-country destination's plans (empty for single countries). */
+  coverage?: string[];
 }
 
 export interface PlanSummary {
@@ -56,6 +59,8 @@ export interface PlanSummary {
   features: string[];
   status: string;
   isDemo: boolean;
+  /** ISO codes the supplier lists for this package (empty for single-country plans). */
+  coverage?: string[];
 }
 
 export interface PlanFilters {
@@ -100,6 +105,7 @@ function toPlanSummary(row: {
     features: row.plan.features,
     status: row.plan.status,
     isDemo: row.plan.isDemo,
+    coverage: normalizeCoverage(row.plan.supplierMetadata?.countries),
   };
 }
 
@@ -139,23 +145,66 @@ async function planRows(db: Database, conditions: SQL[] = [], filters: PlanFilte
 export async function getRegions(db: Database): Promise<RegionSummary[]> {
   const regionRows = await db.select().from(regions).orderBy(asc(regions.sortOrder));
   const destinationRows = await db.select().from(destinations);
+  const stats = await publishedPlanStats(db);
+
+  return regionRows.map((region) => {
+    // Only destinations with at least one published plan count as visible.
+    const visible = destinationRows.filter(
+      (item) => item.regionId === region.id && stats.has(item.id),
+    );
+    let planCount = 0;
+    let fromPriceMinor: number | null = null;
+    for (const destination of visible) {
+      const stat = stats.get(destination.id)!;
+      planCount += stat.count;
+      fromPriceMinor = fromPriceMinor === null ? stat.min : Math.min(fromPriceMinor, stat.min);
+    }
+    return {
+      ...region,
+      destinationCount: visible.length,
+      planCount,
+      fromPriceMinor,
+    };
+  });
+}
+
+/** Published plan count and lowest price per destination, in one pass. */
+async function publishedPlanStats(db: Database): Promise<Map<string, { count: number; min: number }>> {
   const planRows = await db
     .select({ destinationId: plans.destinationId, priceMinor: plans.priceMinor })
     .from(plans)
     .where(eq(plans.status, "published"));
+  const stats = new Map<string, { count: number; min: number }>();
+  for (const plan of planRows) {
+    const stat = stats.get(plan.destinationId);
+    if (stat) {
+      stat.count += 1;
+      if (plan.priceMinor < stat.min) stat.min = plan.priceMinor;
+    } else {
+      stats.set(plan.destinationId, { count: 1, min: plan.priceMinor });
+    }
+  }
+  return stats;
+}
 
-  return regionRows.map((region) => {
-    const regionDestinations = destinationRows.filter((item) => item.regionId === region.id);
-    const destinationIds = new Set(regionDestinations.map((item) => item.id));
-    const regionPlans = planRows.filter((plan) => destinationIds.has(plan.destinationId));
-    return {
-      ...region,
-      destinationCount: regionDestinations.length,
-      planCount: regionPlans.length,
-      fromPriceMinor:
-        regionPlans.length > 0 ? Math.min(...regionPlans.map((plan) => plan.priceMinor)) : null,
-    };
-  });
+/**
+ * Countries covered by each multi-country destination: the union, in supplier
+ * order, of `supplier_metadata.countries` across its published plans.
+ */
+export async function getCoverageByDestination(db: Database): Promise<Map<string, string[]>> {
+  const rows = await db
+    .select({ destinationId: plans.destinationId, countryCode: destinations.countryCode, metadata: plans.supplierMetadata })
+    .from(plans)
+    .innerJoin(destinations, eq(plans.destinationId, destinations.id))
+    .where(eq(plans.status, "published"));
+  const coverage = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (isCountryCode(row.countryCode)) continue;
+    const set = coverage.get(row.destinationId) ?? new Set<string>();
+    for (const code of normalizeCoverage(row.metadata?.countries)) set.add(code);
+    coverage.set(row.destinationId, set);
+  }
+  return new Map([...coverage].map(([id, set]) => [id, [...set]]));
 }
 
 export async function getDestinations(
@@ -167,28 +216,24 @@ export async function getDestinations(
     .from(destinations)
     .innerJoin(regions, eq(destinations.regionId, regions.id))
     .orderBy(asc(regions.sortOrder), asc(destinations.name));
-  const planRows = await db
-    .select({ destinationId: plans.destinationId, priceMinor: plans.priceMinor })
-    .from(plans)
-    .where(eq(plans.status, "published"));
+  const [stats, coverage] = await Promise.all([publishedPlanStats(db), getCoverageByDestination(db)]);
 
   return destinationRows
     .filter((row) => !options.popular || row.destination.popular)
     .filter((row) => !options.regionSlug || row.region.slug === options.regionSlug)
+    // Destinations without a published plan (for example demo-only entries
+    // hidden after a real catalog import) are not shown to customers.
+    .filter((row) => stats.has(row.destination.id))
     .map((row) => {
-      const destinationPlans = planRows.filter(
-        (plan) => plan.destinationId === row.destination.id,
-      );
+      const stat = stats.get(row.destination.id)!;
       return {
         ...row.destination,
         regionName: row.region.name,
         regionSlug: row.region.slug,
         accent: row.region.accent,
-        planCount: destinationPlans.length,
-        fromPriceMinor:
-          destinationPlans.length > 0
-            ? Math.min(...destinationPlans.map((plan) => plan.priceMinor))
-            : null,
+        planCount: stat.count,
+        fromPriceMinor: stat.min,
+        coverage: coverage.get(row.destination.id) ?? [],
       };
     });
 }
@@ -279,4 +324,44 @@ export async function getPlanPriceRange(db: Database): Promise<{ min: number; ma
     min: Math.min(...rows.map((row) => row.priceMinor)),
     max: Math.max(...rows.map((row) => row.priceMinor)),
   };
+}
+
+export interface CoveringPlanGroup {
+  destinationSlug: string;
+  destinationName: string;
+  planCount: number;
+  fromPriceMinor: number;
+}
+
+/**
+ * Multi-country plans (sold under another destination, e.g. "Europe") whose
+ * coverage list includes this country. Coverage comes from the supplier's
+ * country list stored with each plan.
+ */
+export async function getMultiCountryPlansCovering(
+  db: Database,
+  countryCode: string,
+  excludeDestinationId: string,
+): Promise<CoveringPlanGroup[]> {
+  const code = countryCode.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) return [];
+  const rows = await db
+    .select({
+      destinationSlug: destinations.slug,
+      destinationName: destinations.name,
+      planCount: sql<number>`count(*)::int`,
+      fromPriceMinor: sql<number>`min(${plans.priceMinor})::bigint`,
+    })
+    .from(plans)
+    .innerJoin(destinations, eq(plans.destinationId, destinations.id))
+    .where(
+      and(
+        eq(plans.status, "published"),
+        sql`${plans.destinationId} <> ${excludeDestinationId}`,
+        sql`(${plans.supplierMetadata} -> 'countries') @> ${JSON.stringify([code])}::jsonb`,
+      ),
+    )
+    .groupBy(destinations.slug, destinations.name)
+    .orderBy(sql`min(${plans.priceMinor})`);
+  return rows.map((row) => ({ ...row, planCount: Number(row.planCount), fromPriceMinor: Number(row.fromPriceMinor) }));
 }

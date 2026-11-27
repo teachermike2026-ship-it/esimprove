@@ -4,7 +4,9 @@
  * access tokens, session tokens, or similar credentials.
  */
 export function redactSensitiveEmailText(text: string): string {
-  let redacted = text.replace(
+  // eSIM activation codes (LPA strings) install the eSIM: never log or store them.
+  let redacted = text.replace(/LPA:1\$[^\s<>"']+/g, "[eSIM activation code redacted]");
+  redacted = redacted.replace(
     /([?&](?:token|code|key|secret|signature|access_token|reset_token)=)[^&\s]+/gi,
     "$1[redacted]",
   );

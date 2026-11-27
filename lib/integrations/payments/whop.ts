@@ -4,9 +4,12 @@ import type {
   CreateCheckoutInput,
   PaymentEvent,
   PaymentProvider,
+  RefundPaymentInput,
+  RefundPaymentResult,
 } from "@/lib/integrations/payments/types";
 import {
   createWhopCheckout,
+  refundWhopPayment,
   verifyWhopWebhook,
   whopMode,
 } from "@/lib/integrations/payment/whop";
@@ -26,6 +29,10 @@ export class WhopPaymentProvider implements PaymentProvider {
 
   async createCheckout(input: CreateCheckoutInput): Promise<CheckoutSession> {
     return createWhopCheckout(input);
+  }
+
+  async refundPayment(input: RefundPaymentInput): Promise<RefundPaymentResult> {
+    return refundWhopPayment(input);
   }
 
   verifyWebhook(

@@ -21,6 +21,9 @@ export class MockEmailTransport implements EmailTransport {
         `to: ${message.to}`,
         `template: ${message.template}`,
         `subject: ${message.subject}`,
+        ...(message.attachments?.length
+          ? [`attachments: ${message.attachments.map((file) => file.filename).join(", ")} (content not logged)`]
+          : []),
         "",
         safeText,
         redactionNote,

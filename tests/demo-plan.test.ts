@@ -20,7 +20,19 @@ describe("local demo eSIM product", () => {
     expect(demoPlan.status).toBe("demo");
     expect(demoPlan.isDemo).toBe(true);
     expect(demoPlan.supplierKey).toBe("demo-local");
-    expect(demoProductEnabled()).toBe(true);
+  });
+
+  it("is hidden unless the local preview is explicitly enabled", () => {
+    const saved = process.env.DEMO_PREVIEW_PRODUCT;
+    try {
+      delete process.env.DEMO_PREVIEW_PRODUCT;
+      expect(demoProductEnabled()).toBe(false);
+      process.env.DEMO_PREVIEW_PRODUCT = "true";
+      expect(demoProductEnabled()).toBe(true);
+    } finally {
+      if (saved === undefined) delete process.env.DEMO_PREVIEW_PRODUCT;
+      else process.env.DEMO_PREVIEW_PRODUCT = saved;
+    }
   });
 
   it("recognizes only the code-level demo product", () => {

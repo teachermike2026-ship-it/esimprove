@@ -112,6 +112,7 @@ export const account = {
   "checkout.lead": "Entrez vos coordonnées et passez en revue votre commande. Vos détails de livraison eSIM sont envoyés à votre compte après confirmation de la commande.",
   "checkout.unavailableTitle": "La caisse en ligne n'est pas disponible",
   "checkout.unavailableBody": "Cette implémentation n'a pas de fournisseur de paiement configuré. Aucune donnée de carte n'est acceptée et aucune commande ne peut être passée.",
+  "checkout.supplierUnavailableNotice": "Ces eSIM sont temporairement indisponibles. Aucun paiement ne peut être lancé pour le moment. Réessayez plus tard ou contactez le support.",
   "checkout.unavailableNotice": "Un ou plusieurs articles du panier ne sont plus publiés. Supprimez-les avant de continuer.",
   "checkout.orderSummary": "Résumé de la commande",
   "checkout.subtotal": "Sous-total",
@@ -125,6 +126,11 @@ export const account = {
   "checkout.nameOnOrder": "Nom sur la commande",
   "checkout.countryResidence": "Pays de résidence",
   "checkout.countryOther": "Autre / non répertorié",
+  "checkout.immediateSupply": "Je demande à ESIMPROVE de me fournir l'eSIM immédiatement. Je comprends qu'une fois l'eSIM installée ou activée, je perds mon droit de rétractation pour simple changement d'avis ; jusque-là, je peux annuler et être remboursé intégralement.",
+  "checkout.policiesIntro": "Avant de payer, lisez aussi :",
+  "checkout.esimTermsLink": "Conditions du service eSIM et de livraison",
+  "checkout.paymentTermsLink": "Conditions de paiement",
+  "checkout.refundPolicyLink": "Politique de remboursement et de rétractation",
   "checkout.acceptPrefix": "J'accepte les",
   "checkout.termsLink": "Conditions d'utilisation",
   "checkout.termsMiddle": "et la",
@@ -145,7 +151,7 @@ export const account = {
   "checkout.choosePaymentLead":
     "Choisissez un moyen de paiement avant de continuer. Vous pouvez en changer à tout moment dans cet aperçu.",
   "checkout.cardTitle": "Carte de crédit / débit",
-  "checkout.cardLead": "Paiement sécurisé par carte.",
+  "checkout.cardLead": "Paiement sécurisé par carte via Whop.",
   "checkout.cardNetworksAria": "Réseaux de cartes pris en charge",
   "checkout.cardNetworkNote":
     "Visa et Mastercard sont indiqués comme réseaux de cartes prévus.",
@@ -154,8 +160,8 @@ export const account = {
   "checkout.cryptoProviderNote":
     "Détails de virement USDT manuel — la vérification blockchain n’est pas connectée.",
   "checkout.methodSelectedNote": "Moyen sélectionné : {method}",
-  "checkout.continueWithCard": "Continuer par carte",
-  "checkout.continueWithCrypto": "Continuer en cryptomonnaie",
+  "checkout.continueWithCard": "Commande avec obligation de paiement — carte",
+  "checkout.continueWithCrypto": "Commande avec obligation de paiement — USDT",
   "checkout.selectMethodFirst":
     "Sélectionnez un moyen de paiement pour continuer",
   "checkout.previewOnlyNote":
@@ -289,7 +295,7 @@ export const account = {
   "checkout.cryptoUnavailableNote":
     "Les paiements en cryptomonnaie ne sont pas configurés dans ce déploiement.",
   "checkout.cryptoOrderNote":
-    "La commande n'est marquée comme payée qu'après vérification du transfert sur BNB Smart Chain.",
+    "Vous payez le total en USDT au taux de 1 USDT = 1 USD, plus un identifiant unique d'au plus 0,0099 USDT (moins d'un cent américain). La commande n'est marquée comme payée qu'après vérification du transfert sur BNB Smart Chain.",
   "checkout.cryptoSendExactly": "Envoyez exactement {amount} {symbol}",
   "checkout.cryptoAmountNote":
     "Les quatre dernières décimales identifient votre commande. Un montant différent ne peut pas être associé automatiquement.",
@@ -353,6 +359,28 @@ export const account = {
     "Ce paiement en cryptomonnaie est introuvable.",
   "checkout.cryptoRequestFailed":
     "La vérification du paiement a échoué. Réessayez.",
+  "checkout.cryptoAmountMismatch":
+    "Le montant reçu ne correspond pas au montant exact de cette commande, elle n’a donc pas été payée automatiquement. Votre virement est enregistré. Contactez le support ESIMPROVE avec la référence de commande : nous rembourserons la différence ou demanderons le complément. N’envoyez pas d’autre paiement.",
+  "order.cryptoPaymentTitle":
+    "Paiement en crypto",
+  "order.cryptoMethod":
+    "Méthode",
+  "order.cryptoAmount":
+    "Montant exact",
+  "order.cryptoStatus":
+    "Statut du paiement",
+  "order.cryptoTransaction":
+    "Transaction",
+  "order.cryptoContinue":
+    "Continuer le paiement en crypto",
+  "checkout.cryptoOrderSummaryTitle":
+    "Récapitulatif de la commande",
+  "checkout.cryptoTotalUsd":
+    "Total (USD)",
+  "checkout.cryptoTotalUsdt":
+    "Montant à envoyer (USDT)",
+  "checkout.cryptoUniqueAmountNote":
+    "L'USDT est compté à parité avec le dollar américain. Les derniers chiffres du montant en USDT (au plus 0,0099 USDT, moins d'un cent américain) sont un identifiant unique qui nous permet d'associer automatiquement votre transfert à cette commande : envoyez exactement le montant affiché.",
   "checkout.cryptoTransactionFailed":
     "La transaction soumise ne correspond pas à ce paiement ou a échoué. Vérifiez le hash et réessayez.",
   "checkout.cryptoTxHashFieldLabel":

@@ -11,6 +11,7 @@
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export type EncryptedSecret = {
   ciphertext: string;
@@ -123,11 +124,17 @@ export const plans = pgTable(
     features: jsonb("features").$type<string[]>().notNull(),
     status: text("status").notNull().default("published"),
     isDemo: boolean("is_demo").notNull().default(true),
+    /** Raw supplier attributes (eSIM Access slug, speed, top-up, FUP, …). */
+    supplierMetadata: jsonb("supplier_metadata").$type<Record<string, unknown>>().notNull().default({}),
+    supplierSyncedAt: timestamp("supplier_synced_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("plans_slug_unique").on(table.slug),
+    uniqueIndex("plans_esimaccess_package_unique")
+      .on(table.supplierKey, table.supplierProductId)
+      .where(sql`supplier_key = 'esimaccess'`),
     index("plans_destination_id_idx").on(table.destinationId),
     index("plans_status_idx").on(table.status),
   ],
@@ -271,6 +278,8 @@ export const cryptoPayments = pgTable(
     tokenContract: text("token_contract").notNull(),
     receivingAddress: text("receiving_address").notNull(),
     amountRaw: numeric("amount_raw", { precision: 78, scale: 0 }).notNull(),
+    /** Set when the payable amount may be reused by a new order (0013). */
+    amountReleasedAt: timestamp("amount_released_at", { withTimezone: true }),
     amountUsdt: text("amount_usdt").notNull(),
     originalAmountMinor: bigint("original_amount_minor", { mode: "number" }).notNull(),
     originalCurrency: text("original_currency").notNull(),
@@ -293,11 +302,50 @@ export const cryptoPayments = pgTable(
   (table) => [
     uniqueIndex("crypto_payments_payment_id_unique").on(table.paymentId),
     uniqueIndex("crypto_payments_reference_unique").on(table.reference),
-    uniqueIndex("crypto_payments_amount_raw_unique").on(table.amountRaw),
+    // Unique only while reserved; released amounts can be reused (0013).
+    uniqueIndex("crypto_payments_amount_raw_active_unique")
+      .on(table.amountRaw)
+      .where(sql`amount_released_at IS NULL`),
     uniqueIndex("crypto_payments_tx_hash_unique").on(table.txHash),
     uniqueIndex("crypto_payments_order_id_unique").on(table.orderId),
     index("crypto_payments_status_expires_idx").on(table.status, table.expiresAt),
     index("crypto_payments_last_verified_idx").on(table.lastVerifiedAt),
+  ],
+);
+
+/**
+ * Provider-side refunds and disputes (Whop refund.* / dispute.* webhooks).
+ * Recorded for support and risk review; never queues fulfillment.
+ */
+export const paymentProviderCases = pgTable(
+  "payment_provider_cases",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider").notNull(),
+    kind: text("kind").notNull(),
+    providerCaseId: text("provider_case_id").notNull(),
+    providerPaymentId: text("provider_payment_id"),
+    paymentId: text("payment_id").references(() => payments.id, { onDelete: "set null" }),
+    orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
+    amountMinor: bigint("amount_minor", { mode: "number" }),
+    currency: text("currency").notNull(),
+    providerStatus: text("provider_status").notNull(),
+    reason: text("reason"),
+    needsReview: boolean("needs_review").notNull().default(false),
+    reviewReason: text("review_reason"),
+    lastWebhookId: text("last_webhook_id").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payment_provider_cases_unique").on(
+      table.provider,
+      table.kind,
+      table.providerCaseId,
+    ),
+    index("payment_provider_cases_payment_idx").on(table.paymentId),
+    index("payment_provider_cases_order_idx").on(table.orderId),
   ],
 );
 
@@ -371,8 +419,9 @@ export const esims = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("esims_order_item_unique").on(table.orderItemId),
-    uniqueIndex("esims_iccid_unique").on(table.iccid),
+    index("esims_order_item_idx").on(table.orderItemId),
+    index("esims_iccid_idx").on(table.iccid),
+    uniqueIndex("esims_supplier_esim_unique").on(table.supplierKey, table.supplierEsimId),
   ],
 );
 

@@ -89,6 +89,41 @@ describe("production configuration safety", () => {
     expect(() => assertProductionSafe()).toThrow(/PAYMENTS_LIVE_ENABLED/);
   });
 
+  const WHOP_LIVE = {
+    PAYMENT_PROVIDER: "whop",
+    PAYMENTS_LIVE_ENABLED: "true",
+    WHOP_COMPANY_API_KEY: "apik_synthetic_not_real",
+    WHOP_WEBHOOK_SECRET: "ws_synthetic_not_real",
+    WHOP_SANDBOX: "false",
+    WHOP_PRODUCT_ID: "prod_synthetic01",
+    APP_URL: "https://shop.example.test",
+  };
+
+  it("accepts a complete live Whop production configuration", async () => {
+    stub(WHOP_LIVE);
+    const { assertProductionSafe, onlineCheckoutAvailable } = await import("@/lib/config");
+    expect(() => assertProductionSafe()).not.toThrow();
+    expect(onlineCheckoutAvailable()).toBe(true);
+  });
+
+  it("rejects live Whop without the live gate, product, or webhook secret", async () => {
+    stub({ ...WHOP_LIVE, PAYMENTS_LIVE_ENABLED: "false" });
+    let config = await import("@/lib/config");
+    expect(() => config.assertProductionSafe()).toThrow(/requires PAYMENTS_LIVE_ENABLED=true/);
+    vi.unstubAllEnvs();
+    vi.resetModules();
+
+    stub({ ...WHOP_LIVE, WHOP_PRODUCT_ID: "not-a-product" });
+    config = await import("@/lib/config");
+    expect(() => config.assertProductionSafe()).toThrow(/WHOP_PRODUCT_ID must be a Whop product ID/);
+    vi.unstubAllEnvs();
+    vi.resetModules();
+
+    stub({ ...WHOP_LIVE, WHOP_WEBHOOK_SECRET: "" });
+    config = await import("@/lib/config");
+    expect(() => config.assertProductionSafe()).toThrow(/WHOP_WEBHOOK_SECRET is required/);
+  });
+
   it("rejects an insecure public origin", async () => {
     stub({ SITE_URL: "http://shop.example.test" });
     const { assertProductionSafe } = await import("@/lib/config");

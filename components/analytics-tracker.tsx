@@ -14,7 +14,8 @@ import {
   type StoredConsent,
 } from "@/lib/legal";
 import { browserPrivacySignalsBlockAnalytics } from "@/lib/privacy-signals";
-import { minimizedReferrer } from "@/lib/referrer";
+import { minimizedReferrer, attributionReferrer } from "@/lib/referrer";
+import { splitLocalePath } from "@/lib/i18n/config";
 import { useI18n } from "@/components/i18n-provider";
 
 const CONSENT_ACTIONS = new Set<ConsentAction>([
@@ -36,6 +37,20 @@ const PRIVATE_PREFIXES = [
   "/login",
   "/register",
   "/privacy/request",
+];
+
+/**
+ * Purchase-funnel steps on private pages:
+ * destination_viewed -> plan_viewed -> cart_viewed -> checkout_started -> order_created.
+ */
+const FUNNEL_STEPS: Array<{ type: string; path: string; match: (path: string) => boolean }> = [
+  { type: "cart_viewed", path: "/cart", match: (path) => path === "/cart" },
+  { type: "checkout_started", path: "/checkout", match: (path) => path === "/checkout" },
+  {
+    type: "order_created",
+    path: "/checkout/payment",
+    match: (path) => path.startsWith("/checkout/crypto/") || path.startsWith("/checkout/pay"),
+  },
 ];
 
 type EventInput = {
@@ -231,7 +246,10 @@ async function sendEvents(
     events: events.map((event) => ({
       ...event,
       path: event.path ?? path,
-      referrer: minimizedReferrer(event.referrer ?? document.referrer) ?? undefined,
+      referrer:
+        (event.referrer
+          ? minimizedReferrer(event.referrer)
+          : attributionReferrer(document.referrer, window.location.search)) ?? undefined,
     })),
   };
 
@@ -573,20 +591,33 @@ export function AnalyticsTracker({ consentVersion }: { consentVersion: string })
   const lastPage = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!consented || !pathname || isPrivatePath(pathname)) return;
+    if (!consented || !pathname) return;
     if (lastPage.current === pathname) return;
     lastPage.current = pathname;
+    // Funnel rules work on the path without its language prefix (/fr/plans/x).
+    const base = splitLocalePath(pathname).pathname;
+
+    // Purchase funnel on private pages: only a fixed step name and a generic
+    // path are sent, never the page's own path (which may contain order ids).
+    const funnelStep = FUNNEL_STEPS.find((step) => step.match(base));
+    if (funnelStep) {
+      void sendEvents([{ type: funnelStep.type, path: funnelStep.path }], funnelStep.path, consentVersion);
+      return;
+    }
+    if (isPrivatePath(base)) return;
 
     const events: EventInput[] = [
       { type: "page_view", path: pathname, title: document.title },
     ];
-    if (pathname.startsWith("/blog/") && pathname.split("/").filter(Boolean).length > 1) {
+    if (base === "/blog" || base.startsWith("/blog/category/") || base.startsWith("/blog/tag/")) {
+      events.push({ type: "blog_viewed", path: pathname });
+    } else if (base.startsWith("/blog/") && base.split("/").filter(Boolean).length > 1) {
       events.push({ type: "article_opened", path: pathname, title: document.title });
     }
-    if (pathname.startsWith("/plans/")) {
+    if (base.startsWith("/plans/")) {
       events.push({ type: "plan_viewed", path: pathname });
     }
-    if (pathname.startsWith("/destinations/")) {
+    if (base.startsWith("/destinations/")) {
       events.push({ type: "destination_viewed", path: pathname });
     }
     void sendEvents(events, pathname, consentVersion);
@@ -599,7 +630,7 @@ export function AnalyticsTracker({ consentVersion }: { consentVersion: string })
     }
 
     window.esimproveTrack = (type, options) => {
-      if (!pathname || isPrivatePath(pathname)) return;
+      if (!pathname || isPrivatePath(splitLocalePath(pathname).pathname)) return;
       void sendEvents([{ type, path: options?.path ?? pathname, ...options }], pathname, consentVersion);
     };
 
@@ -632,7 +663,9 @@ export function AnalyticsTracker({ consentVersion }: { consentVersion: string })
       if (target instanceof HTMLAnchorElement) {
         const href = target.getAttribute("href");
         if (!href) return;
-        if (href.startsWith("/blog/") && !pathname?.startsWith("/blog/")) {
+        const targetBase = splitLocalePath(href.split(/[?#]/)[0] ?? href).pathname;
+        const currentBase = splitLocalePath(pathname ?? "/").pathname;
+        if (targetBase.startsWith("/blog/") && !currentBase.startsWith("/blog/")) {
           void sendEvents(
             [
               {

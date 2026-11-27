@@ -3,10 +3,12 @@ import Link from "next/link";
 import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_DOCUMENT_VERSION,
-  LEGAL_EFFECTIVE_DATE_LABEL,
+  LEGAL_EFFECTIVE_DATE,
 } from "@/lib/legal-profile";
 import { ArrowRight } from "@/components/icons";
 import { getI18n } from "@/lib/i18n/server";
+import { localeDescriptors } from "@/lib/i18n/config";
+import { LEGAL_DOC_KEYS, LEGAL_DOC_PATHS, legalDoc } from "@/lib/legal-content";
 import { localizedMetadata } from "@/lib/i18n/metadata";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -19,38 +21,17 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function LegalIndexPage() {
-  const { t, href } = await getI18n();
+  const { t, href, locale } = await getI18n();
+  const ctx = { email: LEGAL_CONTACT_EMAIL, ga4Configured: false };
+  const effectiveLabel = new Intl.DateTimeFormat(localeDescriptors[locale].intlLocale, {
+    dateStyle: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${LEGAL_EFFECTIVE_DATE}T00:00:00Z`));
   const documents = [
-    {
-      title: t("legal.terms"),
-      shortTitle: t("legal.terms"),
-      path: "/legal/terms",
-      description: t("legal.termsDescription"),
-    },
-    {
-      title: t("legal.privacy"),
-      shortTitle: t("legal.privacy"),
-      path: "/legal/privacy",
-      description: t("legal.privacyDescription"),
-    },
-    {
-      title: t("legal.refunds"),
-      shortTitle: t("legal.refunds"),
-      path: "/legal/refunds",
-      description: t("legal.refundsDescription"),
-    },
-    {
-      title: t("legal.cookies"),
-      shortTitle: t("legal.cookies"),
-      path: "/legal/cookies",
-      description: t("legal.cookiesDescription"),
-    },
-    {
-      title: t("legal.accessibility"),
-      shortTitle: t("legal.accessibility"),
-      path: "/legal/accessibility",
-      description: t("legal.accessibilityDescription"),
-    },
+    ...LEGAL_DOC_KEYS.map((key) => {
+      const doc = legalDoc(locale, key, ctx);
+      return { title: doc.title, shortTitle: doc.title, path: LEGAL_DOC_PATHS[key], description: doc.description };
+    }),
     {
       title: t("legal.faq"),
       shortTitle: t("legal.faq"),
@@ -81,7 +62,7 @@ export default async function LegalIndexPage() {
               </div>
               <div>
                 <dt>{t("legal.effective")}</dt>
-                <dd>{LEGAL_EFFECTIVE_DATE_LABEL}</dd>
+                <dd>{effectiveLabel}</dd>
               </div>
             </dl>
             <Link className="es-text-link" href={href(document.path)}>

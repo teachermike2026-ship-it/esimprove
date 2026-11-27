@@ -7,6 +7,8 @@ import { localizedMetadata } from "@/lib/i18n/metadata";
 import { loadAuthorizedCryptoPayment } from "@/lib/payments/crypto/access";
 import { loadCryptoPaymentConfig } from "@/lib/payments/crypto/config";
 import { CryptoPaymentPanel } from "@/components/crypto-payment-panel";
+import { getOrderItems } from "@/lib/orders";
+import { formatMoney } from "@/lib/money";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
@@ -25,7 +27,7 @@ export default async function CryptoPaymentPage({
   params: Promise<{ paymentId: string }>;
   searchParams: Promise<{ token?: string }>;
 }) {
-  const { t } = await getI18n();
+  const { t, locale } = await getI18n();
   const { paymentId } = await params;
   const { token } = await searchParams;
   const accessToken = token ?? null;
@@ -42,6 +44,7 @@ export default async function CryptoPaymentPage({
 
   const config = loadCryptoPaymentConfig();
   if (!config) notFound();
+  const items = await getOrderItems(db, order.id);
 
   let qrDataUrl = "";
   try {
@@ -58,13 +61,28 @@ export default async function CryptoPaymentPage({
 
   return (
     <div className="crypto-payment-page-wrap">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">{t("checkout.cryptoPageMetaTitle")}</p>
-          <h1>{t("checkout.cryptoPaymentTitle")}</h1>
-          <p className="muted">{t("checkout.cryptoPaymentLead")}</p>
+      <section className="card crypto-order-summary" aria-labelledby="crypto-order-summary-title">
+        <h2 id="crypto-order-summary-title">{t("checkout.cryptoOrderSummaryTitle")}</h2>
+        <ul className="crypto-order-lines">
+          {items.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.planName} × {item.quantity}
+              </span>
+              <span dir="ltr">{formatMoney(item.totalMinor, item.currency, locale)}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="crypto-order-total">
+          <span>{t("checkout.cryptoTotalUsd")}</span>
+          <strong dir="ltr">{formatMoney(order.totalMinor, order.currency, locale)}</strong>
         </div>
-      </div>
+        <div className="crypto-order-total">
+          <span>{t("checkout.cryptoTotalUsdt")}</span>
+          <strong dir="ltr">{payment.amountUsdt} USDT</strong>
+        </div>
+        <p className="form-note">{t("checkout.cryptoUniqueAmountNote")}</p>
+      </section>
 
       <CryptoPaymentPanel
         orderId={order.id}

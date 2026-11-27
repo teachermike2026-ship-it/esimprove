@@ -52,7 +52,7 @@ export default async function PortalOrderPage({
           <li aria-current="page">{orderNumber}</li>
         </ol>
       </nav>
-      <OrderDetail view={view} refunds={refunds} />
+      <OrderDetail view={view} refunds={refunds} showActivation />
       {canRequestRefund && balance ? (
         <div className="section-tight">
           <RefundRequestForm

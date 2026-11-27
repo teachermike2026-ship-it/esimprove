@@ -2,6 +2,7 @@ import Link from "next/link";
 import { formatMoney } from "@/lib/money";
 import type { DestinationSummary } from "@/lib/catalog";
 import { ArrowRight } from "@/components/icons";
+import { DestinationFlag } from "@/components/country-flag";
 import { getI18n } from "@/lib/i18n/server";
 
 export async function DestinationCard({ destination }: { destination: DestinationSummary }) {
@@ -10,8 +11,13 @@ export async function DestinationCard({ destination }: { destination: Destinatio
     <article className={`card destination-card accent-${destination.accent}`}>
       <Link href={href(`/destinations/${destination.slug}`)} className="destination-card-link">
         <div className="destination-art" aria-hidden="true">
-          <span className="destination-code" dir="ltr">
-            {destination.countryCode}
+          <span className="destination-card-flag">
+            <DestinationFlag
+              countryCode={destination.countryCode}
+              name={destination.name}
+              coverage={destination.coverage}
+              size="lg"
+            />
           </span>
           <span className="destination-orbit" />
         </div>

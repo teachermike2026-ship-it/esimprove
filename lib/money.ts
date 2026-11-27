@@ -57,11 +57,27 @@ export function parseMoneyToMinor(value: string, currency = "USD"): number {
   return amount;
 }
 
+/**
+ * eSIM Access encodes "unlimited" packages as a very large total (999 GB).
+ * Anything at or above this is shown as unlimited, never as a fake GB number.
+ */
+export const UNLIMITED_DATA_MB = 900 * 1024;
+
+export function isUnlimitedData(dataMb: number): boolean {
+  return Number.isFinite(dataMb) && dataMb >= UNLIMITED_DATA_MB;
+}
+
+/**
+ * Data allowance label. Supplier volumes are binary (eSIM Access: 1 GB =
+ * 1,073,741,824 bytes = 1,024 MB), so a "3GB" package (3,072 MB) shows as
+ * "3 GB", matching the package name.
+ */
 export function formatData(dataMb: number): string {
   if (!Number.isFinite(dataMb) || dataMb <= 0) return "—";
-  if (dataMb >= 1000) {
-    const gb = dataMb / 1000;
-    return `${Number.isInteger(gb) ? gb : gb.toFixed(1)} GB`;
+  if (isUnlimitedData(dataMb)) return "Unlimited";
+  if (dataMb >= 1024) {
+    const gb = dataMb / 1024;
+    return `${Number.isInteger(gb) ? gb : Number(gb.toFixed(1))} GB`;
   }
   return `${dataMb} MB`;
 }

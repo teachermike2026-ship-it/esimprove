@@ -112,6 +112,7 @@ export const account = {
   "checkout.lead": "أدخل بيانات الاتصال وراجع طلبك. تُرسل تفاصيل تسليم eSIM إلى حسابك بعد تأكيد طلبك.",
   "checkout.unavailableTitle": "الدفع عبر الإنترنت غير متاح",
   "checkout.unavailableBody": "لا يوجد مزود دفع مفعّل في هذه النسخة. لا تُقبل بيانات البطاقة ولا يمكن تقديم أي طلب.",
+  "checkout.supplierUnavailableNotice": "شرائح eSIM هذه غير متاحة للشراء مؤقتًا. لا يمكن بدء أي دفع الآن. يرجى المحاولة لاحقًا أو التواصل مع الدعم.",
   "checkout.unavailableNotice": "واحد أو أكثر من خطط السلة لم تعد منشورة. أزلها قبل المتابعة.",
   "checkout.orderSummary": "ملخص الطلب",
   "checkout.subtotal": "المجموع الفرعي",
@@ -125,6 +126,11 @@ export const account = {
   "checkout.nameOnOrder": "الاسم على الطلب",
   "checkout.countryResidence": "بلد الإقامة",
   "checkout.countryOther": "أخرى / غير مدرجة",
+  "checkout.immediateSupply": "أطلب من ESIMPROVE تسليمي الـeSIM فورًا. وأفهم أنني أفقد حق الإلغاء لمجرد تغيير رأيي بعد تثبيت الـeSIM أو تفعيلها، ويمكنني قبل ذلك الإلغاء واسترداد المبلغ كاملًا.",
+  "checkout.policiesIntro": "قبل الدفع، يُرجى أيضًا قراءة:",
+  "checkout.esimTermsLink": "شروط خدمة eSIM والتسليم",
+  "checkout.paymentTermsLink": "شروط الدفع",
+  "checkout.refundPolicyLink": "سياسة الاسترداد والعدول",
   "checkout.acceptPrefix": "أقبل",
   "checkout.termsLink": "بنود وشروط",
   "checkout.termsMiddle": "وأقر بـ",
@@ -145,7 +151,7 @@ export const account = {
   "checkout.choosePaymentLead":
     "اختر طريقة الدفع قبل المتابعة. يمكنك تغييرها في أي وقت في هذه المعاينة.",
   "checkout.cardTitle": "بطاقة ائتمان / خصم",
-  "checkout.cardLead": "دفع آمن بالبطاقة.",
+  "checkout.cardLead": "دفع آمن بالبطاقة عبر Whop.",
   "checkout.cardNetworksAria": "شبكات البطاقات المدعومة",
   "checkout.cardNetworkNote":
     "تظهر Visa وMastercard كشبكات البطاقات المقصودة.",
@@ -154,8 +160,8 @@ export const account = {
   "checkout.cryptoProviderNote":
     "بيانات تحويل USDT يدوياً — التحقق على سلسلة الكتل غير متصل.",
   "checkout.methodSelectedNote": "الطريقة المحددة: {method}",
-  "checkout.continueWithCard": "المتابعة بالبطاقة",
-  "checkout.continueWithCrypto": "المتابعة بالعملة الرقمية",
+  "checkout.continueWithCard": "اشترِ الآن — الدفع بالبطاقة",
+  "checkout.continueWithCrypto": "اشترِ الآن — الدفع بـUSDT",
   "checkout.selectMethodFirst": "اختر طريقة دفع للمتابعة",
   "checkout.previewOnlyNote":
     "معاينة محلية للواجهة فقط. لا يتم إنشاء أي طلب، ولا التحقق من أي معاملة على سلسلة الكتل، ولا قبول أي أموال.",
@@ -281,7 +287,7 @@ export const account = {
   "checkout.cryptoUnavailableNote":
     "الدفع بالعملات الرقمية غير مُهيأ في هذا النشر.",
   "checkout.cryptoOrderNote":
-    "لا يتم تعيين الطلب كمدفوع إلا بعد التحقق من التحويل على BNB Smart Chain.",
+    "تدفع إجمالي الطلب بـUSDT بسعر 1 USDT = 1 USD، مضافًا إليه معرّف فريد لا يتجاوز 0.0099 USDT (أقل من سنت أمريكي واحد). ولا يُعدّ الطلب مدفوعًا إلا بعد التحقق من التحويل على BNB Smart Chain.",
   "checkout.cryptoSendExactly": "أرسل بالضبط {amount} {symbol}",
   "checkout.cryptoAmountNote":
     "الكسور العشرية الأربعة الأخيرة تحدد طلبك. لا يمكن مطابقة مبلغ مختلف تلقائياً.",
@@ -343,6 +349,28 @@ export const account = {
   "checkout.cryptoNotFoundError":
     "تعذر العثور على هذه الدفعة بالعملات الرقمية.",
   "checkout.cryptoRequestFailed": "فشل التحقق من الدفع. حاول مرة أخرى.",
+  "checkout.cryptoAmountMismatch":
+    "المبلغ المستلم لا يطابق المبلغ الدقيق لهذا الطلب، لذلك لم يتم تأكيد الدفع تلقائيًا. تم تسجيل تحويلك. تواصل مع دعم ESIMPROVE مع مرجع الطلب: سنعيد الفرق أو نطلب المبلغ المتبقي. لا ترسل دفعة أخرى.",
+  "order.cryptoPaymentTitle":
+    "الدفع بالعملات الرقمية",
+  "order.cryptoMethod":
+    "الطريقة",
+  "order.cryptoAmount":
+    "المبلغ الدقيق",
+  "order.cryptoStatus":
+    "حالة الدفع",
+  "order.cryptoTransaction":
+    "المعاملة",
+  "order.cryptoContinue":
+    "متابعة الدفع بالعملات الرقمية",
+  "checkout.cryptoOrderSummaryTitle":
+    "ملخص الطلب",
+  "checkout.cryptoTotalUsd":
+    "الإجمالي (دولار أمريكي)",
+  "checkout.cryptoTotalUsdt":
+    "المبلغ المطلوب إرساله (USDT)",
+  "checkout.cryptoUniqueAmountNote":
+    "يُحتسب USDT بسعر يساوي الدولار الأمريكي. والأرقام الأخيرة من مبلغ USDT (لا تتجاوز 0.0099 USDT، أي أقل من سنت أمريكي واحد) معرّف فريد يتيح لنا ربط تحويلك بهذا الطلب تلقائيًا، لذا أرسل المبلغ المعروض بالضبط.",
   "checkout.cryptoTransactionFailed":
     "المعاملة المرسلة لا تطابق هذه الدفعة أو أنها فشلت. تحقق من التجزئة وحاول مرة أخرى.",
   "checkout.cryptoTxHashFieldLabel":

@@ -5,6 +5,7 @@ import type { PlanSummary } from "@/lib/catalog";
 import { ArrowRight, CartIcon, QrIcon } from "@/components/icons";
 import { getI18n } from "@/lib/i18n/server";
 import { isLocalDemoPlan } from "@/lib/demo-plan";
+import { DestinationFlag } from "@/components/country-flag";
 
 export async function PlanCard({ plan, compact = false }: { plan: PlanSummary; compact?: boolean }) {
   const { t, href } = await getI18n();
@@ -18,8 +19,11 @@ export async function PlanCard({ plan, compact = false }: { plan: PlanSummary; c
               <span className="badge badge-demo">{t("demo.badge")}</span>
             </p>
           ) : null}
-          <p className="eyebrow">
-            {plan.destinationName} <span aria-hidden="true">·</span> {plan.regionName}
+          <p className="eyebrow plan-card-place">
+            <DestinationFlag countryCode={plan.countryCode} name={plan.destinationName} coverage={plan.coverage} size="sm" />
+            <span>
+              {plan.destinationName} <span aria-hidden="true">·</span> {plan.regionName}
+            </span>
           </p>
           <h3>
             <Link href={href(`/plans/${plan.slug}`)}>{plan.name}</Link>

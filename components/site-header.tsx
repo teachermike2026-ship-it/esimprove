@@ -32,6 +32,7 @@ export async function SiteHeader() {
     { href: "/", label: t("nav.home"), className: "es-nav-home" },
     { href: "/destinations", label: t("nav.countries") },
     { href: "/plans", label: t("nav.plans") },
+    { href: "/blog", label: t("nav.blog") },
     { href: "/guides", label: t("nav.guides") },
     { href: "/about", label: t("nav.about") },
     { href: "/contact", label: t("nav.contact") },

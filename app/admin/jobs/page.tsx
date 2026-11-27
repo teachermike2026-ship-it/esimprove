@@ -99,7 +99,7 @@ export default async function AdminJobsPage({
                       <button
                         className="button button-secondary button-small"
                         type="submit"
-                        disabled={!["failed", "queued", "under_investigation"].includes(job.status)}
+                        disabled={!["failed", "queued", "under_investigation", "manual_review"].includes(job.status)}
                       >
                         <RetryIcon className="inline-icon" /> Retry
                       </button>

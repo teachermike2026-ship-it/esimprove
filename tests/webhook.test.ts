@@ -175,7 +175,7 @@ describe("mock payment webhooks", () => {
     expect(failedReplay.duplicate).toBe(true);
   });
 
-  it("rejects amount mismatches, unknown payments, and invalid transitions", async () => {
+  it("holds amount mismatches for review, rejects unknown payments, and ignores invalid transitions", async () => {
     const { payment, result } = await makeCheckout("mismatch@example.com", "webhook-mismatch");
     const mismatch = createMockPaymentEvent({
       paymentId: payment.providerPaymentId,
@@ -185,9 +185,18 @@ describe("mock payment webhooks", () => {
       type: "payment.succeeded",
     });
     const signedMismatch = signedMockWebhook(mismatch);
-    await expect(
-      handlePaymentWebhook(handle.db, signedMismatch.rawBody, signedMismatch.signature),
-    ).rejects.toThrow("amount or currency");
+    const held = await handlePaymentWebhook(
+      handle.db,
+      signedMismatch.rawBody,
+      signedMismatch.signature,
+    );
+    expect(held.reviewRequired).toMatch(/higher than the order price/);
+    const heldOrder = await handle.db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, result.orderId))
+      .limit(1);
+    expect(heldOrder[0]?.paymentStatus).toBe("pending");
 
     const unknown = createMockPaymentEvent({
       paymentId: "mock_pay_unknown",
@@ -219,9 +228,18 @@ describe("mock payment webhooks", () => {
       type: "payment.failed",
     });
     const signedInvalid = signedMockWebhook(invalid);
-    await expect(
-      handlePaymentWebhook(handle.db, signedInvalid.rawBody, signedInvalid.signature),
-    ).rejects.toThrow("Invalid payment transition");
+    const ignored = await handlePaymentWebhook(
+      handle.db,
+      signedInvalid.rawBody,
+      signedInvalid.signature,
+    );
+    expect(ignored.reviewRequired).toMatch(/already paid/);
+    const paidOrder = await handle.db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, result.orderId))
+      .limit(1);
+    expect(paidOrder[0]?.paymentStatus).toBe("paid");
   });
 });
 

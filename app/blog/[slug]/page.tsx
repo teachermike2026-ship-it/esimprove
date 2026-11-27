@@ -5,9 +5,11 @@ import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { getPublishedArticleBySlug, getRelatedArticles } from "@/lib/blog";
 import { loadSeoSettings, buildArticleJsonLd, buildBreadcrumbJsonLd } from "@/lib/seo";
-import { siteUrl } from "@/lib/config";
+import { noIndex, siteUrl } from "@/lib/config";
 import { getI18n } from "@/lib/i18n/server";
 import { localeIntl } from "@/lib/i18n/config";
+import { getEditorialArticle } from "@/lib/editorial";
+import { editorialArticleMetadata, EditorialArticlePage } from "@/components/blog/editorial-article-page";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,8 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  const editorial = getEditorialArticle(slug);
+  if (editorial) return editorialArticleMetadata(editorial);
   const db = await getDb();
   const article = await getPublishedArticleBySlug(db, slug);
   if (!article) notFound();
@@ -54,6 +58,8 @@ export async function generateMetadata({
 }
 
 function parseRobots(value: string) {
+  // Demo, preview and staging deployments are never indexable.
+  if (noIndex) return { index: false, follow: false, nocache: true };
   const normalized = value.toLowerCase();
   return {
     index: !normalized.includes("noindex"),
@@ -68,6 +74,8 @@ export default async function BlogArticlePage({
 }) {
   const { t, href, locale } = await getI18n();
   const { slug } = await params;
+  const editorial = getEditorialArticle(slug);
+  if (editorial) return <EditorialArticlePage article={editorial} />;
   const db = await getDb();
   const [article, settings] = await Promise.all([
     getPublishedArticleBySlug(db, slug),

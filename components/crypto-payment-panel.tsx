@@ -332,7 +332,7 @@ export function CryptoPaymentPanel(props: CryptoPaymentPanelProps) {
           <p className="eyebrow">
             <CryptoIcon className="inline-icon" /> {t("checkout.cryptoPageMetaTitle")}
           </p>
-          <h2 id="crypto-payment-title">{t("checkout.cryptoPaymentTitle")}</h2>
+          <h1 id="crypto-payment-title">{t("checkout.cryptoPaymentTitle")}</h1>
           <p className="muted">{t("checkout.cryptoPaymentLead")}</p>
         </div>
         <span className={statusClass[status]} role="status">
@@ -547,6 +547,13 @@ export function CryptoPaymentPanel(props: CryptoPaymentPanelProps) {
                     ? t("checkout.cryptoNotFoundError")
                     : t("checkout.cryptoRequestFailed")}
             </span>
+          </div>
+        ) : null}
+
+        {messageCode === "amount_mismatch" ? (
+          <div className="form-error" role="alert">
+            <AlertIcon className="inline-icon" />
+            <span>{t("checkout.cryptoAmountMismatch")}</span>
           </div>
         ) : null}
 

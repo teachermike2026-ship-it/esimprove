@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DestinationFlag } from "@/components/country-flag";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { getPlanBySlug, getPlansForDestination } from "@/lib/catalog";
+import { checkFulfillmentReadiness } from "@/lib/fulfillment-readiness";
 import { addToCartAction } from "@/app/actions/cart";
 import { formatData, formatMoney } from "@/lib/money";
 import { siteUrl } from "@/lib/config";
@@ -44,11 +46,20 @@ export async function generateMetadata({
   }
   const db = await getDb();
   const plan = await getPlanBySlug(db, slug);
-  if (!plan) notFound();
+  if (!plan || plan.status !== "published") notFound();
   return localizedMetadata({
     path: `/plans/${plan.slug}`,
-    title: t("catalog.planMetaTitle", { country: plan.destinationName, plan: plan.name }),
-    description: plan.description || t("catalog.planDescription", { country: plan.destinationName }),
+    // Supplier plan names already start with the country ("Spain 3GB 30Days").
+    title: plan.name.toLowerCase().startsWith(plan.destinationName.toLowerCase())
+      ? t("plan.seoTitle", { plan: plan.name, price: formatMoney(plan.priceMinor, plan.currency) })
+      : t("catalog.planMetaTitle", { country: plan.destinationName, plan: plan.name }),
+    description: t("plan.metaDescription", {
+      country: plan.destinationName,
+      data: formatData(plan.dataMb),
+      days: plan.validityDays,
+      price: formatMoney(plan.priceMinor, plan.currency),
+      networks: plan.networkSummary || "—",
+    }),
   });
 }
 
@@ -57,7 +68,7 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
   const { t, href, locale } = await getI18n();
   const demo = demoProductEnabled() && isDemoProductSlug(slug);
   const plan = demo ? demoPlan : await getPlanBySlug(await getDb(), slug);
-  if (!plan) notFound();
+  if (!plan || plan.status !== "published") notFound();
   const nonce = demo ? undefined : ((await headers()).get("x-nonce") ?? undefined);
   const related = demo
     ? []
@@ -93,6 +104,48 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
     ],
   };
 
+  // Offer availability mirrors checkout: "InStock" only when the supplier can
+  // fulfil the order right now (live ordering on and enough supplier balance).
+  const purchasable = demo
+    ? false
+    : (
+        await checkFulfillmentReadiness(await getDb(), [
+          { supplierKey: plan.supplierKey, unitCostMinor: plan.costMinor, quantity: 1 },
+        ])
+      ).ok;
+  const planUrl = absoluteLocalizedUrl(`/plans/${plan.slug}`, locale, siteUrl);
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "@id": `${planUrl}#product`,
+    name: `${plan.destinationName} eSIM — ${formatData(plan.dataMb)}, ${plan.validityDays} days`,
+    description: t("plan.metaDescription", {
+      country: plan.destinationName,
+      data: formatData(plan.dataMb),
+      days: plan.validityDays,
+      price: formatMoney(plan.priceMinor, plan.currency),
+      networks: plan.networkSummary || "—",
+    }),
+    sku: plan.slug,
+    category: "Prepaid travel eSIM data plan",
+    brand: { "@type": "Brand", name: "ESIMPROVE" },
+    url: planUrl,
+    additionalProperty: [
+      { "@type": "PropertyValue", name: "Data allowance", value: formatData(plan.dataMb) },
+      { "@type": "PropertyValue", name: "Validity", value: `${plan.validityDays} days` },
+      { "@type": "PropertyValue", name: "Coverage", value: plan.coverageSummary },
+      ...(plan.networkSummary ? [{ "@type": "PropertyValue", name: "Networks", value: plan.networkSummary }] : []),
+    ],
+    offers: {
+      "@type": "Offer",
+      url: planUrl,
+      price: (plan.priceMinor / 100).toFixed(2),
+      priceCurrency: plan.currency,
+      availability: purchasable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      seller: { "@type": "Organization", name: "ESIMPROVE" },
+    },
+  };
+
   return (
     <>
       {!demo ? (
@@ -100,6 +153,13 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
           type="application/ld+json"
           nonce={nonce}
           dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        />
+      ) : null}
+      {!demo ? (
+        <script
+          type="application/ld+json"
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
         />
       ) : null}
       <nav aria-label="Breadcrumb">
@@ -130,8 +190,11 @@ export default async function PlanPage({ params }: { params: Promise<{ slug: str
                 <span className="badge badge-demo">{t("demo.badge")}</span>
               </p>
             ) : null}
-            <p className="eyebrow">
-              {plan.destinationName} · {plan.regionName}
+            <p className="eyebrow plan-card-place">
+              <DestinationFlag countryCode={plan.countryCode} name={plan.destinationName} coverage={plan.coverage} />
+              <span>
+                {plan.destinationName} · {plan.regionName}
+              </span>
             </p>
             <div className="plan-detail-head">
               <div>

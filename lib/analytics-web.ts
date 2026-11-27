@@ -16,7 +16,7 @@ import {
 import { newId } from "@/lib/ids";
 import { analyticsHashSecret } from "@/lib/config";
 import { hmacHex } from "@/lib/crypto";
-import { minimizedReferrer, referrerHost } from "@/lib/referrer";
+import { isAiAssistantHost, minimizedReferrer, referrerHost } from "@/lib/referrer";
 
 /* -------------------------------------------------------------------------- */
 /* Event definitions and validation                                           */
@@ -35,6 +35,11 @@ export const TRACKED_EVENT_TYPES = [
   "game_exited",
   "article_opened",
   "article_link_clicked",
+  "blog_viewed",
+  "related_article_clicked",
+  "blog_destination_clicked",
+  "blog_plan_clicked",
+  "blog_guide_link_clicked",
   "registration_completed",
   "login_completed",
   "cart_viewed",
@@ -140,7 +145,7 @@ export function hashIdentifier(value: string): string {
 }
 
 export function classifyReferrer(referrer: string | null | undefined): {
-  source: "direct" | "search" | "social" | "referral";
+  source: "direct" | "search" | "social" | "referral" | "ai";
   host: string | null;
 } {
   if (!referrer) return { source: "direct", host: null };
@@ -152,6 +157,8 @@ export function classifyReferrer(referrer: string | null | undefined): {
       ? referrer.trim().toLowerCase()
       : null);
   if (!host) return { source: "referral", host: null };
+  // AI assistants first: gemini.google.com must not count as Google search.
+  if (isAiAssistantHost(host)) return { source: "ai", host };
   if (
     /(^|\.)(google|bing|duckduckgo|yahoo|baidu|yandex|ecosia|ask|naver|seznam)\.[a-z.]+$/.test(host)
   ) {
@@ -500,26 +507,28 @@ export async function getAnalyticsOverview(
     loadOverviewMetrics(db, { from: range.previousFrom, to: range.previousTo }),
   ]);
 
+  // Days are UTC calendar days, matching the UTC day keys built below,
+  // whatever timezone the database session uses.
   const sessionDaily = await db
     .select({
-      day: sql<string>`to_char(date_trunc('day', ${analyticsSessions.firstSeen}), 'YYYY-MM-DD')`,
+      day: sql<string>`to_char(date_trunc('day', ${analyticsSessions.firstSeen} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`,
       sessions: sql<number>`count(*)::int`,
       visitors: sql<number>`count(distinct ${analyticsSessions.visitorHash})::int`,
     })
     .from(analyticsSessions)
     .where(sessionWhere(range))
-    .groupBy(sql`date_trunc('day', ${analyticsSessions.firstSeen})`)
-    .orderBy(sql`date_trunc('day', ${analyticsSessions.firstSeen})`);
+    .groupBy(sql`date_trunc('day', ${analyticsSessions.firstSeen} AT TIME ZONE 'UTC')`)
+    .orderBy(sql`date_trunc('day', ${analyticsSessions.firstSeen} AT TIME ZONE 'UTC')`);
 
   const pageViewDaily = await db
     .select({
-      day: sql<string>`to_char(date_trunc('day', ${analyticsEvents.createdAt}), 'YYYY-MM-DD')`,
+      day: sql<string>`to_char(date_trunc('day', ${analyticsEvents.createdAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`,
       pageViews: sql<number>`count(*)::int`,
     })
     .from(analyticsEvents)
     .where(and(eventWhere(range), eq(analyticsEvents.eventType, "page_view")))
-    .groupBy(sql`date_trunc('day', ${analyticsEvents.createdAt})`)
-    .orderBy(sql`date_trunc('day', ${analyticsEvents.createdAt})`);
+    .groupBy(sql`date_trunc('day', ${analyticsEvents.createdAt} AT TIME ZONE 'UTC')`)
+    .orderBy(sql`date_trunc('day', ${analyticsEvents.createdAt} AT TIME ZONE 'UTC')`);
 
   const sessionsByDay = new Map(sessionDaily.map((row) => [row.day, row]));
   const viewsByDay = new Map(pageViewDaily.map((row) => [row.day, row.pageViews]));
@@ -571,12 +580,12 @@ export async function getGeoBreakdown(
   const trendRows = await db
     .select({
       countryCode: analyticsSessions.countryCode,
-      day: sql<string>`to_char(date_trunc('day', ${analyticsSessions.firstSeen}), 'YYYY-MM-DD')`,
+      day: sql<string>`to_char(date_trunc('day', ${analyticsSessions.firstSeen} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`,
       sessions: sql<number>`count(*)::int`,
     })
     .from(analyticsSessions)
     .where(sessionWhere(range))
-    .groupBy(analyticsSessions.countryCode, sql`date_trunc('day', ${analyticsSessions.firstSeen})`);
+    .groupBy(analyticsSessions.countryCode, sql`date_trunc('day', ${analyticsSessions.firstSeen} AT TIME ZONE 'UTC')`);
 
   const trendMap = new Map<string, Map<string, number>>();
   for (const row of trendRows) {
@@ -825,13 +834,13 @@ export async function getGameDetail(
       .groupBy(analyticsEvents.eventType),
     db
       .select({
-        day: sql<string>`to_char(date_trunc('day', ${analyticsEvents.createdAt}), 'YYYY-MM-DD')`,
+        day: sql<string>`to_char(date_trunc('day', ${analyticsEvents.createdAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`,
         occurrences: sql<number>`count(*)::int`,
       })
       .from(analyticsEvents)
       .where(and(...conditions))
-      .groupBy(sql`date_trunc('day', ${analyticsEvents.createdAt})`)
-      .orderBy(sql`date_trunc('day', ${analyticsEvents.createdAt})`),
+      .groupBy(sql`date_trunc('day', ${analyticsEvents.createdAt} AT TIME ZONE 'UTC')`)
+      .orderBy(sql`date_trunc('day', ${analyticsEvents.createdAt} AT TIME ZONE 'UTC')`),
     db
       .select({ path: analyticsEvents.pagePath, views: sql<number>`count(*)::int` })
       .from(analyticsEvents)

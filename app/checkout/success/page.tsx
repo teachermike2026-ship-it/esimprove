@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db/client";
 import { getCurrentUser } from "@/lib/auth/session";
 import { canViewOrder, getOrderViewByNumber } from "@/lib/orders";
 import { OrderDetail } from "@/components/order-detail";
+import { PaymentStatusRefresher } from "@/components/payment-status-refresher";
 import { ArrowRight } from "@/components/icons";
 import { getI18n } from "@/lib/i18n/server";
 import { localizedMetadata } from "@/lib/i18n/metadata";
@@ -18,13 +19,19 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
+/** Paid orders in these states are still being issued: keep re-reading. */
+const FULFILLMENT_IN_PROGRESS = new Set(["not_started", "queued", "processing", "provisioning"]);
+
 export default async function CheckoutSuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ order?: string; token?: string }>;
+  searchParams: Promise<{ order?: string; token?: string; status?: string }>;
 }) {
   const { t, href } = await getI18n();
-  const { order: orderNumber, token } = await searchParams;
+  // `status` is appended by Whop's embedded checkout on return. It is shown
+  // as information only; payment status always comes from the database,
+  // which only the verified webhook updates.
+  const { order: orderNumber, token, status: returnStatus } = await searchParams;
   if (!orderNumber) {
     notFound();
   }
@@ -69,7 +76,18 @@ export default async function CheckoutSuccessPage({
           </p>
         </div>
       </div>
-      <OrderDetail view={view} accessToken={token} />
+      {!paid && (returnStatus === "failed" || returnStatus === "canceled") ? (
+        <div className="callout callout-warning" role="status">
+          <p>
+            <strong>{t("success.notCompletedTitle")}</strong> {t("success.notCompletedBody")}
+          </p>
+        </div>
+      ) : null}
+      {!paid && !failed ? <PaymentStatusRefresher /> : null}
+      {paid && FULFILLMENT_IN_PROGRESS.has(view.order.fulfillmentStatus) ? (
+        <PaymentStatusRefresher intervalMs={4000} maxAttempts={90} />
+      ) : null}
+      <OrderDetail view={view} accessToken={token} showActivation />
       <div className="hero-actions section-tight">
         <Link
           className="button"

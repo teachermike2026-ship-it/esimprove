@@ -48,23 +48,25 @@ export class MockSupplierAdapter implements SupplierAdapter {  readonly key = "m
     this.failFirstAttempt = Boolean(options.failFirstAttempt);
   }
 
-  private orderFor(transactionId: string): SupplierOrder {
+  private orderFor(transactionId: string, quantity = 1): SupplierOrder {
     const supplierOrderId = `mock_ord_${sha256Hex(transactionId).slice(0, 16)}`;
-    const iccid = `89${deterministicDigits(transactionId, 18)}`;
-    const suffix = sha256Hex(transactionId).slice(0, 10).toUpperCase();
-    const esim: SupplierEsim = {
-      supplierEsimId: `mock_esim_${suffix}`,
-      iccid,
-      lpa: `LPA:1$rsp.demo.invalid$DEMO-${suffix}`,
-      smdpAddress: "rsp.demo.invalid",
-      matchingId: `DEMO-${suffix}`,
-      status: "ready_to_install",
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    };
+    const esims: SupplierEsim[] = Array.from({ length: Math.max(1, quantity) }, (_, index) => {
+      const seed = index === 0 ? transactionId : `${transactionId}#${index}`;
+      const suffix = sha256Hex(seed).slice(0, 10).toUpperCase();
+      return {
+        supplierEsimId: `mock_esim_${suffix}`,
+        iccid: `89${deterministicDigits(seed, 18)}`,
+        lpa: `LPA:1$rsp.demo.invalid$DEMO-${suffix}`,
+        smdpAddress: "rsp.demo.invalid",
+        matchingId: `DEMO-${suffix}`,
+        status: "ready_to_install",
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      };
+    });
     const order: SupplierOrder = {
       supplierOrderId,
       status: "ready",
-      esims: [esim],
+      esims,
       raw: {
         label: "MOCK SUPPLIER RESPONSE — NOT A REAL ESIM",
         transactionId,
@@ -87,7 +89,7 @@ export class MockSupplierAdapter implements SupplierAdapter {  readonly key = "m
     if (!input.transactionId || !input.productId) {
       throw new ProviderError("invalid_request", "Mock supplier requires transactionId and productId", false);
     }
-    return this.orderFor(input.transactionId);
+    return this.orderFor(input.transactionId, input.quantity);
   }
 
   async getOrder(supplierOrderId: string): Promise<SupplierOrder> {

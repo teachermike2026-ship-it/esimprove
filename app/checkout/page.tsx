@@ -17,6 +17,9 @@ import { getI18n } from "@/lib/i18n/server";
 import { localizedMetadata } from "@/lib/i18n/metadata";
 import { demoPlan, demoProductEnabled } from "@/lib/demo-plan";
 import { loadCryptoPaymentConfig } from "@/lib/payments/crypto/config";
+import { checkFulfillmentReadiness } from "@/lib/fulfillment-readiness";
+import { plans } from "@/lib/db/schema";
+import { inArray } from "drizzle-orm";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
@@ -156,6 +159,24 @@ export default async function CheckoutPage({
   const user = await getCurrentUser();
   const idempotencyKey = newId("checkout");
   const hasUnavailable = cart.lines.some((line) => line.status !== "published");
+  // Same guard the checkout action enforces: no payment for an order the
+  // supplier cannot fulfil right now (ordering off or balance too low).
+  const planRows = await db
+    .select({ id: plans.id, supplierKey: plans.supplierKey, costMinor: plans.costMinor })
+    .from(plans)
+    .where(inArray(plans.id, cart.lines.map((line) => line.planId)));
+  const planById = new Map(planRows.map((row) => [row.id, row]));
+  const readiness = hasUnavailable
+    ? { ok: true as const }
+    : await checkFulfillmentReadiness(
+        db,
+        cart.lines.map((line) => ({
+          supplierKey: planById.get(line.planId)?.supplierKey ?? "unknown",
+          unitCostMinor: planById.get(line.planId)?.costMinor ?? 0,
+          quantity: line.quantity,
+        })),
+      );
+  const supplierUnavailable = !readiness.ok;
   return (
     <>
       <div className="section-heading">
@@ -165,6 +186,13 @@ export default async function CheckoutPage({
           <p className="muted">{t("checkout.lead")}</p>
         </div>
       </div>
+
+      {supplierUnavailable ? (
+        <div className="callout callout-warning section-tight" role="alert">
+          <AlertIcon className="inline-icon" />
+          <p>{t("checkout.supplierUnavailableNotice")}</p>
+        </div>
+      ) : null}
 
       {hasUnavailable ? (
         <div className="callout callout-warning section-tight">
@@ -178,7 +206,7 @@ export default async function CheckoutPage({
           idempotencyKey={idempotencyKey}
           defaultEmail={user?.email ?? ""}
           defaultName={user?.name ?? ""}
-          disabled={hasUnavailable}
+          disabled={hasUnavailable || supplierUnavailable}
           cryptoAvailable={cryptoAvailable}
           cardReady={cardReady}
         />

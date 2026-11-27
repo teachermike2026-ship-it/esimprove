@@ -30,6 +30,10 @@ export interface CreateSupplierOrderInput {
   planName: string;
   customerEmail: string;
   quantity: number;
+  /** Supplier unit price in the supplier's raw unit, used as a price check. */
+  unitPriceRaw?: number;
+  /** Days for day-pass packages (eSIM Access periodNum). */
+  periodNum?: number;
 }
 
 export interface SupplierEsim {

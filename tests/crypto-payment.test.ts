@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import type { DatabaseHandle } from "@/lib/db/client";
 import { cryptoPayments, esims, orderItems, orders } from "@/lib/db/schema";
 import { addCartItem, getOrCreateCart } from "@/lib/cart";
@@ -27,6 +27,9 @@ import {
   type TokenTransfer,
 } from "@/lib/payments/crypto/explorer-provider";
 import {
+  FailoverBnbRpcClient,
+  HttpBnbRpcClient,
+  RpcError,
   TRANSFER_EVENT_TOPIC,
   verifyBnbTransfer,
   type BscRpcClient,
@@ -37,6 +40,7 @@ import { RpcLogTransferProvider } from "@/lib/payments/crypto/rpc-log-provider";
 import {
   createCryptoPayment,
   getCryptoPaymentByOrderId,
+  monitorCryptoPayments,
   verifyCryptoPayment,
 } from "@/lib/payments/crypto/payment-service";
 import { dictionaries } from "@/lib/i18n/dictionaries";
@@ -60,6 +64,7 @@ const TEST_CONFIG: CryptoPaymentConfig = {
   tokenContract: CONTRACT,
   chainId: 56,
   rpcUrl: "https://rpc.example.invalid",
+  rpcFallbackUrl: null,
   confirmationsRequired: CRYPTO_PAYMENT_CONSTANTS.confirmationsRequired,
   paymentWindowMinutes: CRYPTO_PAYMENT_CONSTANTS.paymentWindowMinutes,
   verificationIntervalSeconds: CRYPTO_PAYMENT_CONSTANTS.verificationIntervalSeconds,
@@ -280,11 +285,12 @@ describe("crypto amount precision", () => {
     expect(parseTokenAmount(generated.amountUsdt)).toBe(generated.amountRaw);
     expect(generated.suffix).toBe(1);
 
-    const maximum = generatePaymentAmount(2858, "USD", () => 9999);
-    expect(maximum.amountUsdt).toBe("29.5799");
+    // The unique suffix never adds a cent or more to the price.
+    const maximum = generatePaymentAmount(2858, "USD", () => 99);
+    expect(maximum.amountUsdt).toBe("28.5899");
     expect(parseTokenAmount(maximum.amountUsdt)).toBe(maximum.amountRaw);
     expect(() => generatePaymentAmount(2858, "USD", () => 0)).toThrow();
-    expect(() => generatePaymentAmount(2858, "USD", () => 10000)).toThrow();
+    expect(() => generatePaymentAmount(2858, "USD", () => 100)).toThrow();
   });
 
   it("formats references and compares addresses case-insensitively", () => {
@@ -1115,5 +1121,387 @@ describe("crypto payment translations", () => {
     expect(en["checkout.cryptoQrNote"]).toContain("not filled in automatically");
     expect(en["checkout.cryptoNetworkWarning"]).toContain("permanent loss");
     expect(en["checkout.cryptoTransactionFailed"]).toContain("does not match");
+  });
+});
+
+describe("crypto payment hardening", () => {
+  let handle: DatabaseHandle;
+  const originalEnv = { ...process.env };
+
+  beforeAll(async () => {
+    process.env.PAYMENT_WALLET = WALLET;
+    process.env.PAYMENT_TOKEN_CONTRACT = CONTRACT;
+    process.env.PAYMENT_CHAIN_ID = "56";
+    process.env.BNB_RPC_URL = "https://rpc.example.invalid";
+    handle = await makeTestDb();
+  });
+
+  afterAll(async () => {
+    process.env = { ...originalEnv };
+    await handle.close();
+  });
+
+  /** Make `cryptoId` the only reserved amount, as if other orders were released. */
+  async function onlyReservation(cryptoId: string) {
+    await handle.db
+      .update(cryptoPayments)
+      .set({ amountReleasedAt: new Date() })
+      .where(and(ne(cryptoPayments.id, cryptoId), isNull(cryptoPayments.amountReleasedAt)));
+  }
+
+  async function wrongAmount(key: string, hash: string, delta: bigint) {
+    const created = await makeCryptoOrder(handle, key);
+    await onlyReservation(created.cryptoId);
+    const explorer = new FakeExplorer();
+    const blockTime = new Date(created.createdAt.getTime() + 5_000);
+    explorer.transfers = [
+      transferFor({ hash, amountRaw: created.amountRaw + delta, blockNumber: 100, blockTime }),
+    ];
+    const result = await verifyCryptoPayment(handle.db, created.cryptoId, {
+      config: TEST_CONFIG,
+      explorer,
+      rpc: new FakeRpc(),
+      now: new Date(created.createdAt.getTime() + 60_000),
+    });
+    return { created, result };
+  }
+
+  it("holds a rounded underpayment for manual review and never pays it", async () => {
+    // Customer sends 28.58 instead of 28.5817 (suffix dropped).
+    const { created, result } = await wrongAmount(
+      "crypto-under",
+      `0x${"1".repeat(64)}`,
+      -(10n ** 15n),
+    );
+    expect(result.status).toBe("manual_review");
+    expect(result.messageCode).toBe("amount_mismatch");
+    const row = (await getCryptoPaymentByOrderId(handle.db, created.orderId))!;
+    expect(row.txHash).toBeNull();
+    expect((row.metadata as Record<string, { kind?: string }>).amountMismatch?.kind).toBe(
+      "underpaid",
+    );
+    const order = (await handle.db.select().from(orders).where(eq(orders.id, created.orderId)))[0]!;
+    expect(order.paymentStatus).toBe("pending");
+    expect(await orderEsimCount(handle, created.orderId)).toBe(0);
+  });
+
+  it("holds an overpayment for manual review", async () => {
+    const { result, created } = await wrongAmount(
+      "crypto-over",
+      `0x${"2".repeat(64)}`,
+      5n * 10n ** 17n,
+    );
+    expect(result.status).toBe("manual_review");
+    const row = (await getCryptoPaymentByOrderId(handle.db, created.orderId))!;
+    expect((row.metadata as Record<string, { kind?: string }>).amountMismatch?.kind).toBe(
+      "overpaid",
+    );
+  });
+
+  it("does not guess when a wrong amount is close to several open orders", async () => {
+    const first = await makeCryptoOrder(handle, "crypto-ambiguous-a");
+    await onlyReservation(first.cryptoId);
+    const second = await makeCryptoOrder(handle, "crypto-ambiguous-b");
+    const explorer = new FakeExplorer();
+    explorer.transfers = [
+      transferFor({
+        hash: `0x${"3".repeat(64)}`,
+        amountRaw: first.amountRaw - 10n ** 15n,
+        blockNumber: 100,
+        blockTime: new Date(second.createdAt.getTime() + 5_000),
+      }),
+    ];
+    for (const created of [first, second]) {
+      const result = await verifyCryptoPayment(handle.db, created.cryptoId, {
+        config: TEST_CONFIG,
+        explorer,
+        rpc: new FakeRpc(),
+        now: new Date(second.createdAt.getTime() + 60_000),
+      });
+      expect(result.status).toBe("pending");
+    }
+  });
+
+  it("ignores a transfer that exactly matches a different order", async () => {
+    const mine = await makeCryptoOrder(handle, "crypto-other-a");
+    await onlyReservation(mine.cryptoId);
+    const other = await makeCryptoOrder(handle, "crypto-other-b");
+    const explorer = new FakeExplorer();
+    explorer.transfers = [
+      transferFor({
+        hash: `0x${"4".repeat(64)}`,
+        amountRaw: other.amountRaw,
+        blockNumber: 100,
+        blockTime: new Date(other.createdAt.getTime() + 5_000),
+      }),
+    ];
+    const result = await verifyCryptoPayment(handle.db, mine.cryptoId, {
+      config: TEST_CONFIG,
+      explorer,
+      rpc: new FakeRpc(),
+      now: new Date(other.createdAt.getTime() + 60_000),
+    });
+    expect(result.status).toBe("pending");
+  });
+
+  it("keeps the order recoverable when the RPC fails, then pays it once", async () => {
+    const created = await makeCryptoOrder(handle, "crypto-rpc-down");
+    const explorer = new FakeExplorer();
+    const blockTime = new Date(created.createdAt.getTime() + 5_000);
+    const hash = `0x${"5".repeat(64)}`;
+    explorer.transfers = [
+      transferFor({ hash, amountRaw: created.amountRaw, blockNumber: 100, blockTime }),
+    ];
+    const failing = new FakeRpc();
+    failing.getChainId = async () => {
+      throw new RpcError("network", "The BNB Smart Chain RPC could not be reached");
+    };
+    const down = await verifyCryptoPayment(handle.db, created.cryptoId, {
+      config: TEST_CONFIG,
+      explorer,
+      rpc: failing,
+      now: new Date(created.createdAt.getTime() + 30_000),
+    });
+    expect(down.status).toBe("verification_error");
+    expect(await orderEsimCount(handle, created.orderId)).toBe(0);
+
+    const rpc = new FakeRpc();
+    registerTransfer(rpc, { hash, amountRaw: created.amountRaw, blockNumber: 100, blockTime });
+    rpc.latestBlock = 200;
+    const paid = await verifyCryptoPayment(handle.db, created.cryptoId, {
+      config: TEST_CONFIG,
+      explorer,
+      rpc,
+      now: new Date(created.createdAt.getTime() + 60_000),
+    });
+    expect(paid.status).toBe("paid");
+    expect(await orderEsimCount(handle, created.orderId)).toBe(1);
+  });
+
+  it("survives a database failure while recording the payment and pays once on retry", async () => {
+    const created = await makeCryptoOrder(handle, "crypto-db-fail");
+    const explorer = new FakeExplorer();
+    const blockTime = new Date(created.createdAt.getTime() + 5_000);
+    const hash = `0x${"6".repeat(64)}`;
+    explorer.transfers = [
+      transferFor({ hash, amountRaw: created.amountRaw, blockNumber: 100, blockTime }),
+    ];
+    const rpc = new FakeRpc();
+    registerTransfer(rpc, { hash, amountRaw: created.amountRaw, blockNumber: 100, blockTime });
+    rpc.latestBlock = 200;
+    const flaky = new Proxy(handle.db, {
+      get(target, prop, receiver) {
+        if (prop === "transaction") {
+          return async () => {
+            throw new Error("simulated database outage");
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    await expect(
+      verifyCryptoPayment(flaky, created.cryptoId, {
+        config: TEST_CONFIG,
+        explorer,
+        rpc,
+        now: new Date(created.createdAt.getTime() + 60_000),
+      }),
+    ).rejects.toThrow(/simulated database outage/);
+    const afterFailure = await handle.db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, created.orderId));
+    expect(afterFailure[0]?.paymentStatus).toBe("pending");
+
+    const paid = await verifyCryptoPayment(handle.db, created.cryptoId, {
+      config: TEST_CONFIG,
+      explorer,
+      rpc,
+      now: new Date(created.createdAt.getTime() + 90_000),
+    });
+    expect(paid.status).toBe("paid");
+    expect(await orderEsimCount(handle, created.orderId)).toBe(1);
+  });
+
+  it("fails over to a second RPC only on transport errors", async () => {
+    const primary = new FakeRpc();
+    primary.getTransactionReceipt = async () => {
+      throw new RpcError("network", "down");
+    };
+    const fallback = new FakeRpc();
+    const hash = `0x${"7".repeat(64)}`;
+    registerTransfer(fallback, { hash, amountRaw: 10n, blockNumber: 1, blockTime: new Date() });
+    const client = new FailoverBnbRpcClient([primary, fallback]);
+    expect((await client.getTransactionReceipt(hash))?.status).toBe("0x1");
+
+    // A definite "not found" from the primary is not overridden by the fallback.
+    const definite = new FailoverBnbRpcClient([new FakeRpc(), fallback]);
+    expect(await definite.getTransactionReceipt(hash)).toBeNull();
+
+    const allDown = new FailoverBnbRpcClient([primary, primary]);
+    await expect(allDown.getTransactionReceipt(hash)).rejects.toBeInstanceOf(RpcError);
+  });
+
+  it("checks active orders first and releases amounts after the late window", async () => {
+    const now = new Date();
+    const old = await makeCryptoOrder(handle, "crypto-old-expired");
+    await handle.db
+      .update(cryptoPayments)
+      .set({
+        status: "expired",
+        expiresAt: new Date(now.getTime() - 48 * 60 * 60 * 1000),
+        lastVerifiedAt: new Date(0),
+        amountReleasedAt: null,
+      })
+      .where(eq(cryptoPayments.id, old.cryptoId));
+    const active = await makeCryptoOrder(handle, "crypto-active");
+    await handle.db
+      .update(cryptoPayments)
+      .set({ lastVerifiedAt: new Date(1000) })
+      .where(eq(cryptoPayments.id, active.cryptoId));
+
+    const result = await monitorCryptoPayments(handle.db, {
+      config: TEST_CONFIG,
+      limit: 1,
+      now,
+      explorer: new FakeExplorer(),
+      rpc: new FakeRpc(),
+    });
+    expect(result.checked).toBe(1);
+    const activeRow = (await getCryptoPaymentByOrderId(handle.db, active.orderId))!;
+    expect(activeRow.verificationAttempts).toBeGreaterThan(0);
+    const oldRow = (await getCryptoPaymentByOrderId(handle.db, old.orderId))!;
+    expect(oldRow.amountReleasedAt).not.toBeNull();
+
+    // A released amount may be reserved again; an unreleased one may not.
+    await handle.db
+      .update(cryptoPayments)
+      .set({ amountRaw: oldRow.amountRaw })
+      .where(eq(cryptoPayments.id, active.cryptoId));
+    const third = await makeCryptoOrder(handle, "crypto-third");
+    await expect(
+      handle.db
+        .update(cryptoPayments)
+        .set({ amountRaw: oldRow.amountRaw })
+        .where(eq(cryptoPayments.id, third.cryptoId)),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a duplicated RPC URL and an insecure fallback", () => {
+    const base = {
+      PAYMENT_WALLET: WALLET,
+      PAYMENT_TOKEN_CONTRACT: CONTRACT,
+      PAYMENT_CHAIN_ID: "56",
+    };
+    const duplicated = validateCryptoPaymentConfig({
+      ...base,
+      BNB_RPC_URL: "https://bsc-mainnet.nodereal.io/v1/https://bsc-mainnet.nodereal.io/v1/abc",
+    } as unknown as NodeJS.ProcessEnv);
+    expect(duplicated.ok).toBe(false);
+    if (!duplicated.ok) expect(duplicated.problems.join(" ")).toMatch(/contains the URL twice/);
+
+    const insecure = validateCryptoPaymentConfig({
+      ...base,
+      BNB_RPC_URL: "https://bsc-mainnet.nodereal.io/v1/abc",
+      BNB_RPC_FALLBACK_URL: "http://bsc-dataseed.bnbchain.org",
+    } as unknown as NodeJS.ProcessEnv);
+    expect(insecure.ok).toBe(false);
+
+    const ok = validateCryptoPaymentConfig({
+      ...base,
+      BNB_RPC_URL: "https://bsc-mainnet.nodereal.io/v1/abc",
+      BNB_RPC_FALLBACK_URL: "https://bsc-dataseed.bnbchain.org",
+    } as unknown as NodeJS.ProcessEnv);
+    expect(ok.ok).toBe(true);
+  });
+});
+
+describe("crypto checkout concurrency and transport", () => {
+  let handle: DatabaseHandle;
+  const originalEnv = { ...process.env };
+
+  beforeAll(async () => {
+    process.env.PAYMENT_WALLET = WALLET;
+    process.env.PAYMENT_TOKEN_CONTRACT = CONTRACT;
+    process.env.PAYMENT_CHAIN_ID = "56";
+    process.env.BNB_RPC_URL = "https://rpc.example.invalid";
+    handle = await makeTestDb();
+  });
+
+  afterAll(async () => {
+    process.env = { ...originalEnv };
+    await handle.close();
+  });
+
+  it("pays exactly once when several verifications run at the same time", async () => {
+    const created = await makeCryptoOrder(handle, "crypto-concurrent");
+    const explorer = new FakeExplorer();
+    const blockTime = new Date(created.createdAt.getTime() + 5_000);
+    const hash = `0x${"8".repeat(64)}`;
+    explorer.transfers = [transferFor({ hash, amountRaw: created.amountRaw, blockNumber: 100, blockTime })];
+    const rpc = new FakeRpc();
+    registerTransfer(rpc, { hash, amountRaw: created.amountRaw, blockNumber: 100, blockTime });
+    rpc.latestBlock = 200;
+    const now = new Date(created.createdAt.getTime() + 60_000);
+    const results = await Promise.all(
+      [0, 1, 2, 3].map(() =>
+        verifyCryptoPayment(handle.db, created.cryptoId, { config: TEST_CONFIG, explorer, rpc, now }),
+      ),
+    );
+    expect(results.some((r) => r.status === "paid")).toBe(true);
+    // Run again after the lease is released: still paid, still one eSIM.
+    const after = await verifyCryptoPayment(handle.db, created.cryptoId, { config: TEST_CONFIG, explorer, rpc, now });
+    expect(after.status).toBe("paid");
+    expect(await orderEsimCount(handle, created.orderId)).toBe(1);
+    const order = (await handle.db.select().from(orders).where(eq(orders.id, created.orderId)))[0]!;
+    expect(order.paymentStatus).toBe("paid");
+  });
+
+  it("returns the saved state without scanning while another check holds the lease", async () => {
+    const created = await makeCryptoOrder(handle, "crypto-leased");
+    await handle.db
+      .update(cryptoPayments)
+      .set({ verificationLeaseUntil: new Date(Date.now() + 60_000) })
+      .where(eq(cryptoPayments.id, created.cryptoId));
+    let scanned = false;
+    const explorer = new FakeExplorer();
+    explorer.findTokenTransfers = async () => {
+      scanned = true;
+      return { transfers: [], pagesScanned: 0, truncated: false };
+    };
+    const result = await verifyCryptoPayment(handle.db, created.cryptoId, {
+      config: TEST_CONFIG,
+      explorer,
+      rpc: new FakeRpc(),
+      now: new Date(created.createdAt.getTime() + 30_000),
+    });
+    expect(result.status).toBe("pending");
+    expect(scanned).toBe(false);
+  });
+
+  it("classifies an RPC timeout as a network error, never as an empty result", async () => {
+    const client = new HttpBnbRpcClient({
+      url: "https://rpc.example.invalid",
+      timeoutMs: 5,
+      fetchImpl: (async () => {
+        throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+      }) as typeof fetch,
+    });
+    await expect(client.getTransactionReceipt(`0x${"9".repeat(64)}`)).rejects.toMatchObject({
+      kind: "network",
+    });
+  });
+
+  it("ignores a malformed customer-supplied transaction hash", async () => {
+    const created = await makeCryptoOrder(handle, "crypto-bad-hash");
+    const result = await verifyCryptoPayment(handle.db, created.cryptoId, {
+      config: TEST_CONFIG,
+      explorer: new FakeExplorer(),
+      rpc: new FakeRpc(),
+      submittedTxHash: "0xnot-a-hash",
+      now: new Date(created.createdAt.getTime() + 30_000),
+    });
+    expect(result.status).toBe("pending");
+    expect(result.txHash).toBeNull();
   });
 });

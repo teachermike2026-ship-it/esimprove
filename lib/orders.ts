@@ -1,7 +1,9 @@
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { deliveredOrderItemIds } from "@/lib/esim-activation";
 import type { Database } from "@/lib/db/client";
 import {
   activationAccessLogs,
+  cryptoPayments,
   esims,
   orderAccessTokens,
   orderEvents,
@@ -19,15 +21,29 @@ export type OrderItemRow = typeof orderItems.$inferSelect;
 export type EsimRow = typeof esims.$inferSelect;
 
 export interface OrderItemView extends OrderItemRow {
+  /** First eSIM (kept for existing callers). */
   esimId: string | null;
   esimStatus: string | null;
   esimIccid: string | null;
+  /** Every eSIM issued for this line (quantity N -> N eSIMs). */
+  esims: Array<{ id: string; status: string; iccid: string | null }>;
+}
+
+export interface OrderCryptoPaymentView {
+  id: string;
+  status: string;
+  amountUsdt: string;
+  txHash: string | null;
+  expiresAt: Date;
+  confirmations: number;
 }
 
 export interface OrderView {
   order: OrderRow;
   items: OrderItemView[];
   events: Array<typeof orderEvents.$inferSelect>;
+  /** The order's USDT (BEP-20) payment request, when crypto was chosen. */
+  cryptoPayment?: OrderCryptoPaymentView | null;
 }
 
 export async function createOrderAccessToken(
@@ -107,12 +123,32 @@ export async function getOrderItems(db: Database, orderId: string): Promise<Orde
     .where(eq(orderItems.orderId, orderId))
     .orderBy(orderItems.createdAt);
 
-  return rows.map((row) => ({
-    ...row.item,
-    esimId: row.esimId,
-    esimStatus: row.esimStatus,
-    esimIccid: row.esimIccid,
-  }));
+  // An eSIM is listed (and its activation link shown) only after fulfillment
+  // confirmed the order item as delivered: never from a stored-but-unconfirmed
+  // supplier profile.
+  const delivered = await deliveredOrderItemIds(db, [...new Set(rows.map((row) => row.item.id))]);
+
+  // One row per order item, with all of its eSIMs grouped (an item with
+  // quantity N has N eSIMs and must not be listed N times).
+  const grouped = new Map<string, OrderItemView>();
+  for (const row of rows) {
+    const existing = grouped.get(row.item.id);
+    const esim = row.esimId && delivered.has(row.item.id)
+      ? { id: row.esimId, status: row.esimStatus ?? "ready_to_install", iccid: row.esimIccid }
+      : null;
+    if (existing) {
+      if (esim) existing.esims.push(esim);
+      continue;
+    }
+    grouped.set(row.item.id, {
+      ...row.item,
+      esimId: row.esimId,
+      esimStatus: row.esimStatus,
+      esimIccid: row.esimIccid,
+      esims: esim ? [esim] : [],
+    });
+  }
+  return [...grouped.values()];
 }
 
 export async function getOrderEvents(db: Database, orderId: string) {
@@ -126,10 +162,23 @@ export async function getOrderEvents(db: Database, orderId: string) {
 export async function getOrderView(db: Database, orderId: string): Promise<OrderView | null> {
   const order = await getOrderById(db, orderId);
   if (!order) return null;
+  const cryptoRows = await db
+    .select({
+      id: cryptoPayments.id,
+      status: cryptoPayments.status,
+      amountUsdt: cryptoPayments.amountUsdt,
+      txHash: cryptoPayments.txHash,
+      expiresAt: cryptoPayments.expiresAt,
+      confirmations: cryptoPayments.confirmations,
+    })
+    .from(cryptoPayments)
+    .where(eq(cryptoPayments.orderId, orderId))
+    .limit(1);
   return {
     order,
     items: await getOrderItems(db, orderId),
     events: await getOrderEvents(db, orderId),
+    cryptoPayment: cryptoRows[0] ?? null,
   };
 }
 

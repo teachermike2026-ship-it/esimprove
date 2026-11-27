@@ -11,20 +11,23 @@ export async function ActivationCard({
   status,
   lpa,
   qrDataUrl,
+  headingId = "activation-title",
 }: {
   planName: string;
   iccid: string | null;
   status: string;
   lpa: string;
   qrDataUrl: string;
+  /** Unique heading id when several activation cards share one page. */
+  headingId?: string;
 }) {
   const { t } = await getI18n();
   return (
-    <section className="card activation-card" aria-labelledby="activation-title">
+    <section className="card activation-card" aria-labelledby={headingId}>
       <div className="activation-head">
         <div>
           <p className="eyebrow">{t("activation.eyebrow")}</p>
-          <h2 id="activation-title">{planName}</h2>
+          <h2 id={headingId}>{planName}</h2>
         </div>
         <StatusBadge status={status} />
       </div>

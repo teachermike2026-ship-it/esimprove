@@ -37,12 +37,16 @@ export const LEGAL_JURISDICTION =
 export const LEGAL_PLATFORM_LINE =
   "ESIMPROVE — online digital services platform · Vietnam";
 
-export const LEGAL_DOCUMENT_VERSION = "1.0";
+/**
+ * 2.0 (2026-11-26): full rewrite in four languages; separate eSIM service,
+ * payment and legal-notice documents; immediate-supply acknowledgement.
+ */
+export const LEGAL_DOCUMENT_VERSION = "2.0";
 
-export const LEGAL_EFFECTIVE_DATE = "2026-11-12";
+export const LEGAL_EFFECTIVE_DATE = "2026-11-26";
 
 /** Display form of LEGAL_EFFECTIVE_DATE. */
-export const LEGAL_EFFECTIVE_DATE_LABEL = "12 November 2026";
+export const LEGAL_EFFECTIVE_DATE_LABEL = "26 November 2026";
 
 export const LEGAL_NOT_A_REGISTERED_ENTITY =
   "ESIMPROVE is an online platform and brand. It is not a registered company and does not hold or claim a company registration number or VAT number.";

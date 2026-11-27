@@ -13,8 +13,23 @@ import {
 
 let loggedConfigurationFailure = false;
 
-function contentSecurityPolicy(nonce: string): string {
+/**
+ * Whop Elements may run only in the checkout funnel. The policy covers every
+ * /checkout page because the app reaches the payment page by in-app
+ * navigation, which keeps the policy of the page the customer started on.
+ * Its environment follows WHOP_SANDBOX exactly; anything else keeps it blocked.
+ */
+function whopElementsFor(unlocalizedPath: string): "sandbox" | "production" | undefined {
+  if (unlocalizedPath !== "/checkout" && !unlocalizedPath.startsWith("/checkout/")) return undefined;
+  const sandbox = (process.env.WHOP_SANDBOX ?? "").trim().toLowerCase();
+  if (sandbox === "true" || sandbox === "1") return "sandbox";
+  if (sandbox === "false" || sandbox === "0") return "production";
+  return undefined;
+}
+
+function contentSecurityPolicy(nonce: string, unlocalizedPath = ""): string {
   return buildContentSecurityPolicy({
+    whopElements: whopElementsFor(unlocalizedPath),
     nonce,
     development: process.env.NODE_ENV !== "production",
     upgradeInsecureRequests:
@@ -50,10 +65,10 @@ function nextWithNonce(
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const nonce = createSecurityNonce();
-  const csp = contentSecurityPolicy(nonce);
   const problems = getConfigurationProblems();
 
   const { locale: prefixLocale, pathname: unlocalizedPath } = splitLocalePath(pathname);
+  const csp = contentSecurityPolicy(nonce, unlocalizedPath);
   const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value;
   const activeLocale = prefixLocale ?? (isLocale(cookieLocale) ? cookieLocale : defaultLocale);
 

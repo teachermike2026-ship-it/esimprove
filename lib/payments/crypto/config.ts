@@ -36,6 +36,12 @@ export interface CryptoPaymentConfig {
   chainId: number;
   /** Full NodeReal (or other BSC) HTTPS endpoint. It embeds the API key: server-only. */
   rpcUrl: string;
+  /**
+   * Optional second BSC JSON-RPC endpoint used for verification reads when the
+   * primary fails (for example https://bsc-dataseed.bnbchain.org). Public
+   * endpoints disable eth_getLogs, so discovery always uses the primary.
+   */
+  rpcFallbackUrl: string | null;
   confirmationsRequired: number;
   paymentWindowMinutes: number;
   verificationIntervalSeconds: number;
@@ -140,6 +146,23 @@ export function validateCryptoPaymentConfig(
     } catch {
       problems.push("BNB_RPC_URL must be a valid absolute URL");
     }
+    if ((rpcUrl.match(/:\/\//g) ?? []).length > 1) {
+      // Seen in practice: the endpoint pasted after the provider prefix
+      // (https://.../v1/https://.../v1/<key>), which makes every call fail.
+      problems.push("BNB_RPC_URL contains the URL twice; use exactly the endpoint shown by the provider");
+    }
+  }
+
+  const rpcFallbackRaw = envValue(env, "BNB_RPC_FALLBACK_URL");
+  let rpcFallbackUrl: string | null = null;
+  if (rpcFallbackRaw) {
+    try {
+      const parsed = new URL(rpcFallbackRaw);
+      if (parsed.protocol !== "https:") problems.push("BNB_RPC_FALLBACK_URL must be an https URL");
+      else rpcFallbackUrl = rpcFallbackRaw;
+    } catch {
+      problems.push("BNB_RPC_FALLBACK_URL must be a valid absolute URL");
+    }
   }
 
   if (!isEvmAddress(CRYPTO_PAYMENT_CONSTANTS.defaultWallet)) {
@@ -156,6 +179,7 @@ export function validateCryptoPaymentConfig(
       tokenContract,
       chainId,
       rpcUrl,
+      rpcFallbackUrl,
       confirmationsRequired: CRYPTO_PAYMENT_CONSTANTS.confirmationsRequired,
       paymentWindowMinutes: CRYPTO_PAYMENT_CONSTANTS.paymentWindowMinutes,
       verificationIntervalSeconds: CRYPTO_PAYMENT_CONSTANTS.verificationIntervalSeconds,

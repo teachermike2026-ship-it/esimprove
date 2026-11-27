@@ -8,7 +8,7 @@ import { getAdminOrderDetail } from "@/lib/admin";
 import { OrderDetail } from "@/components/order-detail";
 import { formatDate, formatMoney } from "@/lib/money";
 import { StatusBadge } from "@/components/status-badge";
-import { retryOrderJobsAction, retryJobAction } from "../../actions";
+import { refundOrderViaProviderAction, retryOrderJobsAction, retryJobAction } from "../../actions";
 import { AlertIcon, RetryIcon } from "@/components/icons";
 
 export const metadata: Metadata = {
@@ -21,10 +21,10 @@ export default async function AdminOrderDetailPage({
   searchParams,
 }: {
   params: Promise<{ orderNumber: string }>;
-  searchParams: Promise<{ retried?: string }>;
+  searchParams: Promise<{ retried?: string; refundRequested?: string; refundError?: string }>;
 }) {
   const { orderNumber } = await params;
-  const { retried } = await searchParams;
+  const { retried, refundRequested, refundError } = await searchParams;
   const staff = await requireStaff("/admin/orders", "orders");
   // Retrying fulfillment mutates job state; read-only staff must not see a
   // button that the server action would reject.
@@ -32,6 +32,7 @@ export default async function AdminOrderDetailPage({
   // Provider payment records are a finance read surface. Support can help with
   // order status but must not see payment identifiers or amounts.
   const canViewPayments = hasPermission(staff.role, "invoices.read");
+  const canRefund = hasPermission(staff.role, "refunds.write");
   const db = await getDb();
   const detail = await getAdminOrderDetail(db, orderNumber, {
     includePayments: canViewPayments,
@@ -116,6 +117,41 @@ export default async function AdminOrderDetailPage({
                 </table>
               </div>
             )}
+            {refundRequested ? (
+              <p className="callout callout-success small" role="status">
+                Refund requested at the provider. The order is marked refunded when the verified refund webhook arrives.
+              </p>
+            ) : null}
+            {refundError ? (
+              <p className="callout callout-warning small" role="alert">
+                {refundError}
+              </p>
+            ) : null}
+            {canRefund
+              ? payments
+                  .filter(
+                    (payment) =>
+                      payment.provider === "whop" &&
+                      payment.providerPaymentId.startsWith("pay_") &&
+                      ["paid", "disputed", "partially_refunded"].includes(payment.status),
+                  )
+                  .map((payment) => (
+                    <form key={payment.id} action={refundOrderViaProviderAction} className="stack admin-refund-form">
+                      <input type="hidden" name="orderNumber" value={view.order.orderNumber} />
+                      <input type="hidden" name="paymentId" value={payment.id} />
+                      <label className="checkbox-row small">
+                        <input type="checkbox" name="confirm" value="yes" required /> Refund the full{" "}
+                        {formatMoney(payment.amountMinor, payment.currency)} to the customer through Whop
+                        {payment.status === "paid" && view.order.fulfillmentStatus !== "delivered"
+                          ? " (the eSIM was not delivered)"
+                          : ""}
+                      </label>
+                      <button className="button button-secondary button-small" type="submit">
+                        Refund via Whop
+                      </button>
+                    </form>
+                  ))
+              : null}
           </section>
         ) : null}
 
@@ -140,7 +176,7 @@ export default async function AdminOrderDetailPage({
                       <button
                         className="button button-secondary button-small"
                         type="submit"
-                        disabled={!["failed", "queued", "under_investigation"].includes(job.status)}
+                        disabled={!["failed", "queued", "under_investigation", "manual_review"].includes(job.status)}
                       >
                         <RetryIcon className="inline-icon" /> Retry
                       </button>

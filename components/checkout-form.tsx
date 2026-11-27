@@ -212,6 +212,24 @@ export function CheckoutForm({
           {t("checkout.termsSuffix")}
         </span>
       </label>
+      <label className="checkbox">
+        <input type="checkbox" name="immediateSupply" value="yes" required />
+        <span>{t("checkout.immediateSupply")}</span>
+      </label>
+      <p className="form-note">
+        {t("checkout.policiesIntro")}{" "}
+        <a href={href("/legal/esim-service")} target="_blank" rel="noreferrer">
+          {t("checkout.esimTermsLink")}
+        </a>
+        {" · "}
+        <a href={href("/legal/payments")} target="_blank" rel="noreferrer">
+          {t("checkout.paymentTermsLink")}
+        </a>
+        {" · "}
+        <a href={href("/legal/refunds")} target="_blank" rel="noreferrer">
+          {t("checkout.refundPolicyLink")}
+        </a>
+      </p>
       <button
         className="button button-wide"
         type="submit"

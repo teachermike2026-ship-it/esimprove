@@ -25,7 +25,9 @@ const PAYMENT_TRANSITIONS: Record<PaymentStatus, PaymentStatus[]> = {
   pending: ["authorized", "paid", "failed", "cancelled"],
   authorized: ["paid", "failed", "cancelled"],
   paid: ["refunded", "partially_refunded", "disputed"],
-  failed: [],
+  // A declined card attempt can be followed by a successful retry in the
+  // same hosted checkout; the verified success then pays the order.
+  failed: ["paid"],
   refunded: [],
   cancelled: [],
   partially_refunded: ["refunded"],

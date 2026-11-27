@@ -7,7 +7,7 @@ import {
   replySupportTicketAction,
   type SupportFormState,
 } from "@/app/portal/support/actions";
-import { SUPPORT_CATEGORIES } from "@/lib/support";
+import { SUPPORT_CATEGORIES } from "@/lib/support-constants";
 import { AlertIcon, CheckIcon, MailIcon } from "@/components/icons";
 import { useI18n } from "@/components/i18n-provider";
 import { supportCategoryLabel } from "@/lib/i18n/labels";

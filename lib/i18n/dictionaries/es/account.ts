@@ -112,6 +112,7 @@ export const account = {
   "checkout.lead": "Introduce tus datos de contacto y revisa tu pedido. Los detalles de entrega de tu eSIM se envían a tu cuenta tras confirmar el pedido.",
   "checkout.unavailableTitle": "La compra en línea no está disponible",
   "checkout.unavailableBody": "Esta implementación no tiene proveedor de pago configurado. No se aceptan datos de tarjeta y no se puede realizar ningún pedido.",
+  "checkout.supplierUnavailableNotice": "Estas eSIM no están disponibles temporalmente. No se puede iniciar ningún pago ahora. Inténtalo más tarde o contacta con soporte.",
   "checkout.unavailableNotice": "Uno o más planes del carrito ya no están publicados. Elimínalos antes de continuar.",
   "checkout.orderSummary": "Resumen del pedido",
   "checkout.subtotal": "Subtotal",
@@ -125,6 +126,11 @@ export const account = {
   "checkout.nameOnOrder": "Nombre en el pedido",
   "checkout.countryResidence": "País de residencia",
   "checkout.countryOther": "Otro / no listado",
+  "checkout.immediateSupply": "Solicito a ESIMPROVE que me entregue la eSIM de inmediato. Entiendo que, una vez instalada o activada la eSIM, pierdo mi derecho a desistir por cambio de opinión; hasta entonces puedo cancelar con reembolso íntegro.",
+  "checkout.policiesIntro": "Antes de pagar, lea también:",
+  "checkout.esimTermsLink": "Condiciones del servicio eSIM y de entrega",
+  "checkout.paymentTermsLink": "Condiciones de pago",
+  "checkout.refundPolicyLink": "Política de reembolso y desistimiento",
   "checkout.acceptPrefix": "Acepto los",
   "checkout.termsLink": "Términos de Servicio",
   "checkout.termsMiddle": "y reconozco la",
@@ -145,7 +151,7 @@ export const account = {
   "checkout.choosePaymentLead":
     "Elige un método de pago antes de continuar. Puedes cambiarlo en cualquier momento en esta vista previa.",
   "checkout.cardTitle": "Tarjeta de crédito / débito",
-  "checkout.cardLead": "Pago seguro con tarjeta.",
+  "checkout.cardLead": "Pago seguro con tarjeta a través de Whop.",
   "checkout.cardNetworksAria": "Redes de tarjeta admitidas",
   "checkout.cardNetworkNote":
     "Visa y Mastercard se muestran como las redes de tarjeta previstas.",
@@ -154,8 +160,8 @@ export const account = {
   "checkout.cryptoProviderNote":
     "Datos de transferencia manual en USDT — la verificación en la cadena de bloques no está conectada.",
   "checkout.methodSelectedNote": "Método seleccionado: {method}",
-  "checkout.continueWithCard": "Continuar con tarjeta",
-  "checkout.continueWithCrypto": "Continuar con criptomoneda",
+  "checkout.continueWithCard": "Comprar ahora — pagar con tarjeta",
+  "checkout.continueWithCrypto": "Comprar ahora — pagar con USDT",
   "checkout.selectMethodFirst": "Selecciona un método de pago para continuar",
   "checkout.previewOnlyNote":
     "Solo vista previa local de la interfaz. No se crea ningún pedido, no se verifica ninguna transacción en la cadena de bloques y no se aceptan fondos.",
@@ -286,7 +292,7 @@ export const account = {
   "checkout.cryptoUnavailableNote":
     "Los pagos con criptomonedas no están configurados en esta implementación.",
   "checkout.cryptoOrderNote":
-    "El pedido se marca como pagado solo después de verificar la transferencia en BNB Smart Chain.",
+    "Paga el total del pedido en USDT a razón de 1 USDT = 1 USD, más un identificador único de como máximo 0,0099 USDT (menos de un centavo de dólar). El pedido solo se marca como pagado tras verificar la transferencia en BNB Smart Chain.",
   "checkout.cryptoSendExactly": "Envía exactamente {amount} {symbol}",
   "checkout.cryptoAmountNote":
     "Los últimos cuatro decimales identifican tu pedido. Un importe diferente no se puede emparejar automáticamente.",
@@ -349,6 +355,28 @@ export const account = {
     "No se pudo encontrar este pago con criptomonedas.",
   "checkout.cryptoRequestFailed":
     "La comprobación del pago falló. Inténtalo de nuevo.",
+  "checkout.cryptoAmountMismatch":
+    "El importe recibido no coincide con el importe exacto de este pedido, por lo que no se marcó como pagado automáticamente. Tu transferencia quedó registrada. Contacta con el soporte de ESIMPROVE con la referencia del pedido: reembolsaremos la diferencia o te pediremos el resto. No envíes otro pago.",
+  "order.cryptoPaymentTitle":
+    "Pago con cripto",
+  "order.cryptoMethod":
+    "Método",
+  "order.cryptoAmount":
+    "Importe exacto",
+  "order.cryptoStatus":
+    "Estado del pago",
+  "order.cryptoTransaction":
+    "Transacción",
+  "order.cryptoContinue":
+    "Continuar el pago con cripto",
+  "checkout.cryptoOrderSummaryTitle":
+    "Resumen del pedido",
+  "checkout.cryptoTotalUsd":
+    "Total (USD)",
+  "checkout.cryptoTotalUsdt":
+    "Importe a enviar (USDT)",
+  "checkout.cryptoUniqueAmountNote":
+    "El USDT se cuenta a la par con el dólar estadounidense. Las últimas cifras del importe en USDT (como máximo 0,0099 USDT, menos de un centavo de dólar) son un identificador único que nos permite asociar automáticamente su transferencia a este pedido, así que envíe exactamente el importe indicado.",
   "checkout.cryptoTransactionFailed":
     "La transacción enviada no coincide con este pago o ha fallado. Revisa el hash e inténtalo de nuevo.",
   "checkout.cryptoTxHashFieldLabel":

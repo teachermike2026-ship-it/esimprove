@@ -94,7 +94,7 @@ const REQUIRED_PERMISSIONS = [
 async function main(): Promise<void> {
   loadLocalEnv();
 
-  const apiKey = trimmedEnv("WHOP_COMPANY_API_KEY");
+  const apiKey = (trimmedEnv("WHOP_API_KEY") || trimmedEnv("WHOP_COMPANY_API_KEY"));
   if (!apiKey) {
     console.error(
       "WHOP_COMPANY_API_KEY is not set. Add it to .env.local (never commit it) and rerun.",
@@ -124,7 +124,7 @@ async function main(): Promise<void> {
   console.log(`Whop catalogue discovery (${sandbox ? "sandbox" : "live"})`);
   console.log("Read-only: no checkout, payment, or catalogue change is created.\n");
 
-  const accountId = trimmedEnv("WHOP_ACCOUNT_ID");
+  const accountId = (trimmedEnv("WHOP_COMPANY_ID") || trimmedEnv("WHOP_ACCOUNT_ID"));
   if (!accountId) {
     console.error(
       "WHOP_ACCOUNT_ID is required. Copy the biz_... account ID from the Whop dashboard for the ESIMPROVE business, add it to .env.local, and rerun.",

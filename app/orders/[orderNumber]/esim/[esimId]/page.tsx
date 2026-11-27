@@ -13,6 +13,7 @@ import {
   logActivationAccess,
 } from "@/lib/orders";
 import { decryptSecret } from "@/lib/crypto";
+import { isOrderItemDelivered } from "@/lib/esim-activation";
 import { ActivationCard } from "@/components/activation-card";
 import { ArrowRight } from "@/components/icons";
 import { getI18n } from "@/lib/i18n/server";
@@ -61,6 +62,10 @@ export default async function ActivationPage({
     .limit(1);
   const row = rows[0];
   if (!row) {
+    notFound();
+  }
+  // Never show activation details before fulfillment is confirmed.
+  if (!(await isOrderItemDelivered(db, row.item.id))) {
     notFound();
   }
 

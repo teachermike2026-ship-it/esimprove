@@ -82,6 +82,12 @@ export const checkoutSchema = z.object({
   name: z.string().trim().min(2, "Enter the name for the order").max(80),
   country: z.string().trim().min(2, "Choose a country").max(80),
   terms: z.literal("on", { message: "Accept the terms to continue" }),
+  // Express request for immediate supply + acknowledgement of losing the
+  // withdrawal right once the eSIM is installed or activated (EU CRD art. 16,
+  // UK CCR regs 36-37). Never pre-ticked.
+  immediateSupply: z.literal("yes", {
+    message: "Confirm that you want your eSIM delivered immediately to continue",
+  }),
   termsVersion: z.string().min(1).max(80),
   idempotencyKey: z.string().min(10).max(120),
 });

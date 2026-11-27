@@ -328,3 +328,22 @@ export async function getTagBySlug(db: Database, slug: string) {
   const [row] = await db.select().from(blogTags).where(eq(blogTags.slug, slug)).limit(1);
   return row ?? null;
 }
+
+/** Every published CMS article (no pagination), newest first. */
+export async function listAllPublishedArticles(db: Database): Promise<BlogArticleWithRelations[]> {
+  const rows = await db
+    .select(articleSelect)
+    .from(blogArticles)
+    .leftJoin(users, eq(blogArticles.authorId, users.id))
+    .leftJoin(blogCategories, eq(blogArticles.categoryId, blogCategories.id))
+    .where(
+      and(
+        eq(blogArticles.status, "published"),
+        isNotNull(blogArticles.publishedAt),
+        lte(blogArticles.publishedAt, new Date()),
+      ),
+    )
+    .orderBy(desc(blogArticles.publishedAt))
+    .limit(1000);
+  return rows.map((row) => mapArticle(row));
+}

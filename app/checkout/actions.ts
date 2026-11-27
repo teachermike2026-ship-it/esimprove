@@ -15,6 +15,22 @@ import { onlineCheckoutAvailable, paymentProviderKey } from "@/lib/config";
 
 type CheckoutState = { error?: string };
 
+/** PostgreSQL "undefined_table" / "undefined_column" (pending migrations). */
+function isMissingDatabaseObject(error: unknown): boolean {
+  for (let current = error, depth = 0; current && depth < 4; depth += 1) {
+    const candidate = current as { code?: unknown; message?: unknown; cause?: unknown };
+    if (candidate.code === "42P01" || candidate.code === "42703") return true;
+    if (
+      typeof candidate.message === "string" &&
+      /relation "[^"]+" does not exist|column "[^"]+" does not exist/i.test(candidate.message)
+    ) {
+      return true;
+    }
+    current = candidate.cause;
+  }
+  return false;
+}
+
 export async function createCheckoutAction(
   _prev: CheckoutState,
   formData: FormData,
@@ -34,6 +50,7 @@ export async function createCheckoutAction(
     name: formString(formData, "name"),
     country: formString(formData, "country"),
     terms: formString(formData, "terms"),
+    immediateSupply: formString(formData, "immediateSupply"),
     termsVersion: formString(formData, "termsVersion"),
     idempotencyKey: formString(formData, "idempotencyKey"),
   });
@@ -79,6 +96,17 @@ export async function createCheckoutAction(
     });
     redirectUrl = result.redirectUrl;
 
+    // Evidence of the express request for immediate supply and the
+    // acknowledgement about the withdrawal right, linked to the order.
+    await recordConsentEvent(db, {
+      subjectType: "order",
+      subjectId: result.orderId,
+      purpose: "immediate_supply_withdrawal_ack",
+      version: LEGAL_DOCUMENT_VERSION,
+      granted: true,
+      surface: "checkout",
+    });
+
     if (user) {
       await recordConsent(db, {
         userId: user.id,
@@ -100,8 +128,17 @@ export async function createCheckoutAction(
   } catch (error) {
     if (error instanceof CheckoutError) return { error: error.message };
     console.error("checkout failed", error);
+    if (isMissingDatabaseObject(error)) {
+      // Seen locally when a long-running dev server opened its PGlite
+      // database before new migrations (for example 0010 crypto_payments)
+      // existed. Migrations run once when the server starts.
+      return {
+        error:
+          "The checkout database is missing the latest update. Restart the server (or run npm run db:migrate) and try again. No payment was taken.",
+      };
+    }
     return {
-      error: "The checkout could not be created. Check the server log and try again.",
+      error: "The checkout could not be created. No payment was taken. Please try again in a moment.",
     };
   }
 

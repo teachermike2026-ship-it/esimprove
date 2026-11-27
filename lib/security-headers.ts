@@ -32,7 +32,30 @@ export interface ContentSecurityPolicyOptions {
   imageHosts?: string[];
   /** Additional exact HTTPS origins allowed for audio/video. */
   mediaHosts?: string[];
+  /**
+   * Allow Whop Elements (embedded card checkout). Set only on the card
+   * payment page, never site-wide.
+   */
+  whopElements?: "sandbox" | "production";
 }
+
+/**
+ * Origins Whop Elements needs (wallets and bank linking off), as returned by
+ * `contentSecurityPolicy()` from `@whop/elements` 1.10.0. A test keeps this in
+ * sync with the package. Production also adds Whop's pixel host.
+ */
+export const WHOP_ELEMENTS_CSP = {
+  sandbox: {
+    frame: ["https://cdn.whop.com"],
+    script: ["https://cdn.whop.com"],
+    connect: ["https://sandbox-api.whop.com"],
+  },
+  production: {
+    frame: ["https://cdn.whop.com"],
+    script: ["https://cdn.whop.com", "https://t.whop.tw"],
+    connect: ["https://api.whop.com", "https://t.whop.tw"],
+  },
+} as const;
 
 export const GA4_SCRIPT_SRC = "https://www.googletagmanager.com";
 export const GA4_COLLECT_SRC = [
@@ -89,6 +112,12 @@ export function buildContentSecurityPolicy(
   const connectSources = ["'self'", ...GA4_COLLECT_SRC];
   if (development) connectSources.push("ws:", "wss:");
 
+  const whop = options.whopElements ? WHOP_ELEMENTS_CSP[options.whopElements] : null;
+  if (whop) {
+    scriptSources.push(...whop.script);
+    connectSources.push(...whop.connect);
+  }
+
   const imageSources = ["'self'", "data:", "blob:"];
   imageSources.push(...(options.imageHosts ?? configuredCspHosts("CSP_IMAGE_HOSTS")));
 
@@ -109,7 +138,7 @@ export function buildContentSecurityPolicy(
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    "frame-src 'none'",
+    whop ? `frame-src ${whop.frame.join(" ")}` : "frame-src 'none'",
     "manifest-src 'self'",
   ];
   if (options.upgradeInsecureRequests === true) {

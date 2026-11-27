@@ -34,7 +34,11 @@ export interface CheckoutSession {
   checkoutUrl: string;
 }
 
-export type PaymentEventType = "payment.succeeded" | "payment.failed";
+/**
+ * `payment.pending` covers provider states where the buyer has not finished
+ * (processing, 3-D Secure). It is logged only and never changes status.
+ */
+export type PaymentEventType = "payment.succeeded" | "payment.failed" | "payment.pending";
 
 export interface PaymentEvent {
   eventId: string;
@@ -48,9 +52,41 @@ export interface PaymentEvent {
    */
   internalPaymentId?: string;
   orderId: string;
+  /**
+   * Amount to compare with the stored order price, in minor units of
+   * `currency`. For Whop this is `total` minus exclusive tax (buyer fees are
+   * already excluded from `total`). -1 when it could not be computed; then
+   * `reviewReason` is set.
+   */
   amountMinor: number;
   currency: string;
   createdAt: string;
+  /** Provider payment status (Whop `ReceiptStatus`). When present, only `paid` may mark an order paid. */
+  providerStatus?: string;
+  /** Price before discounts, tax and fees, when the provider sends it. */
+  subtotalMinor?: number;
+  /** Set when the payload cannot be safely compared; the payment is held for review. */
+  reviewReason?: string;
+  /** Provider checkout reference (Whop `ch_...`), when present. */
+  checkoutConfigurationId?: string | null;
+  /** Provider product the payment was for (Whop `prod_...`), when present. */
+  productId?: string | null;
+  /** Buyer email reported by the provider; compared, never stored. */
+  customerEmail?: string | null;
+}
+
+export interface RefundPaymentInput {
+  /** Provider payment ID (Whop `pay_...`). */
+  providerPaymentId: string;
+  /** Stable key so a repeated request never refunds twice. */
+  idempotencyKey: string;
+  /** Order references only; returned on the provider's refund webhooks. */
+  metadata: Record<string, string>;
+}
+
+export interface RefundPaymentResult {
+  /** Provider status after the request; the refund webhook is the source of truth. */
+  providerStatus: string;
 }
 
 export interface PaymentProvider {
@@ -58,6 +94,11 @@ export interface PaymentProvider {
   readonly mode: IntegrationMode;
   readonly isMock: boolean;
   createCheckout(input: CreateCheckoutInput): Promise<CheckoutSession>;
+  /**
+   * Ask the provider to return the full payment to the buyer. Local status
+   * changes only when the provider's verified refund webhook arrives.
+   */
+  refundPayment?(input: RefundPaymentInput): Promise<RefundPaymentResult>;
   verifyWebhook(
     rawBody: string,
     signature: string | null,
