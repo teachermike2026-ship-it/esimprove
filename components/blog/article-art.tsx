@@ -10,11 +10,11 @@
 import type { ArtTheme } from "@/lib/editorial/types";
 
 const NAVY = "#11182c";
-const GREEN = "#43b65b";
-const GREEN_DARK = "#237e38";
-const GREEN_SOFT = "#edf8ec";
-const CREAM = "#fff9e8";
-const YELLOW = "#ffeb69";
+const GREEN = "#22b45f";
+const GREEN_DARK = "#178a4a";
+const GREEN_SOFT = "#e7f6ee";
+const CREAM = "#eef4ff";
+const YELLOW = "#9cc0ff";
 const WHITE = "#ffffff";
 
 function star(cx: number, cy: number, r: number): string {
