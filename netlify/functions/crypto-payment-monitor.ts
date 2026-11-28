@@ -1,7 +1,15 @@
 /**
  * Netlify Scheduled Function: runs the ESIMPROVE background worker every
- * minute so crypto payments are detected and confirmed even after the customer
- * closes the payment page.
+ * 15 minutes so crypto payments are detected and confirmed even after the
+ * customer closes the payment page.
+ *
+ * Why not every minute: each run queries the database, and a run every minute
+ * keeps a scale-to-zero database (Neon, Netlify Database) awake 24/7, which
+ * exhausted the Neon free compute quota and took the site's database offline.
+ * While a customer has the crypto payment page open, the page itself asks the
+ * server to verify the payment every few seconds (/api/orders/[id]/verify), so
+ * detection there stays immediate; this job is the backstop for closed pages,
+ * late transfers and fulfillment retries.
  *
  * It only calls this site's own protected endpoint, POST /api/jobs/run, which
  * runs the crypto monitor (NodeReal BSC scan + RPC verification) and the
@@ -39,5 +47,5 @@ export default async function cryptoPaymentMonitor(): Promise<Response> {
 }
 
 export const config = {
-  schedule: "* * * * *",
+  schedule: "*/15 * * * *",
 };

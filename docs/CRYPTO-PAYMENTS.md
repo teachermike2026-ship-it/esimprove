@@ -211,7 +211,7 @@ Each call processes up to 25 crypto payments. If the store can have more than
 limit in `monitorCryptoPayments`.
 
 **On Netlify this is already wired:** `netlify/functions/crypto-payment-monitor.ts`
-is a Scheduled Function (`schedule: "* * * * *"`) that POSTs to
+is a Scheduled Function (`schedule: "*/15 * * * *"`; the open payment page verifies every few seconds itself) that POSTs to
 `/api/jobs/run` with `INTERNAL_JOB_SECRET`. It runs only on published
 production deploys; locally, call the endpoint manually with curl.
 
@@ -778,7 +778,7 @@ they are addressed.
 | `lib/payments/crypto/amount.ts` | BigInt amount, suffix, reference, address comparison. |
 | `lib/payments/crypto/rpc-log-provider.ts` | Default discovery: NodeReal BSC `eth_getLogs`. |
 | `lib/payments/crypto/explorer-provider.ts` | Discovery interface + optional Etherscan V2 adapter (unused by default). |
-| `netlify/functions/crypto-payment-monitor.ts` | Netlify scheduled function: calls `/api/jobs/run` every minute. |
+| `netlify/functions/crypto-payment-monitor.ts` | Netlify scheduled function: calls `/api/jobs/run` every 15 minutes (lets the database sleep between runs). |
 | `lib/payments/crypto/bnb-verifier.ts` | Independent RPC verification and confirmations. |
 | `lib/payments/crypto/payment-service.ts` | Creation, reservation, verification state machine, duplicate/late handling, paid transition, worker. |
 | `lib/payments/crypto/access.ts` | Order-owner/access-token authorization. |
