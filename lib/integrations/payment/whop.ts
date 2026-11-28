@@ -214,6 +214,25 @@ export const WHOP_CHECKOUT_PAYMENT_METHODS = {
   include_platform_defaults: true,
 } as const;
 
+/**
+ * Whop's live API rejects a dynamic plan whose title is longer than 30
+ * characters ("Title is too long (maximum is 30 characters)", HTTP 400), which
+ * blocked card checkout for plans such as "United Arab Emirates 100MB 7Days".
+ * The title is display-only: the price, currency and order references come
+ * from the server, so shortening it never changes what is charged.
+ */
+export const WHOP_VARIANT_TITLE_MAX = 30;
+
+export function whopVariantTitle(name: string): string {
+  const clean = name.replace(/\s+/g, " ").trim() || "ESIMPROVE eSIM";
+  if (clean.length <= WHOP_VARIANT_TITLE_MAX) return clean;
+  const room = WHOP_VARIANT_TITLE_MAX - 1; // leave space for the ellipsis
+  const cut = clean.slice(0, room);
+  const lastSpace = cut.lastIndexOf(" ");
+  const base = lastSpace >= 12 ? cut.slice(0, lastSpace) : cut;
+  return `${base.trimEnd()}…`;
+}
+
 export type CardAvailability = "available" | "disabled" | "unconfirmed";
 
 /**
@@ -288,9 +307,7 @@ export async function createWhopCheckout(
       "Card checkout for several plans needs WHOP_PRODUCT_ID. Please check out each plan separately.",
     );
   }
-  const variantTitle = (
-    singleLine ? item.planName : "ESIMPROVE eSIM order"
-  ).slice(0, 80);
+  const variantTitle = whopVariantTitle(singleLine ? item.planName : "ESIMPROVE eSIM order");
   const decimals = currencyDecimals(input.currency);
   // Whop prices are decimal amounts in the variant currency (5.00 = $5.00).
   // Derived from integer minor units; never from browser input.
