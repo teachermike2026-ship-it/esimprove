@@ -10105,3 +10105,9 @@ details.dest-faq > :not(summary) {
   white-space: normal;
   overflow-wrap: anywhere;
 }
+/* Some admin pages use .table-wrapper; give it the same horizontal scroll as .table-wrap. */
+.table-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
