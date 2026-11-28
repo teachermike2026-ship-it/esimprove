@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { useI18n } from "@/components/i18n-provider";
-import { AlertIcon, LockIcon } from "@/components/icons";
+import { AlertIcon } from "@/components/icons";
 
 /**
  * Card details area shown when "Credit / Debit Card" is selected.
@@ -12,8 +12,7 @@ import { AlertIcon, LockIcon } from "@/components/icons";
  *  - `cardReady=false` (Whop not configured yet): the fields below are a
  *    disabled placeholder with no `name` attributes, so nothing can be typed
  *    or submitted, plus a "coming soon" notice.
- *  - `cardReady=true`: the customer is told they will enter their card on
- *    Whop's secure form after continuing. No card inputs are rendered here.
+ *  - `cardReady=true`: nothing is rendered; the embedded Whop form follows.
  *
  * This component makes no network call and never contacts Whop.
  */
@@ -25,16 +24,9 @@ export function CardDetailsFields({ cardReady }: { cardReady: boolean }) {
   const expiryId = useId();
   const cvcId = useId();
 
-  if (cardReady) {
-    return (
-      <section className="payment-detail-panel card-details-panel" aria-labelledby={headingId}>
-        <h3 id={headingId}>{t("checkout.cardFieldsTitle")}</h3>
-        <p className="form-note">
-          <LockIcon className="inline-icon" /> {t("checkout.cardFieldsHostedBody")}
-        </p>
-      </section>
-    );
-  }
+  // When card payments are available, nothing is shown here: the embedded
+  // Whop payment form appears in the next step.
+  if (cardReady) return null;
 
   return (
     <section
